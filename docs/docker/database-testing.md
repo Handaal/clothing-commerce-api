@@ -41,14 +41,17 @@ The implementation is in `scripts/test-persistence.mjs`, with the package comman
 3. Gives the container a fixed disposable database name and password, mounts PostgreSQL data as
    `tmpfs`, and publishes no host port.
 4. Polls `pg_isready` for up to approximately 60 seconds.
-5. Discovers all `.sql` files in `supabase/migrations/` and applies them in filename order through
+5. Creates non-login `anon`, `authenticated`, and `service_role` role fixtures so Supabase-targeted
+   policy declarations can be constructed in plain PostgreSQL. They are test-only role names, not
+   credentials or a simulation of JWT behavior.
+6. Discovers all `.sql` files in `supabase/migrations/` and applies them in filename order through
    `psql` with `ON_ERROR_STOP=1`.
-6. Runs `supabase/tests/phase_1c_a_foundational_persistence.sql`. Its fixtures and assertions are
+7. Runs `supabase/tests/phase_1c_a_foundational_persistence.sql`. Its fixtures and assertions are
    enclosed in a transaction that is rolled back.
-7. Drops and recreates the public schema.
-8. Repeats the complete migration and SQL test cycle from empty state.
-9. Force-removes the exact disposable container in a `finally` cleanup path, including after most
-   failures. A cleanup failure is reported and makes the process fail.
+8. Drops the private `commerce_context` schema, then drops and recreates the public schema.
+9. Repeats the complete migration and SQL test cycle from empty state.
+10. Force-removes the exact disposable container in a `finally` cleanup path, including after most
+    failures. A cleanup failure is reported and makes the process fail.
 
 The second cycle tests repeatable reconstruction, not SQL-file idempotency. Individual migrations
 are expected to run once in order against the state produced by their predecessors.
@@ -59,6 +62,10 @@ The repository CI workflow runs `pnpm test:persistence` on its GitHub-hosted Ubu
 unit/OpenAPI tests and before the build. This is the same runner and disposable-container lifecycle
 used locally: CI does not define a persistent PostgreSQL service, publish a database port, or use
 production or Supabase cloud credentials.
+
+CI then runs the separate mandatory `pnpm test:rls` layer against the official local Supabase
+environment. Keeping the steps distinct preserves fast portable diagnostics while also enforcing
+Supabase-role and policy behavior.
 
 Persistence is a mandatory pull-request check because migration ordering, PostgreSQL constraints,
 and cross-tenant rejection paths are not exercised by TypeScript or OpenAPI tests. A failing Docker
@@ -123,16 +130,17 @@ double-cycle reset, and unconditional cleanup as safety properties. If one chang
 tests and this guide in the same change. Never add production credentials or make a remote database
 the runner's implicit target.
 
-New migration tests belong in `supabase/tests/` and should use transaction rollback for fixtures.
-Keep failure messages specific enough to distinguish Docker startup, PostgreSQL readiness,
-migration application, and invariant assertion failures.
+New portable migration assertions belong in the Phase 1C-A test; Supabase role/RLS behavior belongs
+in the Phase 1C-B pgTAP test. Both use transaction rollback for fixtures. Keep failure messages
+specific enough to distinguish Docker startup, PostgreSQL readiness, migration application, and
+invariant assertion failures.
 
 ## Development and production differences
 
-This is a local integration-test harness, not a production database container and not a complete
-local Supabase stack. It validates portable PostgreSQL DDL and constraints. Phase 1C-B is expected
-to add Supabase-aware testing for RLS, authenticated request context, and policy behavior; that
-layer will complement rather than replace this test.
+This is a local integration-test harness, not a production database container or Supabase-role
+simulator. It validates portable PostgreSQL DDL and constraints. Phase 1C-B's implemented
+Supabase-aware RLS layer complements rather than replaces it; see
+[Local Supabase development](../development/supabase-local.md).
 
 Production is expected to use managed Supabase PostgreSQL and a separately containerized API. No
 production Dockerfile, Compose topology, database deployment command, backup process, or secret

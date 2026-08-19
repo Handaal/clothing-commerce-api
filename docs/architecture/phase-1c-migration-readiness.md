@@ -152,6 +152,7 @@ The implementation and reproducible constraint tests are documented in
 create no RLS policy, authentication integration, permission evaluator, seed catalog, or business
 domain table.
 
-Phase 1C-B remains responsible for the RLS threat model, enablement and deny-by-default policies,
-server-established tenant context, privileged-role boundaries, and cross-tenant policy tests. Phase
-1D remains responsible for authentication integration and permission/scope evaluation.
+Phase 1C-B subsequently implemented the RLS threat model, deny-by-default policies,
+identity-provider-neutral request context, privileged-role boundary, and cross-tenant policy tests.
+Phase 1D remains responsible for authentication integration and permission/scope evaluation. See
+[Tenant isolation and RLS](../security/tenant-rls.md) for the implemented decisions.

@@ -1,5 +1,8 @@
 # Phase 1C-A Foundational Persistence
 
+> Historical phase record: Phase 1C-B subsequently added the RLS/context migrations and security
+> tests documented in [Tenant isolation and RLS](../security/tenant-rls.md).
+
 ## Scope and authority
 
 Phase 1C-A creates the first append-only PostgreSQL schema for the approved organizational,
@@ -168,13 +171,14 @@ The tests prove:
 - one current Device per Register and one current Register per Device; and
 - ended Register/Device assignments remain as history and permit sequential reassignment.
 
-The test also confirms all 18 expected tables exist, RLS and policies are absent, and representative
-business tables are absent. Fixtures exist only inside a rolled-back test transaction. Production
-seed data remains empty.
+At Phase 1C-A completion, the test confirmed all 18 expected tables existed and RLS/policies were
+absent. Phase 1C-B updated the same portable suite to confirm all 18 tables now have RLS, exactly 17
+SELECT policies exist, no mutation policies exist, and RLS is not forced. Representative business
+tables remain absent. Fixtures exist only inside a rolled-back transaction.
 
 ## Explicit Phase 1C-B and later deferrals
 
-Not implemented:
+Deferred at the Phase 1C-A boundary:
 
 - PostgreSQL RLS enablement or policies;
 - server-established tenant/authorization database context;
@@ -186,3 +190,6 @@ Not implemented:
 - immutable audit-event tables;
 - products, variants, inventory quantities or ledger, orders, customers, suppliers, payments,
   vouchers, returns, reporting, storefronts, POS workflows, or mobile workflows.
+
+Phase 1C-B implemented the first two items only. All identity-provider, application authorization,
+tenant business-state, audit, and business-domain items remain deferred.

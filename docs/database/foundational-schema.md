@@ -11,7 +11,7 @@ questions:
 3. Which global person participates in which customer account?
 4. Which stored Role and AccessScope relationships can a future authorization service evaluate?
 
-The three files in `supabase/migrations/` are the authoritative implementation. This guide explains
+The five files in `supabase/migrations/` are the authoritative implementation. This guide explains
 their meaning; it is not a second schema definition. See the
 [Phase 1C-A architecture document](../architecture/phase-1c-a-foundational-persistence.md) for the
 design summary and [ADR-011](../decisions/ADR-011-foundational-postgresql-physical-design.md) for
@@ -55,8 +55,8 @@ platform-global; participation and grants become tenant-local through Membership
   it explicitly.
 - Referential actions use `ON DELETE RESTRICT`. Deleting a parent cannot cascade through meaningful
   history.
-- RLS is not enabled in Phase 1C-A. Composite ownership constraints are structural integrity, not a
-  substitute for Phase 1C-B policies or application authorization.
+- Phase 1C-B enables RLS on all 18 tables. Composite ownership constraints and RLS are complementary;
+  neither substitutes for Phase 1D application authorization.
 
 ## Organization and physical structure
 
@@ -342,14 +342,15 @@ overwrite authoritative stock.
 - Learn migration mechanics and safe change rules in [migrations.md](./migrations.md).
 - Run and troubleshoot the real database suite with
   [Docker database testing](../docker/database-testing.md).
+- Run and troubleshoot Supabase policy tests with
+  [Local Supabase development](../development/supabase-local.md).
 - Understand all test layers in [development testing](../development/testing.md).
 - Add schema changes only through a later timestamped migration plus matching SQL assertions and
   documentation.
-- Do not manually create production tables, rewrite an applied migration, add RLS before Phase
-  1C-B, or add business tables before their domain phase.
+- Do not manually create production tables, rewrite an applied migration, weaken RLS without an
+  adversarial test/review, or add business tables before their domain phase.
 
-There are no Phase 1C-A database environment variables. Local integration tests use constants
-inside `scripts/test-persistence.mjs`; production database configuration and migration execution
-are not implemented. For security direction and known limitations, see the
-[tenant isolation strategy](../architecture/tenant-isolation-strategy.md) and the
-[Phase 1C-A deferrals](../architecture/phase-1c-a-foundational-persistence.md#explicit-phase-1c-b-and-later-deferrals).
+The local database test paths require no environment variables or production credentials;
+production database configuration and migration execution are not implemented. For security
+behavior and limitations, see [Tenant isolation and RLS](../security/tenant-rls.md) and the
+[tenant isolation strategy](../architecture/tenant-isolation-strategy.md).

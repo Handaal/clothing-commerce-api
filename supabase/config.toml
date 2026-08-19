@@ -1,0 +1,10 @@
+# Repository-local Supabase CLI configuration for Phase 1C-B security testing.
+# No remote project reference or cloud credential belongs in this file.
+project_id = "clothing-commerce-api"
+
+[db]
+port = 54322
+major_version = 17
+
+[db.seed]
+enabled = false

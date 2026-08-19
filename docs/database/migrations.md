@@ -8,8 +8,8 @@ environments. Do not create schema objects manually and then leave their definit
 history.
 
 This guide describes the repository's migration workflow. The current implementation applies
-migrations only to a disposable local PostgreSQL test container; a production migration or
-deployment command has not been introduced.
+migrations to disposable plain-PostgreSQL and local-Supabase test environments; a staging or
+production migration/deployment command has not been introduced.
 
 ## Naming and ordering
 
@@ -18,7 +18,7 @@ concise snake-case description. The persistence runner discovers every `.sql` fi
 `supabase/migrations/` and sorts filenames lexicographically, so the timestamp prefix is also the
 execution order.
 
-Phase 1C-A currently has three ordered migrations:
+The foundational Phase 1C-A/1C-B history currently has five ordered migrations:
 
 1. `20260819161500_create_foundational_organization.sql` creates organizational and physical
    location persistence.
@@ -26,6 +26,11 @@ Phase 1C-A currently has three ordered migrations:
    permission, and scope persistence.
 3. `20260819161700_create_foundational_devices.sql` creates Device and Register assignment
    persistence.
+4. `20260819173000_create_rls_request_context.sql` creates identity-provider-neutral request-claim
+   and active-Membership helpers in the private `commerce_context` schema.
+5. `20260819173100_enable_foundational_tenant_rls.sql` enables RLS across all 18 tables, creates the
+   reviewed SELECT policies, denies normal authenticated writes, and grants the explicit
+   server-only service-role path.
 
 The dependency order is intentional. A later migration may depend on an earlier one; an earlier
 migration must never depend on an object introduced later.
@@ -54,8 +59,10 @@ database, reproduce it in a migration and recreate the database before relying o
 - Do indexes support known access paths without speculating about future queries?
 - Could the change lock, rewrite, truncate, or silently reinterpret existing data?
 - Is a destructive change replaced by an expand-and-contract sequence where practical?
-- Are RLS, authentication, authorization, and business-domain changes kept out unless explicitly
-  approved for the phase?
+- Are RLS, authentication, authorization, and business-domain changes kept within the explicitly
+  approved phase boundary?
+- For RLS changes, were every table and operation, role grants, helper privileges, fixed
+  `search_path`, recursion risk, bypass role, and negative attack path reviewed?
 - Do tests prove both valid behavior and important rejection paths?
 - Do architecture, operations, and troubleshooting documentation remain accurate?
 
@@ -88,13 +95,16 @@ From the repository root:
 
 ```powershell
 pnpm test:persistence
+pnpm test:rls
 ```
 
-The command starts disposable PostgreSQL 17.6, applies every migration in order, runs the SQL
-invariant suite, rebuilds the empty public schema, and repeats the complete cycle. No `.env` file,
-Supabase project, production credential, or host database port is used. See
+The first command starts disposable PostgreSQL 17.6, applies every migration in order, runs the SQL
+invariant suite, rebuilds the empty public and private context schemas, and repeats the complete
+cycle. The second uses the official local Supabase database roles, resets from migrations, runs the
+pgTAP RLS suite, and removes its local project data. Neither needs an `.env` file, linked cloud
+project, or production credential. See
 [Docker database testing](../docker/database-testing.md) for the exact lifecycle and failure
-diagnostics.
+diagnostics and [Local Supabase development](../development/supabase-local.md) for the RLS path.
 
 There is currently no repository command for applying migrations to staging or production. Do not
 point the local runner at a persistent or remote database.
@@ -108,16 +118,18 @@ point the local runner at a persistent or remote database.
 - A second-cycle failure indicates the full history cannot recreate cleanly after schema reset.
 - A SQL assertion failure means the database accepted or rejected a state differently from the
   documented invariant.
+- An RLS assertion failure should be investigated under the named database role and request claims;
+  do not weaken a policy merely to make a positive path pass.
 - Docker startup, image pull, readiness, and cleanup failures are covered in the Docker testing
   guide.
 
 ## Security and current limitations
 
-Phase 1C-A constraints defend structural tenant ownership, but RLS is intentionally absent. Future
-Phase 1C-B work must add deny-by-default policies and server-established request context before
-tenant data is exposed through application paths. The current test database uses disposable local
-credentials only; server secrets must never be embedded in migrations, tests, SDK artifacts, or
-client-visible code.
+Phase 1C-A constraints defend structural tenant ownership and Phase 1C-B now supplies the tested
+deny-by-default RLS backstop. The context claims must be established by a trusted server/JWT path;
+Phase 1D still owns identity-provider integration and application permission/AccessScope
+authorization. Local test credentials are disposable; server secrets must never be embedded in
+migrations, tests, SDK artifacts, or client-visible code.
 
 For schema concepts, see [Foundational schema](foundational-schema.md). For the physical design
 decision, see

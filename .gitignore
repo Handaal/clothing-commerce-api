@@ -12,3 +12,5 @@ artifacts/
 Thumbs.db
 .idea/
 .vscode/
+supabase/.branches/
+supabase/.temp/
