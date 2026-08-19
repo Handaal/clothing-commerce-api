@@ -154,5 +154,6 @@ domain table.
 
 Phase 1C-B subsequently implemented the RLS threat model, deny-by-default policies,
 identity-provider-neutral request context, privileged-role boundary, and cross-tenant policy tests.
-Phase 1D remains responsible for authentication integration and permission/scope evaluation. See
-[Tenant isolation and RLS](../security/tenant-rls.md) for the implemented decisions.
+Phase 1D subsequently implemented authentication integration and permission/scope evaluation
+without changing these migrations. See [Tenant isolation and RLS](../security/tenant-rls.md) and
+[Identity and application authorization](../security/identity-and-authorization.md).

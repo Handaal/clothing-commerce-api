@@ -9,7 +9,7 @@ questions:
 1. Which customer owns a record?
 2. Which physical/business location does a record describe?
 3. Which global person participates in which customer account?
-4. Which stored Role and AccessScope relationships can a future authorization service evaluate?
+4. Which stored Role and AccessScope relationships does the Phase 1D authorization service evaluate?
 
 The five files in `supabase/migrations/` are the authoritative implementation. This guide explains
 their meaning; it is not a second schema definition. See the
@@ -209,12 +209,12 @@ per person/Tenant while the same person may join another Tenant.
 **Lifecycle:** `invited`, `active`, `suspended`, or `deactivated`, with invitation/activation and
 state timestamps.
 
-**Not represented yet:** invitation delivery, acceptance, authentication, authorization
-evaluation, or tenant suspension enforcement.
+**Not represented in this table:** invitation delivery, acceptance, authentication, authorization
+evaluation, or Tenant suspension enforcement. Phase 1D services perform the latter checks.
 
 ## Stored authorization relationships
 
-These tables store inputs for a future authorization service; they do not authorize requests by
+These tables store inputs for the Phase 1D authorization service; they do not authorize requests by
 themselves.
 
 ### Role — `roles`
@@ -222,7 +222,7 @@ themselves.
 **Purpose and ownership:** A tenant-owned named grouping of Permissions.
 
 **Relationships and constraints:** Role name is normalized and unique within its Tenant. The
-protected flag is a persistence placeholder for future governance. RolePermission and
+protected flag drives the Phase 1D fail-closed mutation guard. RolePermission and
 MembershipRoleAssignment use tenant-safe references.
 
 **Lifecycle:** `active` or `archived` with archive metadata.
@@ -294,7 +294,8 @@ Membership/Role/Scope combination while ended rows remain as history.
 
 **Lifecycle:** `assigned_at` to optional `unassigned_at`, with optional reasons.
 
-**Not represented yet:** evaluation, request middleware, actor audit events, or governance rules.
+**Not represented in this table:** evaluation, request middleware, or actor audit events. Phase 1D
+services evaluate the relationship and apply the protected-role governance foundation.
 
 Role, Permission, and AccessScope remain separate because they answer different questions: Role
 groups capabilities, Permission says what may be done, and AccessScope limits where it applies.

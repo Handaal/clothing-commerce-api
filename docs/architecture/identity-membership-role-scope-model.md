@@ -80,12 +80,10 @@ An access scope may be:
 - the entire tenant; or
 - an allowlist containing selected Brands, Branches, Warehouses, and/or InventoryLocations.
 
-Tenant-wide scope is exclusive: it is not mixed with narrower targets. Narrow targets form a union
-of authorized roots within their own semantics. A Branch target covers branch-context operations
-and its Registers/InventoryLocations; a Warehouse target covers warehouse-context operations and
-its InventoryLocations; an InventoryLocation target is narrower; a Brand target covers
-brand-owned/brand-attributed resources but does not grant access to every facility carrying that
-brand.
+Tenant-wide scope is exclusive: it is not mixed with narrower targets. Phase 1D adopts conservative
+exact-target semantics: Branch and Warehouse targets do not implicitly cover child
+InventoryLocations, and Brand targets do not grant facility access. Callers list every protected
+resource. This replaces the earlier recommendation to infer facility descendants.
 
 For an operation spanning resources, such as a future transfer, the member needs the permission and
 scope coverage for every protected resource (for example both origin and destination). Scope never
@@ -108,16 +106,16 @@ Authorization requires all of the following:
 4. AccessScope coverage for every protected resource involved.
 
 Deny is the default for missing, ambiguous, cross-tenant, archived, suspended, or unrecognized
-state. Authorization evaluation and middleware are not implemented in this phase.
+state. Phase 1D implements this evaluation in internal authorization services. No public protected
+route or role-management workflow exists yet.
 
 ## Decisions and deferrals
 
-- **HIGH — REQUIRES FOUNDER DECISION:** Before staff administration ships, define which protected
-  default roles can be edited and who may grant high-risk permissions such as staff management,
-  refunds, or inventory adjustment. This is not a Phase 1C schema blocker.
-- **MEDIUM — REQUIRES FOUNDER DECISION:** Before authorization implementation, approve whether Brand
-  scope should constrain mixed brand-and-location operations by intersection rather than the
-  explicit-resource coverage semantics above. Keep scope targets normalized so the policy can be
-  refined without changing identity ownership.
+- **IMPLEMENTED FOUNDATION:** `roles.is_protected` blocks runtime
+  rename/archive/delete/Permission changes. No tenant service bypass exists. High-risk Permission
+  classification and delegation still require founder approval before staff administration ships.
+- **IMPLEMENTED FOUNDATION:** Brand and physical-location targets are orthogonal. An operation that
+  supplies both must receive Permission-coupled coverage for both; no intersection or hierarchy is
+  inferred beyond the listed resources.
 - **LOW — DEFERRED:** Full permission catalog, invitation workflow, provider-account linking, and
   emergency support access.

@@ -1,7 +1,8 @@
 # Clothing Commerce API
 
-Central HTTP API, transport-contract, and SDK foundation for the Clothing Commerce Platform. In
-Phase 1A-R it exposes only `GET /api/v1/health`; it deliberately has no commerce functionality.
+Central HTTP API, transport-contract, SDK, persistence, and staff-authorization foundation for the
+Clothing Commerce Platform. It exposes only `GET /api/v1/health`; Phase 1D adds internal identity
+and authorization services without adding commerce functionality or a public auth endpoint.
 
 ## Boundaries and ownership
 
@@ -16,9 +17,10 @@ application exists only to host Route Handlers; no visual frontend is included.
 
 ## Technology
 
-TypeScript, Next.js Route Handlers, Zod, standard `fetch`, tsup, Vitest, ESLint, Prettier, pnpm,
-PostgreSQL, and the repository-pinned Supabase CLI. Foundational persistence and RLS use append-only
-PostgreSQL migrations under `supabase/migrations`.
+TypeScript, Next.js Route Handlers, Zod, Clerk's backend SDK, Supabase JavaScript, standard `fetch`,
+tsup, Vitest, ESLint, Prettier, pnpm, PostgreSQL, and the repository-pinned Supabase CLI.
+Foundational persistence and RLS use append-only PostgreSQL migrations under
+`supabase/migrations`.
 
 ## Install and develop
 
@@ -34,9 +36,10 @@ The API listens at `http://localhost:3000` by default. Verify
 
 ## Environment
 
-Copy `.env.example` only when future server configuration is needed. Every listed placeholder is
-server-only. Local persistence and Supabase/RLS tests require Docker but no `.env` file, Supabase
-login, linked cloud project, or production credentials.
+Copy `.env.example` when composing the real Clerk/Supabase staff-authorization boundary. Clerk
+origins and all server credentials are validated at composition; secrets must never use a public
+environment prefix. Unit, authorization, persistence, and RLS tests require no Clerk or production
+credentials. See [Local authentication](docs/development/authentication-local.md).
 
 ## Quality and build
 
@@ -45,6 +48,8 @@ pnpm format:check
 pnpm lint
 pnpm typecheck
 pnpm test
+pnpm test:authorization
+pnpm test:authorization:integration
 pnpm test:persistence
 pnpm test:rls
 pnpm build
@@ -59,6 +64,13 @@ container. It uses no production Supabase credentials.
 `anon`, and `service_role` database roles. It resets from migrations, runs 87 pgTAP policy
 assertions, and removes its disposable project data. See
 [Local Supabase development](docs/development/supabase-local.md).
+
+`test:authorization` runs the deterministic staff identity and application-authorization suite.
+It verifies provider mapping, lifecycle, Permission/AccessScope coupling, resource ownership,
+protected Roles, and the privileged-operation gate without live Clerk or Supabase credentials.
+
+`test:authorization:integration` resets a disposable local Supabase API stack and exercises the
+real privileged authorization repository. It requires Docker but no cloud credentials.
 
 `sdk:pack` creates `artifacts/shifted-clothing-commerce-sdk-0.1.0.tgz`. During registry bootstrap,
 that exact tarball is copied into each client repository's `vendor/` directory and locked by pnpm.
@@ -77,24 +89,25 @@ mobile releases remain independent.
 
 Use this README as the map; detailed design and operational guidance live under `docs/`.
 
-| Topic                    | Start here                                                                                                                                                        | Covers                                                                               |
-| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| System architecture      | [System context](docs/platform/system-context.md), [repository boundaries](docs/platform/repository-boundaries.md)                                                | Service ownership, polyrepo boundaries, and client/API relationships                 |
-| Phase 1C-A architecture  | [Foundational persistence architecture](docs/architecture/phase-1c-a-foundational-persistence.md), [domain diagram](docs/architecture/phase-1b-domain-diagram.md) | Design decisions, ownership, invariants, and Phase 1C-B deferrals                    |
-| Architecture decisions   | [Decision records](docs/decisions/)                                                                                                                               | Accepted/proposed ADRs, including database ownership and physical schema choices     |
-| API and contracts        | [API versioning](docs/platform/api-versioning.md), [SDK contract strategy](docs/platform/sdk-contract-strategy.md)                                                | `/api/v1` compatibility, Zod/OpenAPI ownership, and SDK generation                   |
-| Foundational database    | [Foundational schema guide](docs/database/foundational-schema.md)                                                                                                 | Plain-language table meanings, relationships, constraints, and limitations           |
-| Migrations               | [Migration guide](docs/database/migrations.md)                                                                                                                    | Authoritative history, adding/reviewing/testing migrations, and rollback philosophy  |
-| Docker                   | [Docker strategy](docs/docker/strategy.md), [database testing](docs/docker/database-testing.md), [local Supabase](docs/development/supabase-local.md)             | Fast PostgreSQL tests, Supabase RLS tests, CI, and production direction              |
-| Testing                  | [Development testing guide](docs/development/testing.md)                                                                                                          | Unit, contract drift, persistence, RLS, build, and SDK-package validation layers     |
-| Development and releases | [SDK release guide](docs/development/sdk-release.md)                                                                                                              | Local commands and the current vendored SDK release workflow                         |
-| Tenant security and RLS  | [Tenant RLS](docs/security/tenant-rls.md), [tenant isolation strategy](docs/architecture/tenant-isolation-strategy.md)                                            | Implemented database backstop, threat model, policy matrix, and Phase 1D boundary    |
-| Future deployment        | [Deployment boundaries](docs/platform/deployment-boundaries.md), [Docker strategy](docs/docker/strategy.md#intended-production-boundary)                          | Intended Hostinger KVM/Docker Compose direction; no deployment exists yet            |
-| Troubleshooting          | [Database-test troubleshooting](docs/docker/database-testing.md#troubleshooting), [testing troubleshooting](docs/development/testing.md#troubleshooting-by-layer) | How to isolate Docker, PostgreSQL, migration, SQL-test, build, and contract failures |
+| Topic                      | Start here                                                                                                                                                        | Covers                                                                               |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| System architecture        | [System context](docs/platform/system-context.md), [repository boundaries](docs/platform/repository-boundaries.md)                                                | Service ownership, polyrepo boundaries, and client/API relationships                 |
+| Phase 1C-A architecture    | [Foundational persistence architecture](docs/architecture/phase-1c-a-foundational-persistence.md), [domain diagram](docs/architecture/phase-1b-domain-diagram.md) | Design decisions, ownership, invariants, and Phase 1C-B deferrals                    |
+| Architecture decisions     | [Decision records](docs/decisions/)                                                                                                                               | Accepted/proposed ADRs, including database ownership and physical schema choices     |
+| API and contracts          | [API versioning](docs/platform/api-versioning.md), [SDK contract strategy](docs/platform/sdk-contract-strategy.md)                                                | `/api/v1` compatibility, Zod/OpenAPI ownership, and SDK generation                   |
+| Foundational database      | [Foundational schema guide](docs/database/foundational-schema.md)                                                                                                 | Plain-language table meanings, relationships, constraints, and limitations           |
+| Migrations                 | [Migration guide](docs/database/migrations.md)                                                                                                                    | Authoritative history, adding/reviewing/testing migrations, and rollback philosophy  |
+| Docker                     | [Docker strategy](docs/docker/strategy.md), [database testing](docs/docker/database-testing.md), [local Supabase](docs/development/supabase-local.md)             | Fast PostgreSQL tests, Supabase RLS tests, CI, and production direction              |
+| Testing                    | [Development testing guide](docs/development/testing.md)                                                                                                          | Unit, authorization, contract drift, persistence, RLS, build, and SDK validation     |
+| Development and releases   | [SDK release guide](docs/development/sdk-release.md)                                                                                                              | Local commands and the current vendored SDK release workflow                         |
+| Identity and authorization | [Identity and authorization](docs/security/identity-and-authorization.md), [local authentication](docs/development/authentication-local.md)                       | Clerk trust boundary, internal identity, Permission/scope evaluation, and operations |
+| Tenant security and RLS    | [Tenant RLS](docs/security/tenant-rls.md), [tenant isolation strategy](docs/architecture/tenant-isolation-strategy.md)                                            | Implemented application authorization plus database backstop and threat model        |
+| Future deployment          | [Deployment boundaries](docs/platform/deployment-boundaries.md), [Docker strategy](docs/docker/strategy.md#intended-production-boundary)                          | Intended Hostinger KVM/Docker Compose direction; no deployment exists yet            |
+| Troubleshooting            | [Database-test troubleshooting](docs/docker/database-testing.md#troubleshooting), [testing troubleshooting](docs/development/testing.md#troubleshooting-by-layer) | How to isolate Docker, PostgreSQL, migration, SQL-test, build, and contract failures |
 
 ## Current implementation boundary
 
-Phase 1C-B adds a deny-by-default RLS backstop and local Supabase security tests to the Phase 1C-A
-foundational schema. It does not add Clerk, identity-provider integration, application permission
-or AccessScope evaluation, commerce business schemas, business API endpoints, production Docker
-images/Compose files, or deployment.
+Phase 1D adds Clerk as the initial staff identity verifier and provider-neutral, current-state
+application authorization above the Phase 1C-B RLS backstop. It adds no public auth/business
+endpoint, schema migration, Permission seed, customer authentication, commerce business schema,
+offline POS authorization, production Docker image/Compose file, or deployment.
