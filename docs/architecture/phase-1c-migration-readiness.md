@@ -143,3 +143,15 @@ guessing a business rule in the foundational ownership model.
 There are no unresolved BLOCKER items. Phase 1C may design and review foundational persistence and
 RLS, but must not expand into products, inventory quantities, orders, authentication, endpoints, or
 client features.
+
+## Phase 1C-A implementation status
+
+Phase 1C-A translates the approved foundational ownership model into three append-only migrations.
+The implementation and reproducible constraint tests are documented in
+[phase-1c-a-foundational-persistence.md](./phase-1c-a-foundational-persistence.md). The migrations
+create no RLS policy, authentication integration, permission evaluator, seed catalog, or business
+domain table.
+
+Phase 1C-B remains responsible for the RLS threat model, enablement and deny-by-default policies,
+server-established tenant context, privileged-role boundaries, and cross-tenant policy tests. Phase
+1D remains responsible for authentication integration and permission/scope evaluation.
