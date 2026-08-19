@@ -19,6 +19,7 @@
     "sdk:pack": "pnpm sdk:build && pnpm --filter @shifted/clothing-commerce-sdk pack --pack-destination ./artifacts",
     "start": "next start",
     "test": "vitest run",
+    "test:persistence": "node scripts/test-persistence.mjs",
     "typecheck": "tsc --noEmit && pnpm --filter @shifted/clothing-commerce-sdk typecheck"
   },
   "dependencies": {
