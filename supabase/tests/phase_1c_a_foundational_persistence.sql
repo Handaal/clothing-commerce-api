@@ -73,20 +73,35 @@ select pg_temp.assert_true(
 );
 
 select pg_temp.assert_true(
-  not exists (
-    select 1
+  (
+    select count(*) = 18
     from pg_catalog.pg_class as relation
     join pg_catalog.pg_namespace as namespace on namespace.oid = relation.relnamespace
     where namespace.nspname = 'public'
       and relation.relkind = 'r'
       and relation.relrowsecurity
   )
+  and (
+    select count(*) = 17
+    from pg_catalog.pg_policies
+    where schemaname = 'public'
+      and cmd = 'SELECT'
+  )
   and not exists (
     select 1
     from pg_catalog.pg_policies
     where schemaname = 'public'
+      and cmd <> 'SELECT'
+  )
+  and not exists (
+    select 1
+    from pg_catalog.pg_class as relation
+    join pg_catalog.pg_namespace as namespace on namespace.oid = relation.relnamespace
+    where namespace.nspname = 'public'
+      and relation.relkind = 'r'
+      and relation.relforcerowsecurity
   ),
-  'RLS and policies remain deferred'
+  'all foundational tables use RLS and only approved SELECT policies exist'
 );
 
 select pg_temp.assert_true(

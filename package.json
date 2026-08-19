@@ -18,8 +18,13 @@
     "sdk:build": "pnpm --filter @shifted/clothing-commerce-sdk build",
     "sdk:pack": "pnpm sdk:build && pnpm --filter @shifted/clothing-commerce-sdk pack --pack-destination ./artifacts",
     "start": "next start",
+    "supabase:reset": "supabase db reset --local --no-seed",
+    "supabase:start": "supabase start --exclude gotrue,realtime,storage-api,imgproxy,kong,mailpit,postgrest,postgres-meta,studio,edge-runtime,logflare,vector,supavisor",
+    "supabase:status": "supabase status",
+    "supabase:stop": "supabase stop --no-backup",
     "test": "vitest run",
     "test:persistence": "node scripts/test-persistence.mjs",
+    "test:rls": "node scripts/test-rls.mjs",
     "typecheck": "tsc --noEmit && pnpm --filter @shifted/clothing-commerce-sdk typecheck"
   },
   "dependencies": {
@@ -35,6 +40,7 @@
     "eslint": "9.39.1",
     "eslint-config-next": "16.3.0",
     "prettier": "3.9.6",
+    "supabase": "2.115.0",
     "tsx": "4.21.0",
     "typescript": "6.0.3",
     "vitest": "4.1.10"

@@ -2,12 +2,13 @@
 
 ## Security posture
 
-**CONFIRMED:** Tenant isolation is defense in depth. The future system will enforce tenant context
-in server-side authorization and filtering, with PostgreSQL row-level security (RLS) as a
-deny-by-default backstop where appropriate. Neither layer is optional merely because the other
-exists.
+**CONFIRMED:** Tenant isolation is defense in depth. Phase 1C-B implements PostgreSQL row-level
+security (RLS) as a deny-by-default database backstop. Phase 1D will add server-side identity and
+application authorization/filtering. Neither layer is optional merely because the other exists.
 
-This document is conceptual. It creates no policy, SQL, authentication, or middleware.
+This document remains the architecture-level strategy. The implemented threat model, exact context
+claims, table matrix, and policy limitations are in
+[Tenant isolation and row-level security](../security/tenant-rls.md).
 
 ## Request and application boundary
 
@@ -48,19 +49,19 @@ tenant matches.
 
 ## Database backstop
 
-**RECOMMENDED:** Future tenant tables enable RLS and default to no access. Policies derive allowed
-tenant identifiers from a server-established database context or narrowly privileged server role;
-they never trust a freely client-set session value. The API remains the only client-facing data
-boundary and must not distribute privileged database credentials.
+**IMPLEMENTED FOR THE FOUNDATION:** All 18 foundational tables enable RLS and default to no access
+for ordinary roles. Policies derive the selected Tenant and provider-neutral UserIdentity from
+server-signed request claims, then require the active Membership for that exact pair. Claims are
+selectors rather than authority, and the API remains the only intended client-facing data boundary.
 
 Service/maintenance roles that bypass RLS are exceptional, separated, logged, least-privileged, and
 never used by clients. Background jobs carry an explicit tenant context per unit of work and avoid
 unbounded cross-tenant mutation. Platform support access requires a separately approved,
 time-bounded, audited mechanism.
 
-Whether every global or platform-maintained table uses RLS is **DEFERRED** to migration threat
-modeling. Every tenant-owned table uses RLS unless a documented ADR demonstrates a stronger reason
-not to.
+Global tables also enable RLS: UserIdentity is self-only, provider bindings are denied, and the
+Permission catalog is read-only for an active member. Ordinary authenticated writes are denied.
+AccessScope evaluation and business permission decisions remain Phase 1D responsibilities.
 
 ## Conceptual integrity and indexes
 
@@ -81,7 +82,7 @@ code after archival is prohibited for business codes.
 
 ## Failure and test expectations
 
-Phase 1C designs migration-level tests for:
+Phase 1C-B migration-level tests now cover:
 
 - no tenant context and invalid tenant context;
 - attempts to read, insert, update, or relate records across tenants;
@@ -91,6 +92,9 @@ Phase 1C designs migration-level tests for:
 - background/service access boundaries; and
 - tenant-safe uniqueness and composite references.
 
-Future application tests must prove isolation at service and HTTP boundaries as well as at the
-database backstop. Observability may record internal tenant identifiers for operators but must not
-expose other tenants' identifiers or sensitive details to requesters.
+The implemented database suite also covers explicit multi-Tenant switching, invalid/malformed
+claims, ordinary write denial, association leakage, global-table exposure, and the Supabase
+service-role bypass boundary. Future application tests must prove isolation at service and HTTP
+boundaries as well as at the database backstop. Observability may record internal tenant
+identifiers for operators but must not expose other tenants' identifiers or sensitive details to
+requesters.

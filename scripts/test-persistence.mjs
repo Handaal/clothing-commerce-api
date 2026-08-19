@@ -80,6 +80,17 @@ function runInvariantTests(cycle) {
   runPsql(readFileSync(testFile, "utf8"), `[cycle ${cycle}] persistence invariants`);
 }
 
+function createSupabaseRoleFixtures() {
+  runPsql(
+    [
+      "create role anon nologin noinherit;",
+      "create role authenticated nologin noinherit;",
+      "create role service_role nologin noinherit bypassrls;",
+    ].join("\n"),
+    "[setup] created local Supabase role fixtures",
+  );
+}
+
 function waitForPostgres() {
   for (let attempt = 1; attempt <= 60; attempt += 1) {
     const result = runDocker(
@@ -121,18 +132,19 @@ try {
   process.stdout.write(`Started PostgreSQL container ${start.stdout.trim()}\n`);
 
   waitForPostgres();
+  createSupabaseRoleFixtures();
   applyMigrations(1);
   runInvariantTests(1);
 
   runPsql(
-    "drop schema public cascade; create schema public;",
-    "[reset] recreated empty public schema",
+    "drop schema if exists commerce_context cascade; drop schema public cascade; create schema public;",
+    "[reset] removed commerce context and recreated empty public schema",
   );
 
   applyMigrations(2);
   runInvariantTests(2);
   process.stdout.write(
-    "Phase 1C-A migrations and persistence tests passed twice from an empty schema.\n",
+    "Complete migrations and Phase 1C-A persistence tests passed twice from an empty schema.\n",
   );
 } finally {
   if (containerStarted) {
