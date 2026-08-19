@@ -7,13 +7,14 @@ schema. RLS behaves like a mandatory row predicate for non-bypass database roles
 see or affect rows accepted by a policy. The platform deliberately retains two layers:
 
 ```text
-Application authorization (Phase 1D)
+Application authorization (implemented in Phase 1D)
                 +
 PostgreSQL tenant RLS (Phase 1C-B)
 ```
 
 RLS does not decide business permissions, invitation workflows, protected-role governance, or
-AccessScope coverage. Those decisions require application services and remain Phase 1D work.
+AccessScope coverage. Phase 1D application services enforce the implemented staff foundation;
+workflow-specific business decisions remain later work.
 
 The implementation is owned by the append-only Phase 1C-B migrations in
 `supabase/migrations/`. Security integration tests live in
@@ -35,12 +36,13 @@ between valid Tenant contexts without combining their data.
 The database verifies that the Tenant selector is a UUID, the UserIdentity selector is a UUID, and
 the exact pair has an active Membership. **It does not independently prove that the claimed
 `user_identity_id` belongs to the external identity-provider subject who authenticated.** That
-identity-provenance guarantee is a mandatory Phase 1D responsibility at the trusted
-authentication/application boundary.
+identity-provenance guarantee is supplied by the Phase 1D trusted authentication/application
+boundary.
 
-Phase 1D must verify the external provider subject, map that subject server-side through the
-provider binding to the internal UserIdentity, validate the selected Tenant, and only then issue or
-set the trusted claims. Never populate these top-level claims from user-editable identity metadata.
+Phase 1D verifies the external provider subject, maps that subject server-side through the provider
+binding to the internal UserIdentity, and validates the selected Tenant. Any future claim issuance
+must occur only after this boundary. Never populate these top-level claims from user-editable
+identity metadata.
 Never treat client headers, URL values, request bodies, or other client-provided UserIdentity/Tenant
 values as authority. Signed claims must come from an approved trusted issuer. Local tests simulate
 the PostgREST request setting directly; this is test infrastructure, not a client-controlled
@@ -55,7 +57,7 @@ authenticated request.
 
 | Threat                                             | Phase 1C-B treatment                                                                                     | Remaining responsibility                                     |
 | -------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
-| Claimed UserIdentity differs from provider subject | Database requires a trusted signed UUID claim but cannot prove its external provenance                   | Phase 1D must map the verified provider subject server-side  |
+| Claimed UserIdentity differs from provider subject | Database requires a trusted signed UUID claim but cannot prove its external provenance                   | Phase 1D maps the verified provider subject server-side      |
 | Tenant A reads Tenant B rows                       | Tenant-owned SELECT policies require exact validated Tenant context                                      | Application queries must still carry explicit tenant context |
 | Tenant A inserts a Tenant B ID                     | Authenticated users have no direct mutation grants or mutation policies                                  | Phase 1D services authorize privileged writes                |
 | Updating a row into another Tenant                 | No authenticated UPDATE policy; composite FKs remain a second barrier                                    | Service code validates every referenced resource             |
@@ -74,9 +76,9 @@ authenticated request.
 | Policy recursion                                   | Membership policy uses claims directly; helper lookup traverses that non-recursive policy                | Tests guard helper behavior and all policy presence          |
 | Unsafe joins                                       | RLS applies to each directly queried table; tenant-safe composite FKs prevent cross-tenant relationships | Query authors must not use bypass roles casually             |
 
-Tenant operational suspension behavior, global UserIdentity lifecycle enforcement, token issuance,
-token refresh/revocation, and public storefront behavior remain Phase 1D or later concerns. Active
-Membership is the Phase 1C-B eligibility rule.
+Tenant operational suspension and global UserIdentity lifecycle are enforced by Phase 1D
+application authorization. Token issuance/refresh and public storefront behavior remain later
+concerns. Active Membership is the Phase 1C-B eligibility rule.
 
 ## Context helper functions
 
@@ -126,8 +128,8 @@ path; `FORCE ROW LEVEL SECURITY` would not constrain roles with `BYPASSRLS` in a
 | `register_device_assignments`     | Current Tenant                               | Denied | Denied | Denied | Assignment history remains tenant-bound   |
 
 Authenticated mutation denial is intentional. Platform clients are designed to call the central
-Commerce API, and Phase 1D has not yet implemented the services that authorize lifecycle or
-administrative changes. RLS must not accidentally turn direct Data API access into an unreviewed
+Commerce API. Phase 1D adds the authorization foundation but no lifecycle or administrative write
+service. RLS must not accidentally turn direct Data API access into an unreviewed
 write API.
 
 ## Global-table decisions
@@ -144,7 +146,8 @@ entries.
 
 ## AccessScope decision
 
-**AccessScope enforcement is deferred to Phase 1D.** Phase 1C-B protects the outer Tenant boundary
+**AccessScope enforcement is an application responsibility implemented in Phase 1D.** Phase 1C-B
+protects the outer Tenant boundary
 and narrows personal identity/assignment tables, but it does not infer branch, warehouse, brand, or
 InventoryLocation authorization. Full scope enforcement requires Permission evaluation and the
 approved operation-specific resource semantics. Implementing only part of that evaluator in RLS
@@ -152,8 +155,8 @@ would create ambiguous or recursive policy behavior.
 
 Consequently, any active member currently receives the table-specific tenant-contained
 foundational configuration reads shown above, even when a future AccessScope would be narrower.
-Phase 1D must enforce the approved tenant, brand, branch, warehouse, and InventoryLocation scope for
-each operation before privileged data access.
+Phase 1D enforces exact Tenant, Brand, Branch, Warehouse, and InventoryLocation scope for each
+operation before privileged business data access.
 
 ## Service-role and owner behavior
 
@@ -189,29 +192,32 @@ policy tests as Supabase roles, and removes its disposable local data. Operation
 troubleshooting are documented in
 [Supabase local development](../development/supabase-local.md).
 
-## Known limitations and Phase 1D responsibilities
+## Phase 1D closure and remaining limitations
 
-Phase 1C-B does not issue JWTs, integrate an identity provider, enforce UserIdentity or Tenant
-suspension business behavior, evaluate Permissions or AccessScopes, implement invitations, audit
-privileged operations, or authorize background/offline clients. There is still no business schema
-or public data API in this phase.
+Phase 1C-B itself does not perform application authorization. Phase 1D now verifies Clerk staff
+sessions, maps provider bindings, enforces UserIdentity/Membership/Tenant lifecycle, evaluates
+Permission and assignment-coupled exact AccessScope, validates resource Tenant ownership, and gates
+privileged operation callbacks. There is still no business schema or protected public data API.
 
-Phase 1D has these explicit security gates:
+The Phase 1D foundation closes the former security gates as follows:
 
-1. **Identity provenance:** bind the verified external provider subject to the internal
-   UserIdentity; never accept the internal identity claim from the client.
-2. **Tenant selection:** issue Tenant context only after proving the UserIdentity has a valid active
-   Membership for that exact Tenant.
-3. **Permission authorization:** enforce operation-level Permission checks in application services.
-4. **AccessScope:** enforce the approved tenant, brand, branch, warehouse, and InventoryLocation
-   authorization semantics.
-5. **Tenant suspension:** define and enforce request behavior for a suspended Tenant.
-6. **UserIdentity lifecycle:** define and enforce global suspension/revocation behavior.
-7. **Device revocation:** define the server-side effect of a revoked POS Device.
-8. **Privileged mutations:** before every service-role write, validate identity, Tenant, active
-   Membership, Permission, AccessScope, and target ownership.
-9. **Token freshness/revocation:** define how Membership, Permission, scope, identity, Tenant, and
-   Device changes affect already-issued credentials or tokens.
+1. **Identity provenance:** a verified Clerk subject maps through the server-only provider binding;
+   no client internal identity is accepted.
+2. **Tenant selection:** context is issued only after proving the exact active Membership.
+3. **Permission authorization:** application services evaluate Permission keys, never Role names.
+4. **AccessScope:** exact target semantics are implemented with assignment coupling.
+5. **Tenant suspension:** staff/admin authorization fails closed.
+6. **UserIdentity lifecycle:** suspended/deactivated identities fail closed globally.
+7. **Device revocation:** trusted Device context fails closed when revoked; credential and offline
+   behavior remain later work.
+8. **Privileged mutations:** the proof boundary validates identity, Tenant, Membership, Permission,
+   AccessScope, and target ownership before a privileged operation callback.
+9. **Token freshness/revocation:** current database state is loaded on every request with no
+   authorization cache or Role/scope token claims.
+
+Invitation/provisioning, provider lifecycle webhooks, high-risk delegation, audit storage,
+business operations, customer auth, and offline POS security remain unimplemented. See
+[Identity and application authorization](identity-and-authorization.md).
 
 See [ADR-009](../decisions/ADR-009-tenant-isolation-strategy.md), the
 [tenant isolation strategy](../architecture/tenant-isolation-strategy.md), and the

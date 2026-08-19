@@ -3,7 +3,7 @@
 ## Security posture
 
 **CONFIRMED:** Tenant isolation is defense in depth. Phase 1C-B implements PostgreSQL row-level
-security (RLS) as a deny-by-default database backstop. Phase 1D will add server-side identity and
+security (RLS) as a deny-by-default database backstop. Phase 1D adds server-side identity and
 application authorization/filtering. Neither layer is optional merely because the other exists.
 
 This document remains the architecture-level strategy. The implemented threat model, exact context
@@ -12,7 +12,7 @@ claims, table matrix, and policy limitations are in
 
 ## Request and application boundary
 
-A future authenticated request must resolve:
+An authenticated staff/admin request resolves:
 
 1. a global UserIdentity from a verified provider binding;
 2. the requested Tenant from a canonical internal identifier or resolved slug;
@@ -20,7 +20,8 @@ A future authenticated request must resolve:
 4. active role assignments, Permissions, and AccessScopes; and
 5. tenant ownership and scope coverage for every resource touched.
 
-Route handlers validate transport input and pass an explicit authorization/tenant context to
+The Phase 1D server boundary validates identity and constructs the explicit context. Route handlers
+validate transport input and pass an explicit authorization/tenant context to
 application services. Application services express business authorization and tenant predicates.
 Repositories/data access never perform an unqualified lookup of tenant-owned data by globally
 supplied record ID alone. Client headers, URL slugs, Device metadata, and request bodies are hints or
@@ -61,7 +62,8 @@ time-bounded, audited mechanism.
 
 Global tables also enable RLS: UserIdentity is self-only, provider bindings are denied, and the
 Permission catalog is read-only for an active member. Ordinary authenticated writes are denied.
-AccessScope evaluation and business permission decisions remain Phase 1D responsibilities.
+AccessScope evaluation and operation Permission decisions are implemented by the Phase 1D
+application services and remain outside RLS.
 
 ## Conceptual integrity and indexes
 

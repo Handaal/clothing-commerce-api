@@ -26,6 +26,10 @@ jobs:
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
+      - name: Test identity and application authorization
+        run: pnpm test:authorization
+      - name: Test Supabase authorization repository integration
+        run: pnpm test:authorization:integration
       - name: Test PostgreSQL persistence
         run: pnpm test:persistence
       - name: Test Supabase tenant RLS
