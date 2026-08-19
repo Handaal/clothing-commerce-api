@@ -1,0 +1,41 @@
+{
+  "name": "clothing-commerce-api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.33.1",
+  "engines": {
+    "node": ">=24.0.0",
+    "pnpm": ">=10.0.0"
+  },
+  "scripts": {
+    "build": "pnpm openapi:generate && pnpm sdk:build && next build",
+    "dev": "next dev",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint .",
+    "openapi:generate": "tsx scripts/generate-openapi.ts",
+    "sdk:build": "pnpm --filter @shifted/clothing-commerce-sdk build",
+    "sdk:pack": "pnpm sdk:build && pnpm --filter @shifted/clothing-commerce-sdk pack --pack-destination ./artifacts",
+    "start": "next start",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit && pnpm --filter @shifted/clothing-commerce-sdk typecheck"
+  },
+  "dependencies": {
+    "next": "16.3.0",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "26.2.0",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.4",
+    "eslint": "9.39.1",
+    "eslint-config-next": "16.3.0",
+    "prettier": "3.9.6",
+    "tsx": "4.21.0",
+    "typescript": "6.0.3",
+    "vitest": "4.1.10"
+  }
+}

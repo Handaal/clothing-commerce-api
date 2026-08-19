@@ -1,0 +1,38 @@
+{
+  "openapi": "3.1.0",
+  "info": { "title": "Clothing Commerce API", "version": "0.1.0" },
+  "paths": {
+    "/api/v1/health": {
+      "get": {
+        "operationId": "getHealth",
+        "responses": {
+          "200": {
+            "description": "API is healthy",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HealthResponse" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "HealthResponse": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "status": { "type": "string", "const": "ok" },
+          "version": {
+            "type": "string",
+            "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?$"
+          }
+        },
+        "required": ["status", "version"],
+        "additionalProperties": false
+      }
+    }
+  }
+}
