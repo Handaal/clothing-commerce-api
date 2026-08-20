@@ -32,6 +32,15 @@ select is(
     where namespace.nspname = 'public'
       and relation.relkind = 'r'
       and relation.relrowsecurity
+      and relation.relname = any (
+        array[
+          'tenants', 'brands', 'branches', 'warehouses', 'branch_brands',
+          'inventory_locations', 'registers', 'user_identities',
+          'user_identity_provider_bindings', 'memberships', 'roles', 'permissions',
+          'role_permissions', 'access_scopes', 'access_scope_targets',
+          'membership_role_assignments', 'devices', 'register_device_assignments'
+        ]
+      )
   ),
   18::bigint,
   'RLS is enabled on all 18 foundational tables'
@@ -57,6 +66,15 @@ select is(
     where schemaname = 'public'
       and cmd = 'SELECT'
       and roles = array['authenticated']::name[]
+      and tablename = any (
+        array[
+          'tenants', 'brands', 'branches', 'warehouses', 'branch_brands',
+          'inventory_locations', 'registers', 'user_identities', 'memberships',
+          'roles', 'permissions', 'role_permissions', 'access_scopes',
+          'access_scope_targets', 'membership_role_assignments', 'devices',
+          'register_device_assignments'
+        ]
+      )
   ),
   17::bigint,
   'all 17 approved SELECT policies explicitly target authenticated'

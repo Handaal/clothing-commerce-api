@@ -137,8 +137,8 @@ try {
   runInvariantTests(1);
 
   runPsql(
-    "drop schema if exists commerce_context cascade; drop schema public cascade; create schema public;",
-    "[reset] removed commerce context and recreated empty public schema",
+    "drop schema if exists catalog_private cascade; drop schema if exists commerce_context cascade; drop schema public cascade; create schema public;",
+    "[reset] removed private schemas and recreated empty public schema",
   );
 
   applyMigrations(2);

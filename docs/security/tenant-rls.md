@@ -101,8 +101,9 @@ be constructed without pretending to test Supabase authentication behavior.
 
 ## Table policy matrix
 
-All 18 tables have RLS enabled. The 17 SELECT policies explicitly target `authenticated`, rather
-than targeting `PUBLIC` and repeating a database-role predicate. RLS is not forced because
+All 18 foundational tables and all 11 Phase 2A catalog tables have RLS enabled. The foundational
+17 SELECT policies and catalog 11 SELECT policies explicitly target `authenticated`, rather than
+targeting `PUBLIC` and repeating a database-role predicate. RLS is not forced because
 migrations, backups, maintenance, and the Supabase service role require an explicit privileged
 path; `FORCE ROW LEVEL SECURITY` would not constrain roles with `BYPASSRLS` in any case.
 
@@ -126,6 +127,18 @@ path; `FORCE ROW LEVEL SECURITY` would not constrain roles with `BYPASSRLS` in a
 | `membership_role_assignments`     | Current Membership only                      | Denied | Denied | Denied | Avoid other-staff assignment disclosure   |
 | `devices`                         | Current Tenant                               | Denied | Denied | Denied | Enrollment metadata remains tenant-bound  |
 | `register_device_assignments`     | Current Tenant                               | Denied | Denied | Denied | Assignment history remains tenant-bound   |
+
+Every catalog table below uses the same current-Tenant plus active-Membership SELECT predicate.
+Association rows carry direct `tenant_id`, so policy evaluation never relies on joining through a
+parent. Ordinary authenticated INSERT, UPDATE, and DELETE remain denied on every table.
+
+| Catalog tables                                                      | Authenticated SELECT | INSERT | UPDATE | DELETE |
+| ------------------------------------------------------------------- | -------------------- | ------ | ------ | ------ |
+| `products`, `product_variants`, `variant_barcodes`                  | Current Tenant       | Denied | Denied | Denied |
+| `product_options`, `product_option_values`, `variant_option_values` | Current Tenant       | Denied | Denied | Denied |
+| `categories`, `product_categories`                                  | Current Tenant       | Denied | Denied | Denied |
+| `collections`, `product_collections`                                | Current Tenant       | Denied | Denied | Denied |
+| `variant_prices`                                                    | Current Tenant       | Denied | Denied | Denied |
 
 Authenticated mutation denial is intentional. Platform clients are designed to call the central
 Commerce API. Phase 1D adds the authorization foundation but no lifecycle or administrative write
@@ -183,12 +196,14 @@ Run:
 
 ```powershell
 pnpm test:persistence
+pnpm test:catalog:persistence
 pnpm test:rls
+pnpm test:catalog:rls
 ```
 
-The first command checks portable PostgreSQL structure. The second verifies the approved
-87-assertion plan, starts the supported local Supabase stack, resets from migrations, executes pgTAP
-policy tests as Supabase roles, and removes its disposable local data. Operational setup and
+The persistence commands check portable foundational and catalog structure. The RLS commands
+verify the approved 87- and 43-assertion plans, reset the supported local Supabase stack, execute
+pgTAP policy tests as Supabase roles, and remove disposable local data. Operational setup and
 troubleshooting are documented in
 [Supabase local development](../development/supabase-local.md).
 
@@ -197,7 +212,8 @@ troubleshooting are documented in
 Phase 1C-B itself does not perform application authorization. Phase 1D now verifies Clerk staff
 sessions, maps provider bindings, enforces UserIdentity/Membership/Tenant lifecycle, evaluates
 Permission and assignment-coupled exact AccessScope, validates resource Tenant ownership, and gates
-privileged operation callbacks. There is still no business schema or protected public data API.
+privileged operation callbacks. Phase 2A now adds catalog persistence, but there is still no
+protected public catalog data API or catalog mutation service.
 
 The Phase 1D foundation closes the former security gates as follows:
 

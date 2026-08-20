@@ -23,9 +23,12 @@
     "supabase:status": "supabase status",
     "supabase:stop": "supabase stop --no-backup",
     "test": "vitest run --exclude tests/authorization/** --exclude tests/authorization-integration/**",
-    "test:all": "pnpm test && pnpm test:authorization && pnpm test:authorization:integration && pnpm test:persistence && pnpm test:rls",
+    "test:all": "pnpm test && pnpm test:authorization && pnpm test:authorization:integration && pnpm test:persistence && pnpm test:catalog:persistence && pnpm test:rls && pnpm test:catalog:rls && pnpm test:catalog:concurrency",
     "test:authorization": "vitest run --dir tests/authorization",
     "test:authorization:integration": "node scripts/test-authorization-integration.mjs",
+    "test:catalog:concurrency": "node scripts/test-catalog-concurrency.mjs",
+    "test:catalog:persistence": "node scripts/test-catalog-persistence.mjs",
+    "test:catalog:rls": "node scripts/test-catalog-rls.mjs",
     "test:persistence": "node scripts/test-persistence.mjs",
     "test:rls": "node scripts/test-rls.mjs",
     "typecheck": "tsc --noEmit && pnpm --filter @shifted/clothing-commerce-sdk typecheck"

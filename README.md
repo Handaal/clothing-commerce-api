@@ -1,8 +1,8 @@
 # Clothing Commerce API
 
 Central HTTP API, transport-contract, SDK, persistence, and staff-authorization foundation for the
-Clothing Commerce Platform. It exposes only `GET /api/v1/health`; Phase 1D adds internal identity
-and authorization services without adding commerce functionality or a public auth endpoint.
+Clothing Commerce Platform. It exposes only `GET /api/v1/health`; Phase 2A adds the shared catalog
+domain and persistence without adding business or public auth endpoints.
 
 ## Boundaries and ownership
 
@@ -51,7 +51,10 @@ pnpm test
 pnpm test:authorization
 pnpm test:authorization:integration
 pnpm test:persistence
+pnpm test:catalog:persistence
 pnpm test:rls
+pnpm test:catalog:rls
+pnpm test:catalog:concurrency
 pnpm build
 pnpm sdk:pack
 ```
@@ -64,6 +67,13 @@ container. It uses no production Supabase credentials.
 `anon`, and `service_role` database roles. It resets from migrations, runs 87 pgTAP policy
 assertions, and removes its disposable project data. See
 [Local Supabase development](docs/development/supabase-local.md).
+
+`test:catalog:persistence` applies the complete history twice and runs 47 Product/Variant,
+identifier, option, merchandising, and pricing invariants per cycle. `test:catalog:rls` runs 43
+catalog-specific pgTAP assertions from a reset Supabase database. `test:catalog:concurrency` runs a
+deterministic two-session regression proving the Tenant-scoped category advisory lock blocks
+concurrent same-Tenant reparents from committing a cycle. See
+[Catalog testing](docs/development/catalog-testing.md).
 
 `test:authorization` runs the deterministic staff identity and application-authorization suite.
 It verifies provider mapping, lifecycle, Permission/AccessScope coupling, resource ownership,
@@ -96,9 +106,10 @@ Use this README as the map; detailed design and operational guidance live under 
 | Architecture decisions     | [Decision records](docs/decisions/)                                                                                                                               | Accepted/proposed ADRs, including database ownership and physical schema choices     |
 | API and contracts          | [API versioning](docs/platform/api-versioning.md), [SDK contract strategy](docs/platform/sdk-contract-strategy.md)                                                | `/api/v1` compatibility, Zod/OpenAPI ownership, and SDK generation                   |
 | Foundational database      | [Foundational schema guide](docs/database/foundational-schema.md)                                                                                                 | Plain-language table meanings, relationships, constraints, and limitations           |
+| Catalog domain             | [Catalog domain](docs/catalog/catalog-domain.md), [catalog persistence](docs/catalog/catalog-persistence.md)                                                      | Product/Variant/options, identifiers, merchandising, pricing, lifecycle, and RLS     |
 | Migrations                 | [Migration guide](docs/database/migrations.md)                                                                                                                    | Authoritative history, adding/reviewing/testing migrations, and rollback philosophy  |
 | Docker                     | [Docker strategy](docs/docker/strategy.md), [database testing](docs/docker/database-testing.md), [local Supabase](docs/development/supabase-local.md)             | Fast PostgreSQL tests, Supabase RLS tests, CI, and production direction              |
-| Testing                    | [Development testing guide](docs/development/testing.md)                                                                                                          | Unit, authorization, contract drift, persistence, RLS, build, and SDK validation     |
+| Testing                    | [Development testing guide](docs/development/testing.md), [catalog testing](docs/development/catalog-testing.md)                                                  | Unit, authorization, contract drift, catalog persistence/RLS, build, and SDK checks  |
 | Development and releases   | [SDK release guide](docs/development/sdk-release.md)                                                                                                              | Local commands and the current vendored SDK release workflow                         |
 | Identity and authorization | [Identity and authorization](docs/security/identity-and-authorization.md), [local authentication](docs/development/authentication-local.md)                       | Clerk trust boundary, internal identity, Permission/scope evaluation, and operations |
 | Tenant security and RLS    | [Tenant RLS](docs/security/tenant-rls.md), [tenant isolation strategy](docs/architecture/tenant-isolation-strategy.md)                                            | Implemented application authorization plus database backstop and threat model        |
@@ -107,7 +118,8 @@ Use this README as the map; detailed design and operational guidance live under 
 
 ## Current implementation boundary
 
-Phase 1D adds Clerk as the initial staff identity verifier and provider-neutral, current-state
-application authorization above the Phase 1C-B RLS backstop. It adds no public auth/business
-endpoint, schema migration, Permission seed, customer authentication, commerce business schema,
-offline POS authorization, production Docker image/Compose file, or deployment.
+Phase 2A adds tenant-owned Product, ProductVariant, identifier, option, Category, Collection, and
+base-price persistence plus deny-by-default RLS. Clerk-backed staff authorization remains the
+privileged boundary. There is still no catalog/public auth endpoint, Permission seed, customer
+authentication, inventory, order/payment workflow, storefront/POS UI, production Docker
+image/Compose file, or deployment.

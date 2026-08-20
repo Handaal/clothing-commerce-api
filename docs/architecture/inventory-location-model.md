@@ -55,7 +55,11 @@ introduced later without changing the stock ownership invariant.
 ## Future inventory invariant
 
 > **CONFIRMED INVARIANT:** Future authoritative inventory is keyed conceptually by
-> `Variant + InventoryLocation`, never by `Variant + SalesChannel`.
+> `ProductVariant + InventoryLocation`, never by `ProductVariant + SalesChannel`.
+
+Phase 2A now persists ProductVariant as the stable future stock-keeping identity. Inventory
+quantities and the append-only movement ledger remain deferred and no InventoryLocation column is
+stored on ProductVariant.
 
 Future inventory may expose states such as `on_hand`, `reserved`, `available`, `incoming`,
 `in_transit`, and `damaged`, but Phase 1B defines no fields or tables for them. Quantity changes will

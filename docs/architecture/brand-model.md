@@ -41,14 +41,11 @@ storefronts, listings, and other future dependencies rather than silently detach
 
 ## Catalog and product ownership boundary
 
-**RECOMMENDED:** Brand ownership alone is not enough to determine future product ownership. The
-Tenant remains the isolation and data-ownership root. A future product belongs to a tenant and may
-be attributed or made visible to one or more brands according to catalog requirements.
-
-This distinction avoids cross-tenant inference and permits shared products, private labels, or
-multi-brand visibility later. The exact product-to-brand cardinality and catalog publication model
-are **DEFERRED** to the catalog phase; they are not unsafe to defer because tenant identity remains
-direct and authoritative.
+**CONFIRMED IN PHASE 2A:** Product belongs directly to the Tenant and exactly one same-tenant Brand.
+The composite Tenant/Brand foreign key prevents cross-tenant inference. This is merchandising
+ownership, not Branch/Warehouse ownership or channel publication. Multi-brand storefront or
+marketplace visibility remains a later explicit publication model rather than weakening Product
+ownership.
 
 ## Storefront relationship
 
