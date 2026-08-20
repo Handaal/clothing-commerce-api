@@ -19,6 +19,25 @@ const postgresImage = "postgres:17.6-alpine";
 const databaseName = "commerce_test";
 const databasePassword = "local-catalog-concurrency-test-only";
 
+// Every client connects over TCP to 127.0.0.1 *inside* the container, never an implicit Unix
+// socket. The official postgres image first runs a temporary init server that listens only on the
+// socket, then stops it and starts the real server; a socket-based readiness or psql call can race
+// that teardown gap and fail with "/var/run/postgresql/.s.PGSQL.5432: No such file or directory".
+// The temporary server never listens on TCP, so a TCP target is served only by the real server:
+// race-free, cross-platform, and dependent on no host PostgreSQL install, socket, or published port.
+const pgHost = "127.0.0.1";
+const pgPort = "5432";
+const psqlConnectionArgs = [
+  "--host",
+  pgHost,
+  "--port",
+  pgPort,
+  "--username",
+  "postgres",
+  "--dbname",
+  databaseName,
+];
+
 const tenantA = "10000000-0000-4000-8000-000000000001";
 const tenantB = "10000000-0000-4000-8000-000000000002";
 // Tenant A holds two disjoint chains, node1 -> node2 and node3 -> node4 (child -> parent).
@@ -61,15 +80,14 @@ function runPsql(sql, label) {
     [
       "exec",
       "--interactive",
+      "--env",
+      `PGPASSWORD=${databasePassword}`,
       containerName,
       "psql",
       "--no-psqlrc",
       "--set",
       "ON_ERROR_STOP=1",
-      "--username",
-      "postgres",
-      "--dbname",
-      databaseName,
+      ...psqlConnectionArgs,
       "--file=-",
     ],
     { input: sql },
@@ -85,6 +103,8 @@ function runPsql(sql, label) {
 function scalar(sql) {
   const result = runDocker([
     "exec",
+    "--env",
+    `PGPASSWORD=${databasePassword}`,
     containerName,
     "psql",
     "--no-psqlrc",
@@ -92,10 +112,7 @@ function scalar(sql) {
     "ON_ERROR_STOP=1",
     "--tuples-only",
     "--no-align",
-    "--username",
-    "postgres",
-    "--dbname",
-    databaseName,
+    ...psqlConnectionArgs,
     "--command",
     sql,
   ]);
@@ -105,8 +122,22 @@ function scalar(sql) {
 
 function waitForPostgres() {
   for (let attempt = 1; attempt <= 60; attempt += 1) {
+    // pg_isready over TCP only reports ready once the real server (not the socket-only init
+    // server) is accepting connections, which removes the double-start race entirely.
     const result = runDocker(
-      ["exec", containerName, "pg_isready", "--username", "postgres", "--dbname", databaseName],
+      [
+        "exec",
+        containerName,
+        "pg_isready",
+        "--host",
+        pgHost,
+        "--port",
+        pgPort,
+        "--username",
+        "postgres",
+        "--dbname",
+        databaseName,
+      ],
       { allowFailure: true },
     );
 
@@ -145,15 +176,14 @@ class Session {
       [
         "exec",
         "--interactive",
+        "--env",
+        `PGPASSWORD=${databasePassword}`,
         containerName,
         "psql",
         "--no-psqlrc",
         "--set",
         "ON_ERROR_STOP=0",
-        "--username",
-        "postgres",
-        "--dbname",
-        databaseName,
+        ...psqlConnectionArgs,
       ],
       { cwd: repositoryRoot },
     );
