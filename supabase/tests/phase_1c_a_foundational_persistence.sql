@@ -80,12 +80,30 @@ select pg_temp.assert_true(
     where namespace.nspname = 'public'
       and relation.relkind = 'r'
       and relation.relrowsecurity
+      and relation.relname = any (
+        array[
+          'tenants', 'brands', 'branches', 'warehouses', 'branch_brands',
+          'inventory_locations', 'registers', 'user_identities',
+          'user_identity_provider_bindings', 'memberships', 'roles', 'permissions',
+          'role_permissions', 'access_scopes', 'access_scope_targets',
+          'membership_role_assignments', 'devices', 'register_device_assignments'
+        ]
+      )
   )
   and (
     select count(*) = 17
     from pg_catalog.pg_policies
     where schemaname = 'public'
       and cmd = 'SELECT'
+      and tablename = any (
+        array[
+          'tenants', 'brands', 'branches', 'warehouses', 'branch_brands',
+          'inventory_locations', 'registers', 'user_identities', 'memberships',
+          'roles', 'permissions', 'role_permissions', 'access_scopes',
+          'access_scope_targets', 'membership_role_assignments', 'devices',
+          'register_device_assignments'
+        ]
+      )
   )
   and not exists (
     select 1
@@ -105,14 +123,12 @@ select pg_temp.assert_true(
 );
 
 select pg_temp.assert_true(
-  to_regclass('public.products') is null
-  and to_regclass('public.variants') is null
-  and to_regclass('public.inventory_balances') is null
+  to_regclass('public.inventory_balances') is null
   and to_regclass('public.inventory_movements') is null
   and to_regclass('public.orders') is null
   and to_regclass('public.payments') is null
   and to_regclass('public.customers') is null,
-  'business-domain tables are absent'
+  'deferred inventory, order, payment, and customer tables are absent'
 );
 
 insert into public.tenants (

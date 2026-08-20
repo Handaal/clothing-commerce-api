@@ -9,10 +9,12 @@ test environment, not a production replica and not a cloud Supabase project.
 
 Both database paths are intentional:
 
-| Command                 | Environment                                          | Responsibility                                                                 |
-| ----------------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------ |
-| `pnpm test:persistence` | Temporary `postgres:17.6-alpine` container           | Fast migration, constraint, foreign-key, and structural checks                 |
-| `pnpm test:rls`         | Official local Supabase PostgreSQL plus pgTAP runner | Supabase roles, JWT/request claims, RLS policies, and tenant-isolation attacks |
+| Command                         | Environment                                          | Responsibility                                                                 |
+| ------------------------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `pnpm test:persistence`         | Temporary `postgres:17.6-alpine` container           | Fast migration, constraint, foreign-key, and structural checks                 |
+| `pnpm test:catalog:persistence` | Temporary `postgres:17.6-alpine` container           | Catalog relationship, lifecycle, uniqueness, and pricing checks                |
+| `pnpm test:rls`                 | Official local Supabase PostgreSQL plus pgTAP runner | Supabase roles, JWT/request claims, RLS policies, and tenant-isolation attacks |
+| `pnpm test:catalog:rls`         | Official local Supabase PostgreSQL plus pgTAP runner | Catalog isolation, mutation denial, anon denial, and service-role access       |
 
 Neither command needs an `.env` file, a Supabase login, a linked cloud project, or production
 credentials.
@@ -24,6 +26,8 @@ credentials.
 - `supabase/migrations/` is the single append-only schema history used by both database runners.
 - `supabase/tests/phase_1c_b_tenant_rls.test.sql` contains transactional pgTAP fixtures and policy
   assertions.
+- `supabase/tests/phase_2a_catalog_rls.test.sql` contains the catalog-specific transactional pgTAP
+  fixtures and policy assertions.
 - `scripts/test-rls.mjs` owns the disposable start/reset/test/stop lifecycle.
 - `package.json` pins Supabase CLI `2.115.0` as a development dependency and provides short commands.
 - `.gitignore` excludes CLI branch and temporary state; migrations, tests, and `config.toml` remain
@@ -65,6 +69,9 @@ pnpm supabase:stop
 
 # Own the full disposable lifecycle and run all Phase 1C-B pgTAP assertions.
 pnpm test:rls
+
+# Own the same lifecycle and run all Phase 2A catalog pgTAP assertions.
+pnpm test:catalog:rls
 ```
 
 `pnpm test:rls` verifies Docker and the pinned CLI, starts this project, resets the database from the
@@ -75,7 +82,10 @@ does not produce that declared count. It stops on a failed start, reset, or asse
 attempts cleanup. The test fixtures run inside a transaction and roll back; the final stop also
 deletes the local project data. Treat all data in this local stack as disposable.
 
-Do not run `pnpm test:rls` when you need to preserve manual local test data. Stop or save that work
+`pnpm test:catalog:rls` follows the same lifecycle with a reviewed 43-assertion catalog plan and
+its own test file/runner.
+
+Do not run either RLS command when you need to preserve manual local test data. Stop or save that work
 first. The command targets only the Supabase project ID `clothing-commerce-api`; it does not prune,
 stop, or delete unrelated Docker workloads.
 
@@ -88,8 +98,8 @@ supported CLI exclusion mode and keeps the security test focused on database beh
 
 The expected persistent container while started is named like
 `supabase_db_clothing-commerce-api`. The CLI can also create short-lived setup/health-check or
-`pg_prove` containers. After `pnpm test:rls` or `pnpm supabase:stop`, no container or volume for this
-project should remain. Use these read-only checks when diagnosing cleanup:
+`pg_prove` containers. After either RLS test or `pnpm supabase:stop`, no container or volume for
+this project should remain. Use these read-only checks when diagnosing cleanup:
 
 ```powershell
 docker ps -a --filter label=com.supabase.cli.project=clothing-commerce-api
@@ -104,8 +114,8 @@ container deletion, or volume deletion as part of this workflow.
 1. Add a new timestamped migration; never rewrite an applied migration.
 2. Update structural assertions when the database shape intentionally changes.
 3. Add positive and adversarial RLS assertions, including every affected operation and role.
-4. Run both `pnpm test:persistence` and `pnpm test:rls`.
-5. Repeat `pnpm test:rls` to prove reset/recreation is deterministic.
+4. Run both persistence commands and both RLS commands.
+5. Repeat both RLS commands to prove reset/recreation is deterministic.
 6. Review policies, grants, helper volatility, function security mode, fixed `search_path`, and
    service-role behavior before review.
 

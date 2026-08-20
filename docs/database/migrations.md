@@ -18,7 +18,7 @@ concise snake-case description. The persistence runner discovers every `.sql` fi
 `supabase/migrations/` and sorts filenames lexicographically, so the timestamp prefix is also the
 execution order.
 
-The foundational Phase 1C-A/1C-B history currently has five ordered migrations:
+The repository currently has nine ordered migrations:
 
 1. `20260819161500_create_foundational_organization.sql` creates organizational and physical
    location persistence.
@@ -31,6 +31,13 @@ The foundational Phase 1C-A/1C-B history currently has five ordered migrations:
 5. `20260819173100_enable_foundational_tenant_rls.sql` enables RLS across all 18 tables, creates the
    reviewed SELECT policies, denies normal authenticated writes, and grants the explicit
    server-only service-role path.
+6. `20260819180000_create_catalog_products_variants.sql` creates Product, Variant, Barcode, and
+   extensible option persistence plus canonical variant-combination enforcement.
+7. `20260819180100_create_catalog_merchandising.sql` creates Categories, Collections, their Product
+   associations, and database-safe category-cycle prevention.
+8. `20260819180200_create_catalog_pricing.sql` creates minimal Variant base-price history.
+9. `20260819180300_enable_catalog_tenant_rls.sql` enables catalog RLS and conservative grants for
+   all eleven new tables.
 
 The dependency order is intentional. A later migration may depend on an earlier one; an earlier
 migration must never depend on an object introduced later.
@@ -95,14 +102,17 @@ From the repository root:
 
 ```powershell
 pnpm test:persistence
+pnpm test:catalog:persistence
 pnpm test:rls
+pnpm test:catalog:rls
+pnpm test:catalog:concurrency
 ```
 
-The first command starts disposable PostgreSQL 17.6, applies every migration in order, runs the SQL
-invariant suite, rebuilds the empty public and private context schemas, and repeats the complete
-cycle. The second uses the official local Supabase database roles, resets from migrations, runs the
-pgTAP RLS suite, and removes its local project data. Neither needs an `.env` file, linked cloud
-project, or production credential. See
+The persistence commands start disposable PostgreSQL 17.6, apply every migration in order, run
+their foundational or catalog SQL invariant suite, rebuild empty public/private schemas, and repeat
+the complete cycle. The RLS commands use official local Supabase roles, reset from migrations, run
+their pgTAP suite, and remove local project data. None needs an `.env` file, linked cloud project,
+or production credential. See
 [Docker database testing](../docker/database-testing.md) for the exact lifecycle and failure
 diagnostics and [Local Supabase development](../development/supabase-local.md) for the RLS path.
 
@@ -131,6 +141,7 @@ Phase 1D still owns identity-provider integration and application permission/Acc
 authorization. Local test credentials are disposable; server secrets must never be embedded in
 migrations, tests, SDK artifacts, or client-visible code.
 
-For schema concepts, see [Foundational schema](foundational-schema.md). For the physical design
+For schema concepts, see [Foundational schema](foundational-schema.md) and
+[Catalog persistence](../catalog/catalog-persistence.md). For the foundational physical design
 decision, see
 [ADR-011: Foundational PostgreSQL physical design](../decisions/ADR-011-foundational-postgresql-physical-design.md).

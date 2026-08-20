@@ -87,8 +87,9 @@ own inventory.
 **Lifecycle:** `active`, `inactive`, or `archived`; archive metadata preserves the identity and
 code.
 
-**Not represented yet:** products, catalog publication, storefronts, themes, domains, or stock
-balances.
+**Outside this foundational guide:** Phase 2A now persists products and related catalog entities;
+see [Catalog persistence](../catalog/catalog-persistence.md). Catalog publication, storefronts,
+themes, domains, and stock balances remain absent.
 
 ### Branch — `branches`
 

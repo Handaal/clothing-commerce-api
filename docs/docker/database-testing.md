@@ -2,9 +2,10 @@
 
 ## Purpose
 
-`pnpm test:persistence` proves that the complete migration history builds the approved schema and
-enforces its structural invariants on the PostgreSQL compatibility target. It uses Docker so the
-test is isolated from any developer-owned or remote database.
+`pnpm test:persistence` and `pnpm test:catalog:persistence` prove that the complete migration
+history builds the approved schema and enforces foundational and catalog invariants on the
+PostgreSQL compatibility target. They use Docker so tests are isolated from any developer-owned or
+remote database.
 
 In this repository those Docker terms mean:
 
@@ -56,6 +57,11 @@ The implementation is in `scripts/test-persistence.mjs`, with the package comman
 The second cycle tests repeatable reconstruction, not SQL-file idempotency. Individual migrations
 are expected to run once in order against the state produced by their predecessors.
 
+`scripts/test-catalog-persistence.mjs` follows the same safety lifecycle with its own
+`clothing-commerce-catalog-persistence-<pid>` container. It runs the dedicated 42-assertion catalog
+SQL file in both cycles and explicitly removes `catalog_private`, `commerce_context`, and `public`
+between them.
+
 ## GitHub Actions CI
 
 The repository CI workflow runs `pnpm test:persistence` on its GitHub-hosted Ubuntu runner after the
@@ -63,9 +69,9 @@ unit/OpenAPI tests and before the build. This is the same runner and disposable-
 used locally: CI does not define a persistent PostgreSQL service, publish a database port, or use
 production or Supabase cloud credentials.
 
-CI then runs the separate mandatory `pnpm test:rls` layer against the official local Supabase
-environment. Keeping the steps distinct preserves fast portable diagnostics while also enforcing
-Supabase-role and policy behavior.
+CI also runs `pnpm test:catalog:persistence`, then the separate mandatory `pnpm test:rls` and
+`pnpm test:catalog:rls` layers against official local Supabase. Keeping the steps distinct preserves
+clear portable/catalog diagnostics while also enforcing Supabase-role and policy behavior.
 
 Persistence is a mandatory pull-request check because migration ordering, PostgreSQL constraints,
 and cross-tenant rejection paths are not exercised by TypeScript or OpenAPI tests. A failing Docker
@@ -79,6 +85,7 @@ Run the suite:
 
 ```powershell
 pnpm test:persistence
+pnpm test:catalog:persistence
 ```
 
 Check whether the Docker engine is reachable:
@@ -92,6 +99,7 @@ Inspect only containers created by this runner:
 ```powershell
 docker ps --filter "name=clothing-commerce-persistence-"
 docker ps -a --filter "name=clothing-commerce-persistence-"
+docker ps --filter "name=clothing-commerce-catalog-persistence-"
 ```
 
 If a failed run prints an exact container name, inspect it before cleanup only if it still exists:
@@ -130,10 +138,10 @@ double-cycle reset, and unconditional cleanup as safety properties. If one chang
 tests and this guide in the same change. Never add production credentials or make a remote database
 the runner's implicit target.
 
-New portable migration assertions belong in the Phase 1C-A test; Supabase role/RLS behavior belongs
-in the Phase 1C-B pgTAP test. Both use transaction rollback for fixtures. Keep failure messages
-specific enough to distinguish Docker startup, PostgreSQL readiness, migration application, and
-invariant assertion failures.
+Foundational assertions remain in Phase 1C files; catalog migration assertions and Supabase
+role/RLS behavior belong in their Phase 2A files. All use transaction rollback for fixtures. Keep
+failure messages specific enough to distinguish Docker startup, PostgreSQL readiness, migration
+application, and invariant assertion failures.
 
 ## Development and production differences
 

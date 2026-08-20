@@ -16,6 +16,25 @@ const postgresImage = "postgres:17.6-alpine";
 const databaseName = "commerce_test";
 const databasePassword = "local-persistence-test-only";
 
+// Connect every client over container-internal TCP, never the default Unix socket. The official
+// postgres image runs a temporary socket-only init server before the real server; a socket-based
+// readiness probe can pass against that temporary server and the next psql call then hits its
+// teardown ("No such file or directory" or "terminating connection due to administrator command").
+// The temporary server never serves TCP, so a TCP target is race-free, needs no host PostgreSQL,
+// no Unix socket, and no published host port, and is identical on Windows and Linux.
+const pgHost = "127.0.0.1";
+const pgPort = "5432";
+const psqlConnectionArgs = [
+  "--host",
+  pgHost,
+  "--port",
+  pgPort,
+  "--username",
+  "postgres",
+  "--dbname",
+  databaseName,
+];
+
 function runDocker(args, { input, allowFailure = false } = {}) {
   const result = spawnSync("docker", args, {
     cwd: repositoryRoot,
@@ -39,15 +58,14 @@ function runPsql(sql, label) {
     [
       "exec",
       "--interactive",
+      "--env",
+      `PGPASSWORD=${databasePassword}`,
       containerName,
       "psql",
       "--no-psqlrc",
       "--set",
       "ON_ERROR_STOP=1",
-      "--username",
-      "postgres",
-      "--dbname",
-      databaseName,
+      ...psqlConnectionArgs,
       "--file=-",
     ],
     { input: sql },
@@ -93,8 +111,22 @@ function createSupabaseRoleFixtures() {
 
 function waitForPostgres() {
   for (let attempt = 1; attempt <= 60; attempt += 1) {
+    // pg_isready over TCP only reports ready once the real server (not the socket-only init
+    // server) accepts connections, which removes the double-start race entirely.
     const result = runDocker(
-      ["exec", containerName, "pg_isready", "--username", "postgres", "--dbname", databaseName],
+      [
+        "exec",
+        containerName,
+        "pg_isready",
+        "--host",
+        pgHost,
+        "--port",
+        pgPort,
+        "--username",
+        "postgres",
+        "--dbname",
+        databaseName,
+      ],
       { allowFailure: true },
     );
 
@@ -137,8 +169,8 @@ try {
   runInvariantTests(1);
 
   runPsql(
-    "drop schema if exists commerce_context cascade; drop schema public cascade; create schema public;",
-    "[reset] removed commerce context and recreated empty public schema",
+    "drop schema if exists catalog_private cascade; drop schema if exists commerce_context cascade; drop schema public cascade; create schema public;",
+    "[reset] removed private schemas and recreated empty public schema",
   );
 
   applyMigrations(2);
