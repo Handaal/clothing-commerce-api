@@ -57,14 +57,18 @@ introduced later without changing the stock ownership invariant.
 > **CONFIRMED INVARIANT:** Future authoritative inventory is keyed conceptually by
 > `ProductVariant + InventoryLocation`, never by `ProductVariant + SalesChannel`.
 
-Phase 2A now persists ProductVariant as the stable future stock-keeping identity. Inventory
-quantities and the append-only movement ledger remain deferred and no InventoryLocation column is
-stored on ProductVariant.
+Phase 2A persists ProductVariant as the stable stock-keeping identity, and Phase 2B now persists
+inventory itself, keyed by `ProductVariant + InventoryLocation`. No InventoryLocation column is
+stored on ProductVariant; the key lives on the inventory tables.
 
-Future inventory may expose states such as `on_hand`, `reserved`, `available`, `incoming`,
-`in_transit`, and `damaged`, but Phase 1B defines no fields or tables for them. Quantity changes will
-eventually derive from an append-only movement ledger. Clients never overwrite authoritative
-balances.
+Phase 2B implements `on_hand` only, as a transactionally maintained `inventory_balances` projection
+of an append-only `inventory_movements` ledger grouped by `inventory_operations` (see
+[inventory domain](../inventory/inventory-domain.md) and
+[inventory persistence](../inventory/inventory-persistence.md)). Clients never overwrite authoritative
+balances; the projection changes only through the private atomic mutation path. Future states such as
+`reserved`, `available`, `incoming`, `in_transit`, and `damaged`, and the formula
+`available = on_hand - active reservations`, remain deferred to later reservation/receiving/transfer
+work.
 
 POS and website requests may source the same eligible physical location. A Storefront, POS client,
 Register, Device, or SalesChannel can select or request a source but cannot own a balance.

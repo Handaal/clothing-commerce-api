@@ -6,7 +6,9 @@ and auditable.
 Phase 1C-A introduces the foundational organizational, identity/access, and Register/Device
 persistence sequence. Phase 1C-B adds a private request-context schema and RLS policies without
 adding a commerce business-domain table. Phase 2A appends Product/Variant/options, merchandising,
-base-price, and catalog RLS migrations. All five Phase 1 files remain unchanged.
+base-price, and catalog RLS migrations. Phase 2B appends the inventory ledger (operations, movements,
+balances), the private `inventory_private` mutation path, and inventory RLS. All five Phase 1 and all
+four Phase 2A files remain unchanged.
 
 Run `pnpm test:persistence` from the repository root to apply every SQL migration twice from an
 empty PostgreSQL 17.6 schema and execute the database constraint tests.
@@ -16,7 +18,9 @@ history, execute the Phase 1C-B pgTAP security suite with Supabase roles, and re
 project data.
 
 Run `pnpm test:catalog:persistence` and `pnpm test:catalog:rls` for the dedicated Phase 2A invariant
-and policy suites. Both commands are mandatory CI layers.
+and policy suites. Run `pnpm test:inventory:persistence`, `pnpm test:inventory:concurrency`, and
+`pnpm test:inventory:rls` for the dedicated Phase 2B inventory ledger, balance-concurrency, and policy
+suites. All are mandatory CI layers.
 
 See [Database migrations](../../docs/database/migrations.md) for naming, ordering, review, and
 fix-forward policy. See

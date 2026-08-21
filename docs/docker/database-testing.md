@@ -58,9 +58,16 @@ The second cycle tests repeatable reconstruction, not SQL-file idempotency. Indi
 are expected to run once in order against the state produced by their predecessors.
 
 `scripts/test-catalog-persistence.mjs` follows the same safety lifecycle with its own
-`clothing-commerce-catalog-persistence-<pid>` container. It runs the dedicated 42-assertion catalog
-SQL file in both cycles and explicitly removes `catalog_private`, `commerce_context`, and `public`
-between them.
+`clothing-commerce-catalog-persistence-<pid>` container. It runs the dedicated catalog SQL file in
+both cycles and explicitly removes `catalog_private`, `commerce_context`, and `public` between them.
+
+`scripts/test-inventory-persistence.mjs` and `scripts/test-inventory-concurrency.mjs` follow the same
+lifecycle with `clothing-commerce-inventory-persistence-<pid>` and
+`clothing-commerce-inventory-concurrency-<pid>` containers. The persistence runner runs the dedicated
+inventory SQL file in both cycles and additionally removes `inventory_private` between them; the
+concurrency runner drives real two-session balance-lock races. Both connect over container-internal
+TCP `127.0.0.1:5432` with an explicit `PGPASSWORD` and never publish a host port — see
+[Inventory testing](../development/inventory-testing.md).
 
 ## GitHub Actions CI
 
@@ -69,9 +76,11 @@ unit/OpenAPI tests and before the build. This is the same runner and disposable-
 used locally: CI does not define a persistent PostgreSQL service, publish a database port, or use
 production or Supabase cloud credentials.
 
-CI also runs `pnpm test:catalog:persistence`, then the separate mandatory `pnpm test:rls` and
-`pnpm test:catalog:rls` layers against official local Supabase. Keeping the steps distinct preserves
-clear portable/catalog diagnostics while also enforcing Supabase-role and policy behavior.
+CI also runs `pnpm test:catalog:persistence` and `pnpm test:inventory:persistence`, then the separate
+mandatory `pnpm test:rls`, `pnpm test:catalog:rls`, and `pnpm test:inventory:rls` layers against
+official local Supabase, plus the `pnpm test:catalog:concurrency` and `pnpm test:inventory:concurrency`
+two-session regressions. Keeping the steps distinct preserves clear per-domain diagnostics while also
+enforcing Supabase-role and policy behavior.
 
 Persistence is a mandatory pull-request check because migration ordering, PostgreSQL constraints,
 and cross-tenant rejection paths are not exercised by TypeScript or OpenAPI tests. A failing Docker
@@ -86,6 +95,8 @@ Run the suite:
 ```powershell
 pnpm test:persistence
 pnpm test:catalog:persistence
+pnpm test:inventory:persistence
+pnpm test:inventory:concurrency
 ```
 
 Check whether the Docker engine is reachable:
@@ -100,6 +111,8 @@ Inspect only containers created by this runner:
 docker ps --filter "name=clothing-commerce-persistence-"
 docker ps -a --filter "name=clothing-commerce-persistence-"
 docker ps --filter "name=clothing-commerce-catalog-persistence-"
+docker ps --filter "name=clothing-commerce-inventory-persistence-"
+docker ps --filter "name=clothing-commerce-inventory-concurrency-"
 ```
 
 If a failed run prints an exact container name, inspect it before cleanup only if it still exists:
