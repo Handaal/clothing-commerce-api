@@ -89,14 +89,12 @@ select pg_temp.assert_true(
 );
 
 select pg_temp.assert_true(
-  to_regclass('public.inventory_balances') is null
-  and to_regclass('public.inventory_movements') is null
-  and to_regclass('public.orders') is null
+  to_regclass('public.orders') is null
   and to_regclass('public.payments') is null
   and to_regclass('public.promotions') is null
   and to_regclass('public.product_publications') is null
   and to_regclass('public.media_assets') is null,
-  'deferred Phase 2 domains and publication/media tables remain absent'
+  'deferred order, payment, promotion, publication, and media tables remain absent'
 );
 
 insert into public.tenants (id, slug, display_name, status, onboarding_state, default_currency)

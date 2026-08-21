@@ -34,11 +34,17 @@ jobs:
         run: pnpm test:persistence
       - name: Test catalog PostgreSQL persistence
         run: pnpm test:catalog:persistence
+      - name: Test inventory PostgreSQL persistence
+        run: pnpm test:inventory:persistence
       - name: Test Supabase tenant RLS
         run: pnpm test:rls
       - name: Test catalog Supabase tenant RLS
         run: pnpm test:catalog:rls
+      - name: Test inventory Supabase tenant RLS
+        run: pnpm test:inventory:rls
       - name: Test catalog category concurrency
         run: pnpm test:catalog:concurrency
+      - name: Test inventory balance concurrency
+        run: pnpm test:inventory:concurrency
       - run: pnpm build
       - run: pnpm sdk:pack

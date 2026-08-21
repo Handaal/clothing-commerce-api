@@ -123,12 +123,10 @@ select pg_temp.assert_true(
 );
 
 select pg_temp.assert_true(
-  to_regclass('public.inventory_balances') is null
-  and to_regclass('public.inventory_movements') is null
-  and to_regclass('public.orders') is null
+  to_regclass('public.orders') is null
   and to_regclass('public.payments') is null
   and to_regclass('public.customers') is null,
-  'deferred inventory, order, payment, and customer tables are absent'
+  'deferred order, payment, and customer tables are absent'
 );
 
 insert into public.tenants (

@@ -18,7 +18,7 @@ concise snake-case description. The persistence runner discovers every `.sql` fi
 `supabase/migrations/` and sorts filenames lexicographically, so the timestamp prefix is also the
 execution order.
 
-The repository currently has nine ordered migrations:
+The repository currently has eleven ordered migrations:
 
 1. `20260819161500_create_foundational_organization.sql` creates organizational and physical
    location persistence.
@@ -38,6 +38,14 @@ The repository currently has nine ordered migrations:
 8. `20260819180200_create_catalog_pricing.sql` creates minimal Variant base-price history.
 9. `20260819180300_enable_catalog_tenant_rls.sql` enables catalog RLS and conservative grants for
    all eleven new tables.
+10. `20260821180000_create_inventory_ledger.sql` creates the dedicated non-login `inventory_writer`
+    role, the private `inventory_private` schema, the
+    `inventory_operations`/`inventory_movements`/`inventory_balances` tables, append-only and
+    balance-guard triggers, and the atomic `SECURITY DEFINER` `record_operation` mutation function;
+    it transfers table and function ownership to `inventory_writer`.
+11. `20260821180100_enable_inventory_tenant_rls.sql` enables inventory RLS, authenticated SELECT
+    policies, and grants `service_role` `SELECT` plus `EXECUTE` on `record_operation` only — no direct
+    table DML — so the function is the sole server write path for all three inventory tables.
 
 The dependency order is intentional. A later migration may depend on an earlier one; an earlier
 migration must never depend on an object introduced later.
@@ -103,9 +111,12 @@ From the repository root:
 ```powershell
 pnpm test:persistence
 pnpm test:catalog:persistence
+pnpm test:inventory:persistence
 pnpm test:rls
 pnpm test:catalog:rls
+pnpm test:inventory:rls
 pnpm test:catalog:concurrency
+pnpm test:inventory:concurrency
 ```
 
 The persistence commands start disposable PostgreSQL 17.6, apply every migration in order, run
@@ -141,7 +152,8 @@ Phase 1D still owns identity-provider integration and application permission/Acc
 authorization. Local test credentials are disposable; server secrets must never be embedded in
 migrations, tests, SDK artifacts, or client-visible code.
 
-For schema concepts, see [Foundational schema](foundational-schema.md) and
-[Catalog persistence](../catalog/catalog-persistence.md). For the foundational physical design
+For schema concepts, see [Foundational schema](foundational-schema.md),
+[Catalog persistence](../catalog/catalog-persistence.md), and
+[Inventory persistence](../inventory/inventory-persistence.md). For the foundational physical design
 decision, see
 [ADR-011: Foundational PostgreSQL physical design](../decisions/ADR-011-foundational-postgresql-physical-design.md).

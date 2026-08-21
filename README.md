@@ -2,7 +2,8 @@
 
 Central HTTP API, transport-contract, SDK, persistence, and staff-authorization foundation for the
 Clothing Commerce Platform. It exposes only `GET /api/v1/health`; Phase 2A adds the shared catalog
-domain and persistence without adding business or public auth endpoints.
+domain and persistence, and Phase 2B adds the inventory ledger/balance engine foundation, without
+adding business or public auth endpoints.
 
 ## Boundaries and ownership
 
@@ -52,9 +53,12 @@ pnpm test:authorization
 pnpm test:authorization:integration
 pnpm test:persistence
 pnpm test:catalog:persistence
+pnpm test:inventory:persistence
 pnpm test:rls
 pnpm test:catalog:rls
+pnpm test:inventory:rls
 pnpm test:catalog:concurrency
+pnpm test:inventory:concurrency
 pnpm build
 pnpm sdk:pack
 ```
@@ -74,6 +78,15 @@ catalog-specific pgTAP assertions from a reset Supabase database. `test:catalog:
 deterministic two-session regression proving the Tenant-scoped category advisory lock blocks
 concurrent same-Tenant reparents from committing a cycle. See
 [Catalog testing](docs/development/catalog-testing.md).
+
+`test:inventory:persistence` applies the complete history twice and runs 54 inventory ledger,
+balance-projection, reconciliation, idempotency-fingerprint, privilege-boundary, and rejection
+invariants per cycle. `test:inventory:rls` runs 30 inventory-specific pgTAP assertions from a reset
+Supabase database. `test:inventory:concurrency` runs a deterministic seven-scenario regression
+proving the balance row lock prevents overselling and duplicate balance creation, that opposing
+multi-key operations (including absent-row creation) serialize without deadlock, and that concurrent
+idempotent submissions apply stock once while a conflicting payload is rejected. See
+[Inventory testing](docs/development/inventory-testing.md).
 
 `test:authorization` runs the deterministic staff identity and application-authorization suite.
 It verifies provider mapping, lifecycle, Permission/AccessScope coupling, resource ownership,
@@ -99,27 +112,31 @@ mobile releases remain independent.
 
 Use this README as the map; detailed design and operational guidance live under `docs/`.
 
-| Topic                      | Start here                                                                                                                                                        | Covers                                                                               |
-| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| System architecture        | [System context](docs/platform/system-context.md), [repository boundaries](docs/platform/repository-boundaries.md)                                                | Service ownership, polyrepo boundaries, and client/API relationships                 |
-| Phase 1C-A architecture    | [Foundational persistence architecture](docs/architecture/phase-1c-a-foundational-persistence.md), [domain diagram](docs/architecture/phase-1b-domain-diagram.md) | Design decisions, ownership, invariants, and Phase 1C-B deferrals                    |
-| Architecture decisions     | [Decision records](docs/decisions/)                                                                                                                               | Accepted/proposed ADRs, including database ownership and physical schema choices     |
-| API and contracts          | [API versioning](docs/platform/api-versioning.md), [SDK contract strategy](docs/platform/sdk-contract-strategy.md)                                                | `/api/v1` compatibility, Zod/OpenAPI ownership, and SDK generation                   |
-| Foundational database      | [Foundational schema guide](docs/database/foundational-schema.md)                                                                                                 | Plain-language table meanings, relationships, constraints, and limitations           |
-| Catalog domain             | [Catalog domain](docs/catalog/catalog-domain.md), [catalog persistence](docs/catalog/catalog-persistence.md)                                                      | Product/Variant/options, identifiers, merchandising, pricing, lifecycle, and RLS     |
-| Migrations                 | [Migration guide](docs/database/migrations.md)                                                                                                                    | Authoritative history, adding/reviewing/testing migrations, and rollback philosophy  |
-| Docker                     | [Docker strategy](docs/docker/strategy.md), [database testing](docs/docker/database-testing.md), [local Supabase](docs/development/supabase-local.md)             | Fast PostgreSQL tests, Supabase RLS tests, CI, and production direction              |
-| Testing                    | [Development testing guide](docs/development/testing.md), [catalog testing](docs/development/catalog-testing.md)                                                  | Unit, authorization, contract drift, catalog persistence/RLS, build, and SDK checks  |
-| Development and releases   | [SDK release guide](docs/development/sdk-release.md)                                                                                                              | Local commands and the current vendored SDK release workflow                         |
-| Identity and authorization | [Identity and authorization](docs/security/identity-and-authorization.md), [local authentication](docs/development/authentication-local.md)                       | Clerk trust boundary, internal identity, Permission/scope evaluation, and operations |
-| Tenant security and RLS    | [Tenant RLS](docs/security/tenant-rls.md), [tenant isolation strategy](docs/architecture/tenant-isolation-strategy.md)                                            | Implemented application authorization plus database backstop and threat model        |
-| Future deployment          | [Deployment boundaries](docs/platform/deployment-boundaries.md), [Docker strategy](docs/docker/strategy.md#intended-production-boundary)                          | Intended Hostinger KVM/Docker Compose direction; no deployment exists yet            |
-| Troubleshooting            | [Database-test troubleshooting](docs/docker/database-testing.md#troubleshooting), [testing troubleshooting](docs/development/testing.md#troubleshooting-by-layer) | How to isolate Docker, PostgreSQL, migration, SQL-test, build, and contract failures |
+| Topic                      | Start here                                                                                                                                                                   | Covers                                                                               |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| System architecture        | [System context](docs/platform/system-context.md), [repository boundaries](docs/platform/repository-boundaries.md)                                                           | Service ownership, polyrepo boundaries, and client/API relationships                 |
+| Phase 1C-A architecture    | [Foundational persistence architecture](docs/architecture/phase-1c-a-foundational-persistence.md), [domain diagram](docs/architecture/phase-1b-domain-diagram.md)            | Design decisions, ownership, invariants, and Phase 1C-B deferrals                    |
+| Architecture decisions     | [Decision records](docs/decisions/)                                                                                                                                          | Accepted/proposed ADRs, including database ownership and physical schema choices     |
+| API and contracts          | [API versioning](docs/platform/api-versioning.md), [SDK contract strategy](docs/platform/sdk-contract-strategy.md)                                                           | `/api/v1` compatibility, Zod/OpenAPI ownership, and SDK generation                   |
+| Foundational database      | [Foundational schema guide](docs/database/foundational-schema.md)                                                                                                            | Plain-language table meanings, relationships, constraints, and limitations           |
+| Catalog domain             | [Catalog domain](docs/catalog/catalog-domain.md), [catalog persistence](docs/catalog/catalog-persistence.md)                                                                 | Product/Variant/options, identifiers, merchandising, pricing, lifecycle, and RLS     |
+| Inventory domain           | [Inventory domain](docs/inventory/inventory-domain.md), [inventory persistence](docs/inventory/inventory-persistence.md)                                                     | Operation/movement ledger, balance projection, concurrency, idempotency, and RLS     |
+| Migrations                 | [Migration guide](docs/database/migrations.md)                                                                                                                               | Authoritative history, adding/reviewing/testing migrations, and rollback philosophy  |
+| Docker                     | [Docker strategy](docs/docker/strategy.md), [database testing](docs/docker/database-testing.md), [local Supabase](docs/development/supabase-local.md)                        | Fast PostgreSQL tests, Supabase RLS tests, CI, and production direction              |
+| Testing                    | [Development testing guide](docs/development/testing.md), [catalog testing](docs/development/catalog-testing.md), [inventory testing](docs/development/inventory-testing.md) | Unit, authorization, contract drift, catalog/inventory persistence/RLS, build, SDK   |
+| Development and releases   | [SDK release guide](docs/development/sdk-release.md)                                                                                                                         | Local commands and the current vendored SDK release workflow                         |
+| Identity and authorization | [Identity and authorization](docs/security/identity-and-authorization.md), [local authentication](docs/development/authentication-local.md)                                  | Clerk trust boundary, internal identity, Permission/scope evaluation, and operations |
+| Tenant security and RLS    | [Tenant RLS](docs/security/tenant-rls.md), [tenant isolation strategy](docs/architecture/tenant-isolation-strategy.md)                                                       | Implemented application authorization plus database backstop and threat model        |
+| Future deployment          | [Deployment boundaries](docs/platform/deployment-boundaries.md), [Docker strategy](docs/docker/strategy.md#intended-production-boundary)                                     | Intended Hostinger KVM/Docker Compose direction; no deployment exists yet            |
+| Troubleshooting            | [Database-test troubleshooting](docs/docker/database-testing.md#troubleshooting), [testing troubleshooting](docs/development/testing.md#troubleshooting-by-layer)            | How to isolate Docker, PostgreSQL, migration, SQL-test, build, and contract failures |
 
 ## Current implementation boundary
 
 Phase 2A adds tenant-owned Product, ProductVariant, identifier, option, Category, Collection, and
-base-price persistence plus deny-by-default RLS. Clerk-backed staff authorization remains the
-privileged boundary. There is still no catalog/public auth endpoint, Permission seed, customer
-authentication, inventory, order/payment workflow, storefront/POS UI, production Docker
-image/Compose file, or deployment.
+base-price persistence plus deny-by-default RLS. Phase 2B adds the inventory foundation — the
+append-only operation/movement ledger, the transactionally maintained on-hand balance projection
+keyed by `ProductVariant + InventoryLocation`, the private atomic mutation path, and inventory RLS —
+without any sales, receiving, returns, transfer, purchasing, costing, or reservation workflow.
+Clerk-backed staff authorization remains the privileged boundary. There is still no catalog/public
+auth endpoint, Permission seed, customer authentication, order/payment workflow, storefront/POS UI,
+production Docker image/Compose file, or deployment.

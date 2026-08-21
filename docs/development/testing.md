@@ -19,9 +19,12 @@ implementation as complete.
 | Auth repository        | `pnpm test:authorization:integration` | Real Supabase adapter, hydration, corrupt-state denial            | Live Clerk, cloud Supabase, or production credentials    |
 | Persistence tests      | `pnpm test:persistence`               | Ordered migrations and SQL invariants on PostgreSQL 17.6, twice   | Supabase RLS/auth context or production upgrade safety   |
 | Catalog persistence    | `pnpm test:catalog:persistence`       | Catalog relations and invariants on PostgreSQL 17.6, twice        | Supabase role behavior or production upgrade safety      |
+| Inventory persistence  | `pnpm test:inventory:persistence`     | Inventory ledger/balance invariants on PostgreSQL 17.6, twice     | Supabase role behavior or production upgrade safety      |
 | Supabase/RLS tests     | `pnpm test:rls`                       | Roles, request claims, RLS policy behavior, tenant attacks        | Application authorization or production safety           |
 | Catalog RLS tests      | `pnpm test:catalog:rls`               | Catalog policies, runtime isolation, write denial, bypass role    | Catalog application authorization or public publication  |
+| Inventory RLS tests    | `pnpm test:inventory:rls`             | Inventory policies, runtime isolation, write and helper denial    | Inventory application authorization or public publication|
 | Catalog concurrency    | `pnpm test:catalog:concurrency`       | Tenant-scoped category advisory lock; two-session cycle race      | Non-hierarchy catalog behavior                           |
+| Inventory concurrency  | `pnpm test:inventory:concurrency`     | Balance row-lock oversell/creation races; two-session tests       | Non-stock inventory behavior                             |
 | Build                  | `pnpm build`                          | Compilation and build-time integration                            | Deployment/runtime infrastructure                        |
 | SDK package check      | `pnpm sdk:pack`                       | The SDK can be packaged and its included files inspected          | Publication or consumer integration in a remote registry |
 | Whitespace validation  | `git diff --check`                    | Trailing whitespace and malformed patch markers                   | Any semantic correctness                                 |
@@ -33,7 +36,9 @@ persistence SQL suite performs 27 assertions per cycle and the runner executes t
 The RLS suite performs 87 pgTAP assertions from a reset local Supabase database. Counts are
 descriptive, not a target to preserve when useful coverage is added. Phase 2A adds 47 catalog
 persistence assertions per cycle, 43 catalog RLS assertions, and a separate deterministic
-seven-check category concurrency regression.
+seven-check category concurrency regression. Phase 2B adds 39 inventory persistence assertions per
+cycle, 28 inventory RLS assertions, and a separate deterministic 13-check balance concurrency
+regression.
 
 ## Recommended completion sequence
 
@@ -50,27 +55,30 @@ pnpm test:authorization
 pnpm test:authorization:integration
 pnpm test:persistence
 pnpm test:catalog:persistence
+pnpm test:inventory:persistence
 pnpm test:rls
 pnpm test:catalog:rls
+pnpm test:inventory:rls
 pnpm test:catalog:concurrency
+pnpm test:inventory:concurrency
 pnpm build
 pnpm sdk:pack
 git diff --check
 ```
 
-`pnpm format` writes formatting changes; review its diff before continuing. The three database
-commands require a running Docker engine. None needs an `.env` file, Supabase login, linked cloud
-project, or production credentials. The Supabase commands own and remove disposable local stacks;
-see [Local Supabase development](supabase-local.md). `pnpm test:all` is the shorter aggregate for
-the eight test commands; formatting, lint, typecheck, build, packing, and diff checks remain separate.
+`pnpm format` writes formatting changes; review its diff before continuing. The database commands
+require a running Docker engine. None needs an `.env` file, Supabase login, linked cloud project, or
+production credentials. The Supabase commands own and remove disposable local stacks; see
+[Local Supabase development](supabase-local.md). `pnpm test:all` is the shorter aggregate for the
+test commands; formatting, lint, typecheck, build, packing, and diff checks remain separate.
 
 ## What runs in CI
 
 `.github/workflows/ci.yml` currently runs dependency installation with the frozen lockfile,
 formatting verification, linting, type checking, unit/contract Vitest, the distinct deterministic
-and real-repository authorization steps, both persistence commands, both distinct RLS security
-steps, the catalog category concurrency regression, the build, and SDK packing. Application
-authorization and all database layers are mandatory in every pull request.
+and real-repository authorization steps, all three persistence commands, all three distinct RLS
+security steps, the catalog category and inventory balance concurrency regressions, the build, and
+SDK packing. Application authorization and all database layers are mandatory in every pull request.
 
 The GitHub-hosted Ubuntu runner supplies Docker. CI invokes the same Node runner used locally, which
 checks Docker availability, creates its own disposable PostgreSQL container, runs both clean test
@@ -99,6 +107,8 @@ mistakes are visible even when source tests pass.
   is never implied.
 - Put Phase 2A catalog constraints and role behavior in the dedicated catalog persistence and RLS
   files described by [Catalog testing](catalog-testing.md).
+- Put Phase 2B inventory ledger, balance, concurrency, and role behavior in the dedicated inventory
+  files described by [Inventory testing](inventory-testing.md).
 - Test both accepted states and important rejection paths, especially cross-tenant references,
   uniqueness, lifecycle timing, and delete behavior.
 - When a new layer requires infrastructure, document its prerequisites, cleanup, secrets boundary,
