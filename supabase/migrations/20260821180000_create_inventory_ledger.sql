@@ -15,6 +15,16 @@ begin
   if not exists (select 1 from pg_catalog.pg_roles where rolname = 'inventory_writer') then
     create role inventory_writer nologin noinherit nobypassrls;
   end if;
+
+  -- Transferring table/function ownership to inventory_writer (below) requires the migration role to
+  -- be able to SET ROLE to it. PostgreSQL 16+ grants the creating role ADMIN but not SET by default,
+  -- and Supabase applies migrations as a non-superuser role; without this a fresh `supabase start`
+  -- fails with "must be able to SET ROLE inventory_writer". The creator holds ADMIN and can grant
+  -- itself the SET option; this is idempotent and is never granted to any client or the service role,
+  -- so the privilege boundary (service_role cannot become inventory_writer) is preserved. A superuser
+  -- migrator (the disposable direct-Postgres test runners) can already SET ROLE, so this is a no-op
+  -- there.
+  execute pg_catalog.format('grant inventory_writer to %I with set true', current_user);
 end;
 $block$;
 
@@ -480,11 +490,18 @@ comment on function inventory_private.record_operation(uuid, text, jsonb, uuid, 
 
 -- Transfer ownership so the definer function writes as a role that is not any client/application
 -- role, and so that role bypasses (never-forced) RLS on exactly these three tables.
+-- ALTER ... OWNER TO a role additionally requires the new owner to hold CREATE on the object's
+-- schema. Grant it only for the duration of the transfer and revoke immediately after, so
+-- inventory_writer keeps just USAGE on public (needed by the definer function at runtime) and no
+-- standing CREATE anywhere. A superuser migrator would not need this, but Supabase applies migrations
+-- as a non-superuser role.
+grant create on schema public, inventory_private to inventory_writer;
 alter table public.inventory_operations owner to inventory_writer;
 alter table public.inventory_movements owner to inventory_writer;
 alter table public.inventory_balances owner to inventory_writer;
 alter function inventory_private.record_operation(uuid, text, jsonb, uuid, text, timestamptz, text)
   owner to inventory_writer;
+revoke create on schema public, inventory_private from inventory_writer;
 
 -- Deny PUBLIC (and therefore anon/authenticated) execute on every private function. Grants to the
 -- server role are established in the RLS/grants migration.

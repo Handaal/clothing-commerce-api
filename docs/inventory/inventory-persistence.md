@@ -165,6 +165,14 @@ Phase 2B appends after the Phase 2A catalog migrations:
    idempotent) with `USAGE` on `public`, the `inventory_private` schema, the three tables,
    constraints, indexes, the append-only and balance-guard triggers, and the `SECURITY DEFINER`
    `record_operation`; it then transfers table and function ownership to `inventory_writer`.
+   Because Supabase applies migrations as a **non-superuser** role (unlike the superuser used by the
+   disposable direct-Postgres runners), the ownership transfer needs two additional privileges that a
+   superuser would not: the migration role grants itself `SET`-capable membership in `inventory_writer`
+   (PostgreSQL 16+ requires SET-capable membership for `ALTER ... OWNER TO`), and `inventory_writer`
+   is granted `CREATE` on `public`/`inventory_private` **only for the duration of the transfer** and
+   revoked immediately after (the new owner must hold `CREATE` on the object's schema). Both are
+   idempotent; neither is granted to any client or the service role, so the privilege boundary is
+   unchanged.
 2. `20260821180100_enable_inventory_tenant_rls.sql` enables RLS, the authenticated SELECT policies,
    grants `authenticated`/`service_role` `SELECT` only, and grants `service_role` `EXECUTE` on
    `record_operation` (no direct table DML).
