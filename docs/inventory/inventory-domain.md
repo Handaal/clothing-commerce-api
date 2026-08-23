@@ -169,10 +169,23 @@ and refunds, POS register-session deduction, ecommerce allocation, transfer busi
 stock-count UI, costing, customer auth, storefront/POS API/UI, reporting dashboards, and offline POS
 sync. This phase is the engine foundation only.
 
+## Phase 2C application boundary
+
+Phase 2C adds the inventory application service that lets the rest of the system express stock intent
+without touching this ledger. It introduces the `issue` operation type (a generic physical exit) and
+two hardened functions — `inventory_private.record_opening` (one-time initialization) and
+`inventory_private.record_count_adjustment` (absolute count with optimistic version concurrency) —
+alongside `record_operation`. The raw ledger and its functions remain infrastructure; future business
+domains call the application commands, never the ledger. See
+[inventory operations](inventory-operations.md) and
+[inventory authorization](inventory-authorization.md).
+
 ## Related documents
 
 - [Inventory persistence](inventory-persistence.md) — tables, constraints, functions, RLS, order.
-- [Inventory testing](../development/inventory-testing.md) — the three suites and how to run them.
+- [Inventory operations](inventory-operations.md) — the Phase 2C commands, results, and errors.
+- [Inventory authorization](inventory-authorization.md) — permissions, scopes, and the privilege boundary.
+- [Inventory testing](../development/inventory-testing.md) — the suites and how to run them.
 - [ADR-017](../decisions/ADR-017-inventory-ledger-and-balance-projection.md),
   [ADR-018](../decisions/ADR-018-inventory-concurrency-and-negative-stock.md),
   [ADR-019](../decisions/ADR-019-inventory-operation-and-idempotency-model.md).

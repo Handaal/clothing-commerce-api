@@ -8,3 +8,12 @@ major_version = 17
 
 [db.seed]
 enabled = false
+
+[api]
+# The server-side inventory application layer calls the sanctioned Phase 2C mutation functions in the
+# private inventory schema via PostgREST (service-role client). Exposing the schema does NOT grant
+# access: USAGE is revoked from anon/authenticated and EXECUTE is granted only to service_role, so the
+# schema exposure is not the security boundary -- the function grants are. public remains the default
+# client surface.
+schemas = ["public", "inventory_private"]
+extra_search_path = ["public", "extensions"]

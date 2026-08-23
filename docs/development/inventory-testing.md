@@ -8,10 +8,37 @@ From the repository root with Docker running:
 pnpm test:inventory:persistence
 pnpm test:inventory:concurrency
 pnpm test:inventory:rls
+
+# Phase 2C inventory operations (application boundary)
+pnpm test               # includes tests/inventory/** unit + adapter tests
+pnpm test:inventory:operations:persistence
+pnpm test:inventory:operations:concurrency
+pnpm test:inventory:operations:rls
+pnpm test:inventory:operations:integration
 ```
 
-All three use local disposable databases and require no `.env`, linked Supabase project, cloud
-credential, Clerk key, or production data. Each is a mandatory CI layer.
+All use local disposable databases and require no `.env`, linked Supabase project, cloud credential,
+Clerk key, or production data. Each is a mandatory CI layer.
+
+## Phase 2C inventory operations suites
+
+- **Unit** (`pnpm test`, `tests/inventory/**`): the `InventoryService` (authorization, lifecycle,
+  actor derivation, idempotency forwarding) and the `SupabaseInventoryRepository` (DB-error → stable
+  `InventoryError` mapping and movement-sign construction) using a fake repository and a stub client;
+  no database.
+- **`test:inventory:operations:persistence`** (`scripts/test-inventory-operations-persistence.mjs`):
+  applies all migrations twice against a disposable PostgreSQL container and exercises `record_opening`
+  and `record_count_adjustment` behaviour, the `issue` path, and the hardening/grant metadata. Runs on
+  Windows and Linux.
+- **`test:inventory:operations:concurrency`**
+  (`scripts/test-inventory-operations-concurrency.mjs`): two-session opening race, opening replay race,
+  and stale-count race. Runs on Windows and Linux.
+- **`test:inventory:operations:rls`** and **`test:inventory:operations:integration`**: Supabase-local
+  suites (pgTAP grants/metadata, and the real service + repository against the sanctioned functions).
+  These require Supabase-local port 54322, which is commonly reserved on Windows; **Linux CI is
+  authoritative** for them.
+
+See [inventory operations](../inventory/inventory-operations.md).
 
 ## What each suite proves
 
