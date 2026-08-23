@@ -46,6 +46,12 @@ The repository currently has eleven ordered migrations:
 11. `20260821180100_enable_inventory_tenant_rls.sql` enables inventory RLS, authenticated SELECT
     policies, and grants `service_role` `SELECT` plus `EXECUTE` on `record_operation` only — no direct
     table DML — so the function is the sole server write path for all three inventory tables.
+12. `20260822180000_create_inventory_operation_functions.sql` (Phase 2C) extends the `operation_type`
+    CHECK with `issue` and adds the hardened `record_opening` and `record_count_adjustment` functions,
+    transferring their ownership to `inventory_writer` with the non-superuser-compatible transient
+    `CREATE`-grant pattern.
+13. `20260822180100_grant_inventory_operation_functions.sql` (Phase 2C) grants `service_role` EXECUTE
+    on the two new functions and revokes it from PUBLIC/anon/authenticated; it adds no tables or RLS.
 
 The dependency order is intentional. A later migration may depend on an earlier one; an earlier
 migration must never depend on an object introduced later.

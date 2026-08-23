@@ -157,6 +157,46 @@ client or server-role path can. Emergency corrections should still prefer new co
 over history edits so reconciliation stays exact, and no application repository should ever expose a
 raw balance-mutation path.
 
+## Phase 2C operation functions
+
+Phase 2C adds two hardened mutation functions in `inventory_private`, hardened exactly like
+`record_operation` (SECURITY DEFINER, owned by `inventory_writer`, empty `search_path`, full
+qualification, no dynamic SQL, PUBLIC/anon/authenticated EXECUTE revoked, `service_role` EXECUTE
+only). Both exist because their correctness guarantee cannot be provided from the application over
+PostgREST (one RPC per call, no shared transaction across a read and a write):
+
+- `record_opening(tenant, variant, location, quantity, actor, key, occurred_at, notes)` obtains the
+  balance-row lock (race-safe create if absent) and, under that lock, rejects the opening with `IN001`
+  if any prior movement history exists for the key (idempotent replays excepted). It delegates the
+  ledger write to `record_operation` and returns `(operation_id, previous_on_hand, on_hand, version)`.
+  `inventory_writer` is granted `USAGE` on `inventory_private` so the definer function can resolve the
+  delegated call; it still holds no login and no membership in any client role.
+- `record_count_adjustment(tenant, variant, location, counted, expected_version, actor, key,
+occurred_at, notes)` locks the balance key, compares `version` against `expected_version` (raising
+  `IN002` on a mismatch), derives `delta = counted - current`, and records an `adjustment` operation in
+  both branches: with a movement when `delta ≠ 0`, and **with no movement** when `delta = 0` (a durable
+  no-op that leaves on-hand and version unchanged). Persisting the envelope even for a no-op is what
+  makes its idempotency key durable, so a no-op replays and a different-payload reuse is `ID409` exactly
+  like a changed count. The idempotency fast path runs **before** the version comparison, so a persisted
+  operation (no-op included) replays even after a later movement advanced the version. It is
+  self-contained because its idempotency identity is the caller inputs, not the derived delta. It
+  returns `(operation_id, previous_on_hand, on_hand, version, changed)`; `operation_id` is never null.
+
+An `InventoryOperation` is the command/event envelope; an `InventoryMovement` is the physical-quantity
+source of truth. They are decoupled: a changed adjustment is one operation **plus one** movement, while
+a no-op adjustment is one operation with **zero** movements. There is no constraint requiring an
+operation to own at least one movement, and no zero-quantity movement is ever written (movements keep
+their non-zero CHECK). Any query that reasons about "did stock physically change" must look at
+movements/balances, not at the mere existence of an operation.
+
+The `operation_type` CHECK is extended (fix-forward) to admit `issue`, the generic physical exit used
+by `issueInventory`. Custom SQLSTATEs `IN001` (opening exists) and `IN002` (version mismatch) are
+internal-only signals mapped to `OPENING_STOCK_ALREADY_EXISTS` and `CONCURRENT_MODIFICATION` by the
+application repository; idempotency conflicts continue to use `ID409`. See
+[inventory operations](inventory-operations.md) and
+[ADR-021](../decisions/ADR-021-count-based-adjustment-concurrency.md)/
+[ADR-022](../decisions/ADR-022-opening-stock-one-time-semantics.md).
+
 ## Migration order
 
 Phase 2B appends after the Phase 2A catalog migrations:
@@ -176,6 +216,16 @@ Phase 2B appends after the Phase 2A catalog migrations:
 2. `20260821180100_enable_inventory_tenant_rls.sql` enables RLS, the authenticated SELECT policies,
    grants `authenticated`/`service_role` `SELECT` only, and grants `service_role` `EXECUTE` on
    `record_operation` (no direct table DML).
+
+Phase 2C appends two fix-forward migrations after Phase 2B:
+
+3. `20260822180000_create_inventory_operation_functions.sql` extends the `operation_type` CHECK with
+   `issue`, grants `inventory_writer` `USAGE` on `inventory_private`, and creates `record_opening` and
+   `record_count_adjustment`, transferring their ownership to `inventory_writer` with the same
+   transient `CREATE`-grant pattern Phase 2B uses (Supabase applies migrations as a non-superuser).
+4. `20260822180100_grant_inventory_operation_functions.sql` revokes PUBLIC/anon/authenticated EXECUTE
+   on the two functions and grants EXECUTE to `service_role` only. No new tables, so no new RLS
+   policies.
 
 Earlier migrations are unchanged. Use a later fix-forward migration for any future change once this
 phase is shared. See [Database migrations](../database/migrations.md).

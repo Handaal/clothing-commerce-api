@@ -2,8 +2,9 @@
 
 Central HTTP API, transport-contract, SDK, persistence, and staff-authorization foundation for the
 Clothing Commerce Platform. It exposes only `GET /api/v1/health`; Phase 2A adds the shared catalog
-domain and persistence, and Phase 2B adds the inventory ledger/balance engine foundation, without
-adding business or public auth endpoints.
+domain and persistence, Phase 2B adds the inventory ledger/balance engine foundation, and Phase 2C
+adds the internal inventory application service boundary over that engine, without adding business or
+public auth endpoints.
 
 ## Boundaries and ownership
 
@@ -54,11 +55,15 @@ pnpm test:authorization:integration
 pnpm test:persistence
 pnpm test:catalog:persistence
 pnpm test:inventory:persistence
+pnpm test:inventory:operations:persistence
 pnpm test:rls
 pnpm test:catalog:rls
 pnpm test:inventory:rls
+pnpm test:inventory:operations:rls
 pnpm test:catalog:concurrency
 pnpm test:inventory:concurrency
+pnpm test:inventory:operations:concurrency
+pnpm test:inventory:operations:integration
 pnpm build
 pnpm sdk:pack
 ```
@@ -87,6 +92,17 @@ proving the balance row lock prevents overselling and duplicate balance creation
 multi-key operations (including absent-row creation) serialize without deadlock, and that concurrent
 idempotent submissions apply stock once while a conflicting payload is rejected. See
 [Inventory testing](docs/development/inventory-testing.md).
+
+Phase 2C adds the inventory application service boundary (`src/inventory/`): the intent-named
+commands `getInventoryBalance`, `setOpeningStock`, `adjustInventory`, `receiveInventory`,
+`issueInventory`, and `transferInventory`, authorized through Phase 1D against the target
+`InventoryLocation`(s) and translated into the sanctioned ledger functions — the raw ledger stays
+internal. `test:inventory:operations:persistence` and `test:inventory:operations:concurrency` cover
+the two new hardened functions (`record_opening`, `record_count_adjustment`), the generic `issue`
+exit, and the opening/stale-count races on disposable PostgreSQL; `test:inventory:operations:rls` and
+`test:inventory:operations:integration` are the Supabase-local grant/metadata and end-to-end suites
+(Linux CI authoritative). See [inventory operations](docs/inventory/inventory-operations.md) and
+[inventory authorization](docs/inventory/inventory-authorization.md).
 
 `test:authorization` runs the deterministic staff identity and application-authorization suite.
 It verifies provider mapping, lifecycle, Permission/AccessScope coupling, resource ownership,
@@ -121,6 +137,7 @@ Use this README as the map; detailed design and operational guidance live under 
 | Foundational database      | [Foundational schema guide](docs/database/foundational-schema.md)                                                                                                            | Plain-language table meanings, relationships, constraints, and limitations           |
 | Catalog domain             | [Catalog domain](docs/catalog/catalog-domain.md), [catalog persistence](docs/catalog/catalog-persistence.md)                                                                 | Product/Variant/options, identifiers, merchandising, pricing, lifecycle, and RLS     |
 | Inventory domain           | [Inventory domain](docs/inventory/inventory-domain.md), [inventory persistence](docs/inventory/inventory-persistence.md)                                                     | Operation/movement ledger, balance projection, concurrency, idempotency, and RLS     |
+| Inventory operations       | [Inventory operations](docs/inventory/inventory-operations.md), [inventory authorization](docs/inventory/inventory-authorization.md)                                         | Phase 2C application commands, permissions/scopes, results, errors, and idempotency  |
 | Migrations                 | [Migration guide](docs/database/migrations.md)                                                                                                                               | Authoritative history, adding/reviewing/testing migrations, and rollback philosophy  |
 | Docker                     | [Docker strategy](docs/docker/strategy.md), [database testing](docs/docker/database-testing.md), [local Supabase](docs/development/supabase-local.md)                        | Fast PostgreSQL tests, Supabase RLS tests, CI, and production direction              |
 | Testing                    | [Development testing guide](docs/development/testing.md), [catalog testing](docs/development/catalog-testing.md), [inventory testing](docs/development/inventory-testing.md) | Unit, authorization, contract drift, catalog/inventory persistence/RLS, build, SDK   |

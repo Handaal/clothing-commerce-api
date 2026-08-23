@@ -54,6 +54,13 @@ permission plus deprecation.
 every permission. Tenants cannot invent executable permission names. Phase 1B intentionally does
 not freeze the complete catalog.
 
+**Phase 2C inventory permissions.** The inventory application service enforces `inventory.read`,
+`inventory.adjust` (governs both opening stock and count adjustment), `inventory.receive`,
+`inventory.issue`, and `inventory.transfer`, each against the target `InventoryLocation` resource
+(transfer requires coverage of both source and destination). These keys are defined and enforced in
+application code; Phase 2C does not seed permission rows in a shared migration — tests seed the rows
+they need. See [inventory authorization](../inventory/inventory-authorization.md).
+
 ## Role
 
 Roles are tenant-owned named aggregations of Permissions. Role names are normalized and unique
