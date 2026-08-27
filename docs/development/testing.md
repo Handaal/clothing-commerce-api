@@ -29,6 +29,10 @@ implementation as complete.
 | Inventory ops concurrency | `pnpm test:inventory:operations:concurrency` | Opening race, opening replay race, and stale-count race             | Non-operation inventory behavior                          |
 | Inventory ops RLS         | `pnpm test:inventory:operations:rls`         | Grants/metadata for the new functions; client execute denial        | Application command semantics                             |
 | Inventory ops integration | `pnpm test:inventory:operations:integration` | Real service + repository against the sanctioned functions          | Non-inventory application behavior                        |
+| Orders persistence        | `pnpm test:orders:persistence`               | orders/order_lines/counter, create_order/cancel_order, integrity, twice | Application authorization or Supabase RLS behavior     |
+| Orders RLS                | `pnpm test:orders:rls`                        | Deny-authenticated policy stance, function grants, writer hardening | Application command semantics                             |
+| Orders concurrency        | `pnpm test:orders:concurrency`               | Idempotent/conflicting create races, order-number race, cancel race | Non-order behavior                                        |
+| Orders integration        | `pnpm test:orders:integration`               | Real service + repository: create/read/cancel, replay after catalog/register change | Non-order application behavior            |
 | Build                     | `pnpm build`                                 | Compilation and build-time integration                              | Deployment/runtime infrastructure                         |
 | SDK package check         | `pnpm sdk:pack`                              | The SDK can be packaged and its included files inspected            | Publication or consumer integration in a remote registry  |
 | Whitespace validation     | `git diff --check`                           | Trailing whitespace and malformed patch markers                     | Any semantic correctness                                  |

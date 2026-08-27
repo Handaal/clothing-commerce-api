@@ -145,6 +145,21 @@ Commerce API. Phase 1D adds the authorization foundation but no lifecycle or adm
 service. RLS must not accidentally turn direct Data API access into an unreviewed
 write API.
 
+## Phase 2D order tables
+
+`orders`, `order_lines`, and `order_number_sequences` take a **deliberately stricter** stance than the
+catalog/inventory tables: they have RLS enabled (not forced) with **zero policies**, so `anon` and
+`authenticated` have no direct access at all — there is no tenant-wide authenticated SELECT backstop.
+Orders are commercially sensitive and will later carry customer-related data, and every order read flows
+through the server-side application repository, so a direct authenticated Data API path has no
+legitimate consumer and could bypass the application's brand/branch scope semantics. `service_role`
+holds `SELECT` on `orders`/`order_lines` (none on `order_number_sequences`) and `EXECUTE` on the
+sanctioned `orders_private` functions only — it has no direct DML. All writes run as the non-login
+`orders_writer` role inside the SECURITY DEFINER functions, mirroring the Phase 2B/2C inventory
+boundary. The `orders_private` schema is exposed to PostgREST for the service-role RPC calls; the
+function EXECUTE grants, not schema exposure, are the boundary. Future storefront customer access must
+use a controlled application API, never broadened `anon`/`authenticated` policies.
+
 ## Global-table decisions
 
 `user_identities` is self-readable only after active Membership validation in the selected Tenant.
