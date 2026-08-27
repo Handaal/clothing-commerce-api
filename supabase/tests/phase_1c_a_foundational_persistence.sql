@@ -122,11 +122,12 @@ select pg_temp.assert_true(
   'all foundational tables use RLS and only approved SELECT policies exist'
 );
 
+-- The Order/Sales domain arrived in Phase 2D (orders/order_lines exist); payment and customer domains
+-- remain deferred and must still be absent.
 select pg_temp.assert_true(
-  to_regclass('public.orders') is null
-  and to_regclass('public.payments') is null
+  to_regclass('public.payments') is null
   and to_regclass('public.customers') is null,
-  'deferred order, payment, and customer tables are absent'
+  'deferred payment and customer tables are absent'
 );
 
 insert into public.tenants (

@@ -88,13 +88,13 @@ select pg_temp.assert_true(
   'all 11 Phase 2A catalog tables exist'
 );
 
+-- Orders arrived in Phase 2D; payment, promotion, publication, and media domains remain deferred.
 select pg_temp.assert_true(
-  to_regclass('public.orders') is null
-  and to_regclass('public.payments') is null
+  to_regclass('public.payments') is null
   and to_regclass('public.promotions') is null
   and to_regclass('public.product_publications') is null
   and to_regclass('public.media_assets') is null,
-  'deferred order, payment, promotion, publication, and media tables remain absent'
+  'deferred payment, promotion, publication, and media tables remain absent'
 );
 
 insert into public.tenants (id, slug, display_name, status, onboarding_state, default_currency)

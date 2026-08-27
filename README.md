@@ -2,9 +2,13 @@
 
 Central HTTP API, transport-contract, SDK, persistence, and staff-authorization foundation for the
 Clothing Commerce Platform. It exposes only `GET /api/v1/health`; Phase 2A adds the shared catalog
-domain and persistence, Phase 2B adds the inventory ledger/balance engine foundation, and Phase 2C
-adds the internal inventory application service boundary over that engine, without adding business or
-public auth endpoints.
+domain and persistence, Phase 2B adds the inventory ledger/balance engine foundation, Phase 2C adds the
+internal inventory application service boundary over that engine, and Phase 2D adds the canonical
+Order/Sales domain (`orders`/`order_lines` persistence and the internal `OrderService` for POS and
+ONLINE), without adding business or public auth endpoints. See
+[Order domain](docs/orders/order-domain.md), [Order persistence](docs/orders/order-persistence.md),
+[Order lifecycle](docs/orders/order-lifecycle.md), and
+[Order authorization](docs/orders/order-authorization.md).
 
 ## Boundaries and ownership
 
@@ -64,6 +68,10 @@ pnpm test:catalog:concurrency
 pnpm test:inventory:concurrency
 pnpm test:inventory:operations:concurrency
 pnpm test:inventory:operations:integration
+pnpm test:orders:persistence
+pnpm test:orders:rls
+pnpm test:orders:concurrency
+pnpm test:orders:integration
 pnpm build
 pnpm sdk:pack
 ```

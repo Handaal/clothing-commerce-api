@@ -9,29 +9,33 @@ implementation as complete.
 
 ## Test and validation layers
 
-| Layer                     | Command                                      | What it catches                                                     | What it does not prove                                    |
-| ------------------------- | -------------------------------------------- | ------------------------------------------------------------------- | --------------------------------------------------------- |
-| Formatting                | `pnpm format:check`                          | Files that differ from the Prettier rules                           | Type, behavior, or database correctness                   |
-| Linting                   | `pnpm lint`                                  | Configured ESLint correctness and maintainability issues            | Runtime or PostgreSQL behavior                            |
-| Type checking             | `pnpm typecheck`                             | Strict TypeScript errors across configured packages                 | Runtime values or SQL constraints                         |
-| Unit/contract tests       | `pnpm test`                                  | Vitest behavior, health contracts/routes, OpenAPI drift, SDK code   | Live PostgreSQL and RLS behavior                          |
-| Identity/authorization    | `pnpm test:authorization`                    | Provider mapping, lifecycle, Permission/scope, ownership, proof     | Live Clerk, provisioning, or production credentials       |
-| Auth repository           | `pnpm test:authorization:integration`        | Real Supabase adapter, hydration, corrupt-state denial              | Live Clerk, cloud Supabase, or production credentials     |
-| Persistence tests         | `pnpm test:persistence`                      | Ordered migrations and SQL invariants on PostgreSQL 17.6, twice     | Supabase RLS/auth context or production upgrade safety    |
-| Catalog persistence       | `pnpm test:catalog:persistence`              | Catalog relations and invariants on PostgreSQL 17.6, twice          | Supabase role behavior or production upgrade safety       |
-| Inventory persistence     | `pnpm test:inventory:persistence`            | Inventory ledger/balance invariants on PostgreSQL 17.6, twice       | Supabase role behavior or production upgrade safety       |
-| Supabase/RLS tests        | `pnpm test:rls`                              | Roles, request claims, RLS policy behavior, tenant attacks          | Application authorization or production safety            |
-| Catalog RLS tests         | `pnpm test:catalog:rls`                      | Catalog policies, runtime isolation, write denial, bypass role      | Catalog application authorization or public publication   |
-| Inventory RLS tests       | `pnpm test:inventory:rls`                    | Inventory policies, runtime isolation, write and helper denial      | Inventory application authorization or public publication |
-| Catalog concurrency       | `pnpm test:catalog:concurrency`              | Tenant-scoped category advisory lock; two-session cycle race        | Non-hierarchy catalog behavior                            |
-| Inventory concurrency     | `pnpm test:inventory:concurrency`            | Balance row-lock oversell/creation races; two-session tests         | Non-stock inventory behavior                              |
-| Inventory ops persistence | `pnpm test:inventory:operations:persistence` | record_opening/record_count_adjustment + issue on PostgreSQL, twice | Application authorization or Supabase RLS behavior        |
-| Inventory ops concurrency | `pnpm test:inventory:operations:concurrency` | Opening race, opening replay race, and stale-count race             | Non-operation inventory behavior                          |
-| Inventory ops RLS         | `pnpm test:inventory:operations:rls`         | Grants/metadata for the new functions; client execute denial        | Application command semantics                             |
-| Inventory ops integration | `pnpm test:inventory:operations:integration` | Real service + repository against the sanctioned functions          | Non-inventory application behavior                        |
-| Build                     | `pnpm build`                                 | Compilation and build-time integration                              | Deployment/runtime infrastructure                         |
-| SDK package check         | `pnpm sdk:pack`                              | The SDK can be packaged and its included files inspected            | Publication or consumer integration in a remote registry  |
-| Whitespace validation     | `git diff --check`                           | Trailing whitespace and malformed patch markers                     | Any semantic correctness                                  |
+| Layer                     | Command                                      | What it catches                                                                     | What it does not prove                                    |
+| ------------------------- | -------------------------------------------- | ----------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| Formatting                | `pnpm format:check`                          | Files that differ from the Prettier rules                                           | Type, behavior, or database correctness                   |
+| Linting                   | `pnpm lint`                                  | Configured ESLint correctness and maintainability issues                            | Runtime or PostgreSQL behavior                            |
+| Type checking             | `pnpm typecheck`                             | Strict TypeScript errors across configured packages                                 | Runtime values or SQL constraints                         |
+| Unit/contract tests       | `pnpm test`                                  | Vitest behavior, health contracts/routes, OpenAPI drift, SDK code                   | Live PostgreSQL and RLS behavior                          |
+| Identity/authorization    | `pnpm test:authorization`                    | Provider mapping, lifecycle, Permission/scope, ownership, proof                     | Live Clerk, provisioning, or production credentials       |
+| Auth repository           | `pnpm test:authorization:integration`        | Real Supabase adapter, hydration, corrupt-state denial                              | Live Clerk, cloud Supabase, or production credentials     |
+| Persistence tests         | `pnpm test:persistence`                      | Ordered migrations and SQL invariants on PostgreSQL 17.6, twice                     | Supabase RLS/auth context or production upgrade safety    |
+| Catalog persistence       | `pnpm test:catalog:persistence`              | Catalog relations and invariants on PostgreSQL 17.6, twice                          | Supabase role behavior or production upgrade safety       |
+| Inventory persistence     | `pnpm test:inventory:persistence`            | Inventory ledger/balance invariants on PostgreSQL 17.6, twice                       | Supabase role behavior or production upgrade safety       |
+| Supabase/RLS tests        | `pnpm test:rls`                              | Roles, request claims, RLS policy behavior, tenant attacks                          | Application authorization or production safety            |
+| Catalog RLS tests         | `pnpm test:catalog:rls`                      | Catalog policies, runtime isolation, write denial, bypass role                      | Catalog application authorization or public publication   |
+| Inventory RLS tests       | `pnpm test:inventory:rls`                    | Inventory policies, runtime isolation, write and helper denial                      | Inventory application authorization or public publication |
+| Catalog concurrency       | `pnpm test:catalog:concurrency`              | Tenant-scoped category advisory lock; two-session cycle race                        | Non-hierarchy catalog behavior                            |
+| Inventory concurrency     | `pnpm test:inventory:concurrency`            | Balance row-lock oversell/creation races; two-session tests                         | Non-stock inventory behavior                              |
+| Inventory ops persistence | `pnpm test:inventory:operations:persistence` | record_opening/record_count_adjustment + issue on PostgreSQL, twice                 | Application authorization or Supabase RLS behavior        |
+| Inventory ops concurrency | `pnpm test:inventory:operations:concurrency` | Opening race, opening replay race, and stale-count race                             | Non-operation inventory behavior                          |
+| Inventory ops RLS         | `pnpm test:inventory:operations:rls`         | Grants/metadata for the new functions; client execute denial                        | Application command semantics                             |
+| Inventory ops integration | `pnpm test:inventory:operations:integration` | Real service + repository against the sanctioned functions                          | Non-inventory application behavior                        |
+| Orders persistence        | `pnpm test:orders:persistence`               | orders/order_lines/counter, create_order/cancel_order, integrity, twice             | Application authorization or Supabase RLS behavior        |
+| Orders RLS                | `pnpm test:orders:rls`                       | Deny-authenticated policy stance, function grants, writer hardening                 | Application command semantics                             |
+| Orders concurrency        | `pnpm test:orders:concurrency`               | Idempotent/conflicting create races, order-number race, cancel race                 | Non-order behavior                                        |
+| Orders integration        | `pnpm test:orders:integration`               | Real service + repository: create/read/cancel, replay after catalog/register change | Non-order application behavior                            |
+| Build                     | `pnpm build`                                 | Compilation and build-time integration                                              | Deployment/runtime infrastructure                         |
+| SDK package check         | `pnpm sdk:pack`                              | The SDK can be packaged and its included files inspected                            | Publication or consumer integration in a remote registry  |
+| Whitespace validation     | `git diff --check`                           | Trailing whitespace and malformed patch markers                                     | Any semantic correctness                                  |
 
 At the Phase 1D review point, `pnpm test` runs the four existing unit/contract files with eleven
 tests, including `tests/openapi-drift.test.ts`. `pnpm test:authorization` separately runs five files

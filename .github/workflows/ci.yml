@@ -54,5 +54,13 @@ jobs:
         run: pnpm test:inventory:operations:concurrency
       - name: Test inventory operation integration
         run: pnpm test:inventory:operations:integration
+      - name: Test orders PostgreSQL persistence
+        run: pnpm test:orders:persistence
+      - name: Test orders Supabase RLS
+        run: pnpm test:orders:rls
+      - name: Test orders concurrency
+        run: pnpm test:orders:concurrency
+      - name: Test orders integration
+        run: pnpm test:orders:integration
       - run: pnpm build
       - run: pnpm sdk:pack
