@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 const repositoryRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const supabaseEntrypoint = join(repositoryRoot, "node_modules", "supabase", "dist", "supabase.js");
 const testFile = join("supabase", "tests", "phase_2d_orders_rls.test.sql");
-const expectedTestCount = 11;
+const expectedTestCount = 12;
 const excludedServices = [
   "gotrue",
   "realtime",

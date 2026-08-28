@@ -118,6 +118,10 @@ function mapDatabaseError(error: DatabaseErrorLike): Error {
   switch (error.code) {
     case "ID409":
       return new OrderError("IDEMPOTENCY_CONFLICT");
+    case "FF030":
+      // Phase 2E: cancel_order refuses an order that has any Fulfillment (partial or full). This is a
+      // stable business conflict, not an unexpected fault.
+      return new OrderError("ORDER_ALREADY_FULFILLED");
     case "23514":
       return new OrderError("INVALID_ORDER");
     case "23503":

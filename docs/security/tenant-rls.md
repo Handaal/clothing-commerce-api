@@ -160,6 +160,24 @@ boundary. The `orders_private` schema is exposed to PostgREST for the service-ro
 function EXECUTE grants, not schema exposure, are the boundary. Future storefront customer access must
 use a controlled application API, never broadened `anon`/`authenticated` policies.
 
+## Phase 2E fulfillment tables
+
+`fulfillments` and `fulfillment_lines` take the same strict stance as the order tables: RLS enabled (not
+forced) with **no** policy targeting `anon`/`authenticated`, so clients have no direct access.
+`service_role` holds `SELECT` on both and `EXECUTE` on `fulfillments_private.record_fulfillment` and
+`resolve_fulfillment_replay_target` only — no direct DML, and crucially **no** `EXECUTE` on
+`inventory_private.record_fulfillment_issue`, so `service_role` can never issue fulfillment stock
+directly. All writes run as the non-login `fulfillments_writer` role.
+
+Phase 2E adds three narrow, role-scoped read policies to already-RLS-protected tables (fix-forward): a
+`SELECT`-only policy on `orders` and on `order_lines` for `fulfillments_writer` (it must read order
+state/lines to record a Fulfillment), a `SELECT`-only policy on `fulfillments` for `orders_writer` (the
+cancellation guard), and a `SELECT`-only policy on `inventory_locations` for `inventory_writer` (the
+capability check). Each targets a single internal, non-login role that is granted to no client and holds
+no DML on the table; the policies never broaden `anon`/`authenticated` access. Two neutral advisory-lock
+helpers live in the `commerce_locks` schema (revoked from `PUBLIC`, granted only to the specific writer
+roles) so the order-execution and location-lifecycle lock keys are shared across domains without drift.
+
 ## Global-table decisions
 
 `user_identities` is self-readable only after active Membership validation in the selected Tenant.

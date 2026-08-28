@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(11);
+select plan(12);
 
 -- The three order functions are hardened exactly like the inventory mutation path.
 select is(
@@ -74,16 +74,31 @@ select ok(
   'RLS is enabled and not forced on the order tables'
 );
 
--- Deny-by-default: no permissive policy exists on any order table.
+-- Deny-by-default for clients: no policy on any order table targets anon or authenticated. Phase 2E
+-- adds two SELECT-only policies for the internal, non-login fulfillments_writer role (so
+-- record_fulfillment can read order state/lines); those never grant client access.
 select is(
   (
     select count(*)
     from pg_catalog.pg_policies
     where schemaname = 'public'
       and tablename in ('orders', 'order_lines', 'order_number_sequences')
+      and (roles && array['anon', 'authenticated']::name[])
   ),
   0::bigint,
-  'the order tables carry no RLS policy (deny by default)'
+  'the order tables carry no client-facing RLS policy (deny by default)'
+);
+
+-- The only order-table policies are the two Phase 2E fulfillments_writer SELECT-only reads.
+select ok(
+  (
+    select bool_and(cmd = 'SELECT' and roles = array['fulfillments_writer']::name[])
+      and count(*) = 2
+    from pg_catalog.pg_policies
+    where schemaname = 'public'
+      and tablename in ('orders', 'order_lines', 'order_number_sequences')
+  ),
+  'the only order-table policies are the fulfillments_writer SELECT-only reads'
 );
 
 -- anon has no direct access to the order aggregate tables.

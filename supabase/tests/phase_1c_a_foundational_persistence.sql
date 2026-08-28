@@ -91,7 +91,10 @@ select pg_temp.assert_true(
       )
   )
   and (
-    select count(*) = 17
+    -- 17 foundational per-table authenticated read policies, plus the one Phase 2E additive
+    -- inventory_writer read policy on inventory_locations (inventory_writer_fulfillment_read), which lets
+    -- the SECURITY DEFINER record_fulfillment_issue read Location status/capability. All are SELECT-only.
+    select count(*) = 18
     from pg_catalog.pg_policies
     where schemaname = 'public'
       and cmd = 'SELECT'

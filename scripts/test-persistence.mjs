@@ -169,7 +169,7 @@ try {
   runInvariantTests(1);
 
   runPsql(
-    "drop schema if exists orders_private cascade; drop schema if exists inventory_private cascade; drop schema if exists catalog_private cascade; drop schema if exists commerce_context cascade; drop schema public cascade; create schema public;",
+    "drop schema if exists fulfillments_private cascade; drop schema if exists commerce_locks cascade; drop schema if exists orders_private cascade; drop schema if exists inventory_private cascade; drop schema if exists catalog_private cascade; drop schema if exists commerce_context cascade; drop schema public cascade; create schema public;",
     "[reset] removed private schemas and recreated empty public schema",
   );
 

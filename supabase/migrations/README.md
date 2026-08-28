@@ -10,12 +10,23 @@ base-price, and catalog RLS migrations. Phase 2B appends the inventory ledger (o
 balances), the private `inventory_private` mutation path, and inventory RLS. Phase 2C appends the
 inventory operation functions and their grants. Phase 2D appends additive composite keys, an idempotent
 platform permission-catalog seed, the order tables (`orders`, `order_lines`, `order_number_sequences`)
-with the private `orders_private` mutation/preflight path, the order functions, and order RLS. All
-earlier phase files remain unchanged.
+with the private `orders_private` mutation/preflight path, the order functions, and order RLS. Phase 2E
+appends additive `order_lines` composite keys, the `orders.fulfill` permission seed, the fulfillment
+tables (`fulfillments`, `fulfillment_lines`) with the private `fulfillments_private` path and the shared
+`commerce_locks` advisory-lock helpers, the narrow `inventory_private.record_fulfillment_issue` custody
+primitive, the fulfillment functions, fulfillment RLS, and a fix-forward extension of
+`orders_private.cancel_order` (shared order-execution lock + fulfillment guard). All earlier phase files
+remain unchanged.
 
 The Phase 2D sequence is: `20260825180000_add_order_composite_keys.sql`,
 `20260825180100_seed_platform_permissions.sql`, `20260825180200_create_orders.sql`,
 `20260825180300_create_order_functions.sql`, `20260825180400_enable_orders_rls.sql`.
+
+The Phase 2E sequence is: `20260828180000_add_fulfillment_order_line_keys.sql`,
+`20260828180100_seed_fulfillment_permission.sql`, `20260828180200_create_fulfillments.sql`,
+`20260828180300_create_inventory_fulfillment_issue.sql`,
+`20260828180400_create_fulfillment_functions.sql`, `20260828180500_enable_fulfillments_rls.sql`,
+`20260828180600_extend_cancel_order_fulfillment_guard.sql`.
 
 Run `pnpm test:persistence` from the repository root to apply every SQL migration twice from an
 empty PostgreSQL 17.6 schema and execute the database constraint tests.
@@ -29,7 +40,11 @@ and policy suites. Run `pnpm test:inventory:persistence`, `pnpm test:inventory:c
 `pnpm test:inventory:rls` for the dedicated Phase 2B inventory ledger, balance-concurrency, and policy
 suites. Run `pnpm test:orders:persistence`, `pnpm test:orders:rls`, `pnpm test:orders:concurrency`, and
 `pnpm test:orders:integration` for the dedicated Phase 2D order persistence, policy, concurrency, and
-integration suites. All are mandatory CI layers.
+integration suites. Run `pnpm test:fulfillment:persistence`, `pnpm test:fulfillment:rls`,
+`pnpm test:fulfillment:concurrency`, and `pnpm test:fulfillment:integration` for the dedicated Phase 2E
+fulfillment suites (immutable execution, two-authority + composite proof, atomic inventory issue,
+over-fulfillment/idempotency races, cancel-vs-fulfill, and the location-lifecycle race). All are
+mandatory CI layers.
 
 See [Database migrations](../../docs/database/migrations.md) for naming, ordering, review, and
 fix-forward policy. See
