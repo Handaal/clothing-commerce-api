@@ -36,6 +36,16 @@ the preserved original metadata and never overwrites `cancelled_at`, `cancelled_
 `cancellation_reason`, even if the retry supplies a different reason. Concurrency is safe — the guarded
 transition ensures two racers cannot both write cancellation metadata.
 
-Phase 2D cancellation has **no** side effects: it does not refund payment, restore stock, cancel a
-fulfillment, or release a reservation, because those domains do not yet exist. Future orchestration
-will coordinate them. Cancellation is never a delete; orders are retained.
+Since Phase 2E, `cancel_order` also acquires the shared **order-execution advisory lock**
+(`commerce_locks.acquire_order_execution_lock(tenant, order)`, the same key `record_fulfillment` uses)
+and, under that lock, rejects cancellation with `ORDER_ALREADY_FULFILLED` if **any** Fulfillment exists
+for the order — before the `placed → cancelled` transition. The shared lock makes the state “cancelled
+Order + Fulfillment” impossible: either a Fulfillment commits first (and a later cancel fails
+`ORDER_ALREADY_FULFILLED`) or the cancel commits first (and a later fulfillment sees the cancelled order
+and fails `ORDER_CANCELLED`, issuing nothing). The write-once semantics are unchanged: an already-
+cancelled order has no Fulfillment, so the guard never blocks a re-cancel replay. See
+[Fulfillment authorization](../fulfillment/fulfillment-authorization.md) and ADR-033.
+
+Cancellation itself still has **no** settlement side effects: it does not refund payment, restore stock,
+or release a reservation, because those domains do not yet exist. A fulfilled order can no longer be
+cancelled at all (above). Cancellation is never a delete; orders are retained.

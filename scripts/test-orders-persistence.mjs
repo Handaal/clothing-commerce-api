@@ -179,6 +179,8 @@ try {
     if (cycle === 1) {
       runPsql(
         [
+          "drop schema if exists fulfillments_private cascade;",
+          "drop schema if exists commerce_locks cascade;",
           "drop schema if exists orders_private cascade;",
           "drop schema if exists inventory_private cascade;",
           "drop schema if exists catalog_private cascade;",

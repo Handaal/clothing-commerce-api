@@ -10,10 +10,12 @@ major_version = 17
 enabled = false
 
 [api]
-# The server-side inventory (Phase 2C) and orders (Phase 2D) application layers call sanctioned
-# functions in their private schemas via PostgREST (service-role client). Exposing a schema does NOT
-# grant access: USAGE is revoked from anon/authenticated and EXECUTE is granted only to service_role,
-# so schema exposure is not the security boundary -- the function grants are. public remains the
-# default client surface.
-schemas = ["public", "inventory_private", "orders_private"]
+# The server-side inventory (Phase 2C), orders (Phase 2D), and fulfillment (Phase 2E) application
+# layers call sanctioned functions in their private schemas via PostgREST (service-role client).
+# Exposing a schema does NOT grant access: USAGE is revoked from anon/authenticated and EXECUTE is
+# granted only to service_role, so schema exposure is not the security boundary -- the function grants
+# are. In particular fulfillments_private.record_fulfillment_issue lives in inventory_private and is
+# granted to fulfillments_writer only, so exposing these schemas never lets service_role issue stock
+# directly. public remains the default client surface.
+schemas = ["public", "inventory_private", "orders_private", "fulfillments_private"]
 extra_search_path = ["public", "extensions"]

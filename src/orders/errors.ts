@@ -6,6 +6,7 @@
  */
 export const orderErrorCodes = [
   "ORDER_NOT_FOUND",
+  "ORDER_ALREADY_FULFILLED",
   "REGISTER_NOT_FOUND",
   "REGISTER_INACTIVE",
   "BRANCH_NOT_FOUND",
@@ -27,6 +28,8 @@ export type OrderErrorCode = (typeof orderErrorCodes)[number];
 
 const safeMessages: Record<OrderErrorCode, string> = {
   ORDER_NOT_FOUND: "The requested order does not exist.",
+  ORDER_ALREADY_FULFILLED:
+    "The order has already been fulfilled in whole or in part and cannot be cancelled.",
   REGISTER_NOT_FOUND: "The requested register does not exist.",
   REGISTER_INACTIVE: "The register is not active for this operation.",
   BRANCH_NOT_FOUND: "The requested branch does not exist.",
@@ -46,6 +49,7 @@ const safeMessages: Record<OrderErrorCode, string> = {
 
 const httpStatusByCode: Record<OrderErrorCode, 404 | 409 | 422> = {
   ORDER_NOT_FOUND: 404,
+  ORDER_ALREADY_FULFILLED: 409,
   REGISTER_NOT_FOUND: 404,
   REGISTER_INACTIVE: 409,
   BRANCH_NOT_FOUND: 404,

@@ -45,6 +45,16 @@ caller input. `tenantId` and the actor Membership are derived from the context, 
 They are generic physical stock entry/exit primitives; the future Purchasing/Orders/Returns domains
 produce their own workflow semantics and may consume these commands internally.
 
+### Fulfillment custody exit (Phase 2E)
+
+Phase 2E adds one narrow custody primitive, `inventory_private.record_fulfillment_issue`, used only by a
+Fulfillment. It acquires the InventoryLocation lifecycle advisory lock, requires the location be
+`active` **and** `is_fulfillment_enabled`, validates every movement is a negative delta at exactly the
+one location, forces `operation_type = 'issue'`, and delegates to `record_operation`. It is granted
+`EXECUTE` to `fulfillments_writer` **only** — never `service_role` — so it does not widen the generic
+inventory surface. `inventory_writer` gains `SELECT`-only on `inventory_locations` for the capability
+check. See [Fulfillment ↔ inventory integration](../fulfillment/fulfillment-inventory-integration.md).
+
 ### getInventoryBalance
 
 ```ts

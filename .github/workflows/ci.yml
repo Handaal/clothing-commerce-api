@@ -62,5 +62,13 @@ jobs:
         run: pnpm test:orders:concurrency
       - name: Test orders integration
         run: pnpm test:orders:integration
+      - name: Test fulfillment PostgreSQL persistence
+        run: pnpm test:fulfillment:persistence
+      - name: Test fulfillment Supabase RLS
+        run: pnpm test:fulfillment:rls
+      - name: Test fulfillment concurrency
+        run: pnpm test:fulfillment:concurrency
+      - name: Test fulfillment integration
+        run: pnpm test:fulfillment:integration
       - run: pnpm build
       - run: pnpm sdk:pack
