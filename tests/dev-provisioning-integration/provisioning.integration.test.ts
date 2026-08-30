@@ -150,9 +150,9 @@ describe("development identity provisioning (local Postgres)", () => {
       })
       .sort();
     expect(grantedKeys).toEqual([...READ_PERMISSIONS].sort());
-    expect(grantedKeys.some((k) => /\.(create|adjust|receive|issue|transfer|cancel)$/.test(k))).toBe(
-      false,
-    );
+    expect(
+      grantedKeys.some((k) => /\.(create|adjust|receive|issue|transfer|cancel)$/.test(k)),
+    ).toBe(false);
 
     // (12) tenant-wide scope owned by the dev tenant
     const { data: scope } = await admin
@@ -215,6 +215,81 @@ describe("development identity provisioning (local Postgres)", () => {
       .eq("tenant_id", tenantId)
       .eq("role_id", role?.id);
     expect(grantCount).toBe(3);
+  });
+
+  it("(9) a third identical run leaves the same records and ids unchanged", async () => {
+    const tenantId = await devTenantId();
+    const { data: role } = await admin
+      .from("roles")
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .eq("normalized_name", "dev management reader")
+      .single();
+    const { data: assignmentBefore } = await admin
+      .from("membership_role_assignments")
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .eq("role_id", role?.id)
+      .is("unassigned_at", null)
+      .single();
+
+    const result = provision(SUBJECT_PRIMARY);
+    expect(result.status).toBe(0);
+
+    // Same live assignment row (same id), no new rows.
+    const { data: assignmentAfter, count: assignmentCount } = await admin
+      .from("membership_role_assignments")
+      .select("id", { count: "exact" })
+      .eq("tenant_id", tenantId)
+      .eq("role_id", role?.id)
+      .is("unassigned_at", null);
+    expect(assignmentCount).toBe(1);
+    expect(assignmentAfter?.[0].id).toBe(assignmentBefore?.id);
+    expect(await bindingsFor(SUBJECT_PRIMARY)).toHaveLength(1);
+  });
+
+  it("(6b) refuses to reuse a membership carrying an extra live assignment (effective-permission exactness)", async () => {
+    const tenantId = await devTenantId();
+    const bindings = await bindingsFor(SUBJECT_PRIMARY);
+    const identityId = bindings[0].user_identity_id;
+    const { data: membership } = await admin
+      .from("memberships")
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .eq("user_identity_id", identityId)
+      .single();
+    const { data: role } = await admin
+      .from("roles")
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .eq("normalized_name", "dev management reader")
+      .single();
+
+    // Inject a second, unrelated live assignment for this membership.
+    const { data: extraScope } = await admin
+      .from("access_scopes")
+      .insert({ tenant_id: tenantId, name: "Extra Scope", scope_mode: "tenant", status: "active" })
+      .select("id")
+      .single();
+    const { data: extraAssignment } = await admin
+      .from("membership_role_assignments")
+      .insert({
+        tenant_id: tenantId,
+        membership_id: membership?.id,
+        role_id: role?.id,
+        access_scope_id: extraScope?.id,
+        assigned_at: new Date().toISOString(),
+      })
+      .select("id")
+      .single();
+
+    const result = provision(SUBJECT_PRIMARY);
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toMatch(/other live role assignment/i);
+
+    // Clean up so later cases see the canonical single-assignment graph.
+    await admin.from("membership_role_assignments").delete().eq("id", extraAssignment?.id);
+    await admin.from("access_scopes").delete().eq("id", extraScope?.id);
   });
 
   it("(14) fails loudly on a conflicting existing binding (bound to a non-active identity)", async () => {

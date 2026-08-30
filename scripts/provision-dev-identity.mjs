@@ -71,12 +71,22 @@ export function requireOptIn(environment) {
   }
 }
 
-// Guard 3 input validation.
+// Guard 3 input validation. The transport is already injection-safe end to end (shell-less argv token ->
+// psql :'clerk_subject' quoting -> plpgsql bound variable), so this is conservative defense-in-depth: it
+// rejects only input a real Clerk userId can never contain (whitespace, control characters, non-ASCII, or
+// absurd length), which also stops junk bindings that could never match a real Clerk token.
 export function requireClerkSubject(clerkSubject) {
   if (typeof clerkSubject !== "string" || clerkSubject.trim() === "") {
     throw new ProvisioningError("Missing required --clerk-subject <REAL_CLERK_USER_ID>.");
   }
-  return clerkSubject.trim();
+  const trimmed = clerkSubject.trim();
+  // Visible ASCII only (0x21-0x7E): no spaces, tabs, newlines, control, or non-ASCII characters.
+  if (!/^[\x21-\x7e]{1,255}$/.test(trimmed)) {
+    throw new ProvisioningError(
+      "Invalid --clerk-subject: expected a single Clerk userId token (visible ASCII, no whitespace, <=255 chars).",
+    );
+  }
+  return trimmed;
 }
 
 // Guard 2: positively identify a LOCAL target from `supabase status` output. Non-local => HARD FAIL.
@@ -148,7 +158,11 @@ function assertLocalContainerRunning() {
 function applyProvisioningSql(clerkSubject) {
   const sql = readFileSync(sqlFile, "utf8");
   // The subject is passed as a discrete argv token (never shell-interpolated) and consumed inside the
-  // SQL exclusively through psql's :'clerk_subject' safe quoting -> a transaction-local GUC.
+  // SQL exclusively through psql's :'clerk_subject' safe quoting -> a transaction-local GUC. This is the
+  // injection-safest transport. Trade-off (accepted): the token is briefly visible in the local OS
+  // process list of this dev machine. That is acceptable here -- a Clerk userId is a linkage identifier
+  // (not a credential), the developer already typed it on this CLI, and exposure is local and transient.
+  // Building a SET statement in Node to avoid it would reintroduce manual quoting and is a worse trade.
   const result = run(
     "docker",
     [

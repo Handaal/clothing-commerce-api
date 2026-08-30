@@ -38,6 +38,7 @@ declare
   v_unlinked_at timestamptz;
   v_perm_count integer;
   v_role_perm_count integer;
+  v_other_assignments integer;
   v_tenant_id uuid;
   v_tenant_created boolean := false;
   v_identity_id uuid;
@@ -193,6 +194,21 @@ begin
     values (v_tenant_id, v_membership_id, v_role_id, v_scope_id, now())
     returning id into v_assignment_id;
     v_assignment_created := true;
+  end if;
+
+  -- 8. Effective-permission exactness: the membership's EFFECTIVE permissions come from ALL its live
+  --    assignments, not just this role. Refuse to reuse a membership that already carries any other live
+  --    assignment (which could grant extra or mutation permissions) rather than silently inheriting it.
+  select count(*) into v_other_assignments
+  from public.membership_role_assignments
+  where tenant_id = v_tenant_id
+    and membership_id = v_membership_id
+    and unassigned_at is null
+    and not (role_id = v_role_id and access_scope_id = v_scope_id);
+  if v_other_assignments > 0 then
+    raise exception
+      'DEV_PROVISIONING: membership already has % other live role assignment(s); refusing to reuse a membership with unexpected access.',
+      v_other_assignments;
   end if;
 
   insert into dev_provision_result (sort_key, entity, id, created)

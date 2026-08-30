@@ -33,6 +33,17 @@ describe("dev identity provisioning guards", () => {
     expect(requireClerkSubject("  user_abc  ")).toBe("user_abc");
   });
 
+  it("(3) rejects subjects with whitespace, control, non-ASCII, or excessive length", () => {
+    expect(requireClerkSubject("user_2Nkq8xYz09AbCdEf")).toBe("user_2Nkq8xYz09AbCdEf");
+    // Interior whitespace / control / newline / non-ASCII cannot appear in a real Clerk userId.
+    expect(() => requireClerkSubject("user_ab cd")).toThrow(/Invalid --clerk-subject/);
+    expect(() => requireClerkSubject("user_ab\tcd")).toThrow(/Invalid --clerk-subject/);
+    expect(() => requireClerkSubject("user_ab\ncd")).toThrow(/Invalid --clerk-subject/);
+    expect(() => requireClerkSubject("user_'; drop")).toThrow(/Invalid --clerk-subject/);
+    expect(() => requireClerkSubject("user_café")).toThrow(/Invalid --clerk-subject/);
+    expect(() => requireClerkSubject(`user_${"x".repeat(300)}`)).toThrow(/Invalid --clerk-subject/);
+  });
+
   it("(2) accepts a local Supabase target", () => {
     expect(assertLocalStatus({ API_URL: "http://127.0.0.1:54321" })).toBe("127.0.0.1");
     expect(assertLocalStatus({ API_URL: "http://localhost:54321" })).toBe("localhost");
