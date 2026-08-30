@@ -1,7 +1,7 @@
 # Clothing Commerce API
 
 Central HTTP API, transport-contract, SDK, persistence, and staff-authorization foundation for the
-Clothing Commerce Platform. It exposes only `GET /api/v1/health`; Phase 2A adds the shared catalog
+Clothing Commerce Platform. Through Phase 2E it exposed only `GET /api/v1/health`; Phase 2A adds the shared catalog
 domain and persistence, Phase 2B adds the inventory ledger/balance engine foundation, Phase 2C adds the
 internal inventory application service boundary over that engine, Phase 2D adds the canonical
 Order/Sales domain (`orders`/`order_lines` persistence and the internal `OrderService` for POS and
@@ -12,6 +12,17 @@ one inventory location), without adding business or public auth endpoints. See
 [Order lifecycle](docs/orders/order-lifecycle.md),
 [Order authorization](docs/orders/order-authorization.md), and the
 [Fulfillment domain](docs/fulfillment/fulfillment-domain.md).
+
+Phase 2F-A adds the first stable, authenticated **workforce Management API** — seven read-only endpoints
+under `/api/v1` (`me/tenants`, `me/context`, `products`, `products/{id}`, `inventory`, `orders`,
+`orders/{id}`) — and bumps `@shifted/clothing-commerce-sdk` to `0.2.0` with typed management methods. It
+is read-only, server-RBAC-authoritative, and is not a platform/super-admin, provisioning, billing, or
+customer surface. See [Management API](docs/api/management-api.md),
+[Authentication](docs/api/authentication.md), [Errors](docs/api/errors.md),
+[Pagination](docs/api/pagination.md), [Serialization](docs/api/serialization.md),
+[SDK consumption](docs/sdk/consumption.md), and
+[ADR-034](docs/decisions/ADR-034-management-api-external-boundary.md)–
+[ADR-036](docs/decisions/ADR-036-sdk-distribution-and-consumption.md).
 
 ## Boundaries and ownership
 
