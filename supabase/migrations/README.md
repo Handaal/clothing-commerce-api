@@ -28,6 +28,15 @@ The Phase 2E sequence is: `20260828180000_add_fulfillment_order_line_keys.sql`,
 `20260828180400_create_fulfillment_functions.sql`, `20260828180500_enable_fulfillments_rls.sql`,
 `20260828180600_extend_cancel_order_fulfillment_guard.sql`.
 
+Phase 2F-A appends two fix-forward migrations for the read-only Management API:
+`20260830180000_seed_catalog_read_permission.sql` (idempotent catalog seed of the single new
+`catalog.read` permission — no `role_permissions` grant, no default role, no owner bypass) and
+`20260830180100_add_management_list_indexes.sql` (the additive keyset-pagination indexes
+`products_tenant_created_id_idx`, `inventory_balances_tenant_location_variant_idx`, and
+`orders_tenant_placed_id_idx`). No table is added and `organization.read` is deliberately NOT seeded.
+Run `pnpm test:management:persistence` to assert, twice from an empty schema, that `catalog.read` exists
+and is granted to no role and that the three indexes carry their exact columns and sort order.
+
 Run `pnpm test:persistence` from the repository root to apply every SQL migration twice from an
 empty PostgreSQL 17.6 schema and execute the database constraint tests.
 

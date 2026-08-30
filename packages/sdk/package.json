@@ -1,6 +1,6 @@
 {
   "name": "@shifted/clothing-commerce-sdk",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Platform-neutral validated client for the Clothing Commerce API",
   "type": "module",
   "sideEffects": false,
@@ -19,13 +19,15 @@
     }
   },
   "scripts": {
-    "build": "tsup src/index.ts --format esm,cjs --dts --clean",
+    "build": "tsup src/index.ts --format esm,cjs --dts --clean && node scripts/strip-bundle-banners.mjs",
     "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "4.4.3"
   },
   "devDependencies": {
     "tsup": "8.5.1",
-    "typescript": "6.0.3",
-    "zod": "4.4.3"
+    "typescript": "6.0.3"
   },
   "publishConfig": {
     "access": "restricted"
