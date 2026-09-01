@@ -63,9 +63,10 @@ row points to a global active UserIdentity. An active Tenant and active Membersh
 Tenant are also required. Permission evaluation additionally needs current Role, RolePermission,
 AccessScope, target, and MembershipRoleAssignment records.
 
-Phase 1D does not ship seed data or a provisioning command. In disposable local development, use a
-reviewed fixture or a future approved admin workflow. Never improvise manual production changes.
-Do not use email as the binding key.
+Phase 1D shipped no seed data or provisioning command. For Phase 2F-B Admin Mobile real-runtime
+acceptance, a reviewed **development-only** provisioning workflow now exists — see
+[Development identity provisioning](#development-identity-provisioning) below. Never improvise manual
+production changes. Do not use email as the binding key.
 
 When diagnosing a specific development account in a trusted SQL console, query narrowly:
 
@@ -81,6 +82,77 @@ them into tickets, screenshots, logs, fixtures, or commits. Follow with targeted
 Membership, and assignment queries by the returned internal UUIDs. Ordinary authenticated Data API
 access intentionally cannot read provider bindings.
 
+## Development identity provisioning
+
+**Authentication is not authorization.** Signing into Clerk proves _who_ a person is; it grants **no**
+Commerce access on its own. Access exists only when a tenant Membership carries a Role whose Permissions
+are scoped by an AccessScope through an active MembershipRoleAssignment. The API never auto-creates any of
+that during a request. To exercise the real `/me/tenants` → tenant selection → `/me/context` flow (and
+later the Phase 2F-B Products / Inventory / Orders reads) against local infrastructure, you must bind a
+real Clerk development user into that model **once**, out of band.
+
+`pnpm dev:provision-identity` does exactly that, and nothing more. It is **development-only** and
+**local-only**: it refuses to run without the explicit `COMMERCE_DEV_PROVISIONING=1` opt-in, and it only
+knows how to target the local Supabase container (`supabase_db_clothing-commerce-api`). A non-local
+Supabase host is a hard failure with no override — the command cannot reach a remote or production project.
+
+### What it creates
+
+A single minimum representative Phase 2F-B management reader:
+
+- an **active** `dev-local` Tenant (`slug=dev-local`, `default_currency=USD`),
+- an **active** UserIdentity bound to your Clerk subject through an **active** `clerk` provider binding,
+- an **active** Membership of that identity in `dev-local`,
+- an **active** Role `Dev Management Reader` granting **exactly** `catalog.read`, `inventory.read`, and
+  `orders.read` — no mutation permissions, no owner/platform bypass,
+- an **active**, tenant-wide AccessScope `Dev Tenant Wide`, and
+- an **active** MembershipRoleAssignment tying them together.
+
+It never creates permission-catalog entries: the three read permissions must already exist from canonical
+migrations. If they are missing, the command fails and tells you to run `pnpm supabase:reset`.
+
+### First create a real Clerk development user
+
+1. In your Clerk **development** instance, create (or reuse) a staff/admin user.
+2. Copy that user's **User ID** (the `user_…` subject) from the Clerk dashboard. This is the value the
+   command binds. Treat it as sensitive linkage metadata: do not paste it into tickets, logs, or commits.
+
+### Run it
+
+```powershell
+pnpm supabase:start
+pnpm supabase:reset            # applies migrations, incl. the read-permission catalog
+
+$env:COMMERCE_DEV_PROVISIONING = "1"
+pnpm dev:provision-identity -- --clerk-subject <REAL_CLERK_USER_ID>
+
+pnpm dev                       # start the API with your CLERK_* + SUPABASE_* values
+```
+
+Start Admin Mobile with the **same** `CLERK_PUBLISHABLE_KEY` and sign in as that user. It prints a concise
+summary (tenant / membership / role / assignment IDs, granted permissions, and created-vs-reused per
+entity); it never prints the Clerk subject, service-role key, or any bearer token. `pnpm
+dev:provision-identity -- --help` shows usage.
+
+### Idempotency, conflicts, and reset
+
+Running it again with the same subject reuses every row and creates no duplicates. All writes are wrapped
+in one transaction — any failure rolls the whole graph back, never leaving a partial identity. It fails
+loudly (and changes nothing) if the Clerk subject is already bound to a conflicting identity (an unlinked
+binding, or a suspended/deactivated identity), or if the existing tenant/membership/role/scope conflicts
+with the expected development shape; it will not silently rebind or widen access. To wipe the local data
+entirely, `pnpm supabase:stop` (the local stack is disposable) or `pnpm supabase:reset` and re-provision.
+
+### Troubleshooting
+
+- **`COMMERCE_DEV_PROVISIONING=1` error:** the opt-in env var is unset; export it for the session.
+- **Non-local host refusal:** `SUPABASE_URL`/`supabase status` points at a non-local host. This command
+  only provisions the local stack by design; use the local Supabase instance.
+- **Container not running:** run `pnpm supabase:start` first.
+- **Canonical read permissions missing:** the local DB is behind on migrations; run `pnpm supabase:reset`.
+- **`PROVIDER_BINDING_MISSING` at runtime:** confirm you provisioned the exact Clerk User ID you signed in
+  as. Email and metadata do not substitute.
+
 ## Commands
 
 ```powershell
@@ -91,6 +163,7 @@ pnpm typecheck
 pnpm test
 pnpm test:persistence
 pnpm test:rls
+pnpm test:dev:provisioning
 pnpm build
 ```
 
