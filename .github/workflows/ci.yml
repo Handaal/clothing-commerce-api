@@ -30,6 +30,8 @@ jobs:
         run: pnpm test:authorization
       - name: Test Supabase authorization repository integration
         run: pnpm test:authorization:integration
+      - name: Test development auth provisioning
+        run: pnpm test:dev:provisioning
       - name: Test PostgreSQL persistence
         run: pnpm test:persistence
       - name: Test catalog PostgreSQL persistence
