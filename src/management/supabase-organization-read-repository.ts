@@ -6,6 +6,7 @@ import type {
   OrgBrand,
   OrgBranch,
   OrgInventoryLocation,
+  OrgInventoryLocationCapability,
   OrganizationReadRepository,
   OrgTenantSummary,
 } from "./organization-read-repository";
@@ -25,6 +26,15 @@ const LocationRowSchema = z.object({
   id: z.string().uuid(),
   display_name: z.string(),
   branch_id: z.string().uuid().nullable(),
+});
+
+const LocationCapabilityRowSchema = z.object({
+  id: z.string().uuid(),
+  display_name: z.string(),
+  status: z.enum(["active", "inactive", "archived"]),
+  is_receiving_enabled: z.boolean(),
+  is_transfer_origin_enabled: z.boolean(),
+  is_transfer_destination_enabled: z.boolean(),
 });
 
 function parseRows<T>(schema: z.ZodType<T>, value: unknown): T[] {
@@ -110,6 +120,34 @@ export class SupabaseOrganizationReadRepository implements OrganizationReadRepos
       id: row.id,
       name: row.display_name,
       branchId: row.branch_id,
+    }));
+  }
+
+  async findInventoryLocationCapabilities(
+    tenantId: string,
+    selector: IdSelector,
+  ): Promise<OrgInventoryLocationCapability[]> {
+    if (selector !== null && selector.length === 0) {
+      return [];
+    }
+    let query = this.client
+      .from("inventory_locations")
+      .select(
+        "id,display_name,status,is_receiving_enabled,is_transfer_origin_enabled,is_transfer_destination_enabled",
+      )
+      .eq("tenant_id", tenantId);
+    if (selector !== null) {
+      query = query.in("id", [...selector]);
+    }
+    const { data, error } = await query;
+    requireNoQueryError(error);
+    return parseRows(LocationCapabilityRowSchema, data).map((row) => ({
+      id: row.id,
+      name: row.display_name,
+      status: row.status,
+      isReceivingEnabled: row.is_receiving_enabled,
+      isTransferOriginEnabled: row.is_transfer_origin_enabled,
+      isTransferDestinationEnabled: row.is_transfer_destination_enabled,
     }));
   }
 }

@@ -647,9 +647,46 @@
                       "required": ["id", "name", "branchId"],
                       "additionalProperties": false
                     }
+                  },
+                  "write": {
+                    "type": "object",
+                    "properties": {
+                      "canReceive": { "type": "boolean" },
+                      "canAdjust": { "type": "boolean" },
+                      "canTransfer": { "type": "boolean" },
+                      "locations": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            },
+                            "name": { "type": "string" },
+                            "canReceive": { "type": "boolean" },
+                            "canAdjust": { "type": "boolean" },
+                            "canTransferOrigin": { "type": "boolean" },
+                            "canTransferDestination": { "type": "boolean" }
+                          },
+                          "required": [
+                            "id",
+                            "name",
+                            "canReceive",
+                            "canAdjust",
+                            "canTransferOrigin",
+                            "canTransferDestination"
+                          ],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": ["canReceive", "canAdjust", "canTransfer", "locations"],
+                    "additionalProperties": false
                   }
                 },
-                "required": ["canRead", "tenantWide", "locations"],
+                "required": ["canRead", "tenantWide", "locations", "write"],
                 "additionalProperties": false
               },
               "orders": {
@@ -873,9 +910,10 @@
           },
           "productName": { "type": "string" },
           "sku": { "type": "string" },
-          "onHand": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+          "onHand": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+          "version": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
         },
-        "required": ["inventoryLocationId", "variantId", "productName", "sku", "onHand"],
+        "required": ["inventoryLocationId", "variantId", "productName", "sku", "onHand", "version"],
         "additionalProperties": false
       },
       "InventoryListResponse": {
@@ -899,9 +937,17 @@
                 },
                 "productName": { "type": "string" },
                 "sku": { "type": "string" },
-                "onHand": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+                "onHand": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+                "version": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
               },
-              "required": ["inventoryLocationId", "variantId", "productName", "sku", "onHand"],
+              "required": [
+                "inventoryLocationId",
+                "variantId",
+                "productName",
+                "sku",
+                "onHand",
+                "version"
+              ],
               "additionalProperties": false
             }
           },

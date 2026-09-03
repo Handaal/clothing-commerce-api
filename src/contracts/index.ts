@@ -31,6 +31,8 @@ export {
   InventoryLocationRefSchema,
   CatalogAccessSchema,
   InventoryAccessSchema,
+  InventoryWriteLocationSchema,
+  InventoryWriteAccessSchema,
   OrdersAccessSchema,
   MeContextResponseSchema,
   type MeTenant,
@@ -38,6 +40,8 @@ export {
   type BrandRef,
   type BranchRef,
   type InventoryLocationRef,
+  type InventoryWriteLocation,
+  type InventoryWriteAccess,
   type MeContextResponse,
 } from "./management/context";
 export {

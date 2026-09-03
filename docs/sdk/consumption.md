@@ -5,8 +5,10 @@ See [ADR-036](../decisions/ADR-036-sdk-distribution-and-consumption.md).
 
 ## Version
 
-`0.2.0` — additive over `0.1.0` (management contracts and methods). The root package version is
-unchanged.
+`0.3.1` — additive client-contract patch over `0.3.0` (which added the inventory write methods): the
+inventory list row now carries `version` and `getContext()` returns `access.inventory.write`. No new
+methods and no breaking changes — both surface through the existing `listInventory` / `getContext` via
+their shared contract types. The root package version is unchanged.
 
 ## Client shape
 

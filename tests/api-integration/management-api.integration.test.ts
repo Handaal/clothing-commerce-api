@@ -58,6 +58,7 @@ const BRANCH_A = "f2000003-0000-4000-8000-0000000000b1";
 const BRANCH_B = "f2000003-0000-4000-8000-0000000000b2";
 const LOC_A = "f2000005-0000-4000-8000-0000000000e1";
 const LOC_B = "f2000005-0000-4000-8000-0000000000e2";
+const LOC_W = "f2000005-0000-4000-8000-0000000000e3";
 const PRODUCT_A1 = "f2000007-0000-4000-8000-0000000000a1";
 const PRODUCT_B1 = "f2000007-0000-4000-8000-0000000000b1";
 const FOREIGN_PRODUCT = "f2000007-0000-4000-8000-0000000000c1";
@@ -317,13 +318,78 @@ describe("GET /me/context canRead semantics", () => {
   it("reports canRead=false for wrong-kind-only scopes", async () => {
     const context = await body(await meContext("clerk-wrong", T));
     expect(context.access.catalog).toEqual({ canRead: false, tenantWide: false, brands: [] });
-    expect(context.access.inventory).toEqual({ canRead: false, tenantWide: false, locations: [] });
+    expect(context.access.inventory).toEqual({
+      canRead: false,
+      tenantWide: false,
+      locations: [],
+      write: { canReceive: false, canAdjust: false, canTransfer: false, locations: [] },
+    });
     expect(context.access.orders).toEqual({
       canRead: false,
       tenantWide: false,
       brands: [],
       branches: [],
     });
+  });
+});
+
+describe("GET /me/context inventory write capability", () => {
+  it("gives a read-only inventory user no write capability", async () => {
+    // clerk-full holds inventory.read tenant-wide but no write permission at all.
+    const context = await body(await meContext("clerk-full", T));
+    expect(context.access.inventory.canRead).toBe(true);
+    expect(context.access.inventory.write).toEqual({
+      canReceive: false,
+      canAdjust: false,
+      canTransfer: false,
+      locations: [],
+    });
+  });
+
+  it("resolves tenant-wide write capability against each location's operational flags", async () => {
+    const context = await body(await meContext("clerk-writer", T));
+    const write = context.access.inventory.write;
+    expect(write).toMatchObject({ canReceive: true, canAdjust: true, canTransfer: true });
+
+    const byId = Object.fromEntries(write.locations.map((l: { id: string }) => [l.id, l]));
+    // LA: fully enabled + active.
+    expect(byId[LOC_A]).toMatchObject({
+      canReceive: true,
+      canAdjust: true,
+      canTransferOrigin: true,
+      canTransferDestination: true,
+    });
+    // LB: transfer-origin only (receive off, destination off).
+    expect(byId[LOC_B]).toMatchObject({
+      canReceive: false,
+      canAdjust: true,
+      canTransferOrigin: true,
+      canTransferDestination: false,
+    });
+    // LW: receive + transfer-destination, but not a transfer origin.
+    expect(byId[LOC_W]).toMatchObject({
+      canReceive: true,
+      canAdjust: true,
+      canTransferOrigin: false,
+      canTransferDestination: true,
+    });
+  });
+
+  it("never presents an out-of-scope location to an explicitly-scoped writer", async () => {
+    // clerk-write-scoped holds the write role scoped to Location A ONLY.
+    const context = await body(await meContext("clerk-write-scoped", T));
+    const write = context.access.inventory.write;
+    expect(write.locations.map((l: { id: string }) => l.id)).toEqual([LOC_A]);
+    // LA is both origin- and destination-enabled, but a single location cannot transfer to itself.
+    expect(write).toMatchObject({ canReceive: true, canAdjust: true, canTransfer: false });
+    expect(write.locations[0]).toMatchObject({
+      canTransferOrigin: true,
+      canTransferDestination: true,
+    });
+    // LB and LW must never appear for this caller.
+    const ids = write.locations.map((l: { id: string }) => l.id);
+    expect(ids).not.toContain(LOC_B);
+    expect(ids).not.toContain(LOC_W);
   });
 });
 
@@ -396,7 +462,19 @@ describe("inventory list visibility", () => {
     const full = await body(await listInventory("clerk-full", T));
     expect(full.items.length).toBeGreaterThanOrEqual(4);
     expect(full.items[0]).toHaveProperty("productName");
-    expect(full.items[0]).not.toHaveProperty("version");
+  });
+
+  it("exposes the authoritative persisted balance version on every row", async () => {
+    const full = await body(await listInventory("clerk-full", T));
+    // Every row carries the version; the fixture seeds each balance at version 1.
+    for (const row of full.items) {
+      expect(typeof row.version).toBe("number");
+      expect(row.version).toBe(1);
+    }
+    const scoped = await body(await listInventory("clerk-explicit", T));
+    expect(scoped.items.every((b: { version: number }) => typeof b.version === "number")).toBe(
+      true,
+    );
   });
 
   it("explicit location filter enforces 404/403", async () => {

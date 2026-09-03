@@ -23,7 +23,8 @@ export interface InventoryListRow {
 /**
  * The inventory read surface for the management API. The list applies the derived location visibility
  * predicate before the ORDER BY / cursor condition / LIMIT and joins the balance to variant/product
- * display data in one statement. It exposes no version, movement, operation, or signed-delta detail.
+ * display data in one statement. It exposes the authoritative balance `version` (the optimistic-
+ * concurrency token adjustInventory guards against) but no movement, operation, or signed-delta detail.
  */
 export interface InventoryReadRepository {
   inventoryLocationExistsInTenant(tenantId: string, inventoryLocationId: string): Promise<boolean>;

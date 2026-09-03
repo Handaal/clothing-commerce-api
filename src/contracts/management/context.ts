@@ -11,6 +11,11 @@ import { z } from "zod";
  * management endpoint. `canRead` means the endpoint has at least one usable read scope (see the
  * visibility rules); the resource arrays are metadata hydrated only for scopes the caller actually
  * holds. Raw RolePermission / AccessScope / permissionKey / scopeTarget internals are never returned.
+ *
+ * `access.inventory.write` additionally reports inventory write capability (receive / adjust / transfer)
+ * derived from the caller's write permissions, authorization scope, and each location's operational
+ * flags. It is UX guidance ONLY: it lets a client avoid offering an action that would 403, but every
+ * mutation endpoint performs the full server-side authorization independently and never trusts it.
  */
 
 const UuidSchema = z.string().uuid();
@@ -45,11 +50,42 @@ export const CatalogAccessSchema = z.object({
   brands: z.array(BrandRefSchema),
 });
 
+/**
+ * Per-location write capability. Each boolean is server-derived by combining the caller's write
+ * permission + authorization scope with the location's operational status/flags (see visibility.ts).
+ * A location appears here only when at least one write permission's scope covers it. Transfer is split
+ * into origin vs destination because the two are governed by independent location flags.
+ */
+export const InventoryWriteLocationSchema = z.object({
+  id: UuidSchema,
+  name: z.string(),
+  canReceive: z.boolean(),
+  canAdjust: z.boolean(),
+  canTransferOrigin: z.boolean(),
+  canTransferDestination: z.boolean(),
+});
+
+/**
+ * Inventory write-capability guidance for the Mobile client. Top-level booleans answer "is this action
+ * performable at all"; `locations` carries the per-location detail needed to offer the right targets.
+ * This is UX guidance ONLY — every POST route re-authorizes server-side and never trusts this shape.
+ */
+export const InventoryWriteAccessSchema = z.object({
+  canReceive: z.boolean(),
+  canAdjust: z.boolean(),
+  canTransfer: z.boolean(),
+  locations: z.array(InventoryWriteLocationSchema),
+});
+
 export const InventoryAccessSchema = z.object({
   canRead: z.boolean(),
   tenantWide: z.boolean(),
   locations: z.array(InventoryLocationRefSchema),
+  write: InventoryWriteAccessSchema,
 });
+
+export type InventoryWriteLocation = z.infer<typeof InventoryWriteLocationSchema>;
+export type InventoryWriteAccess = z.infer<typeof InventoryWriteAccessSchema>;
 
 export const OrdersAccessSchema = z.object({
   canRead: z.boolean(),
