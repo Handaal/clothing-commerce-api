@@ -2,6 +2,8 @@ import { z } from "zod";
 
 import packageMetadata from "../../package.json";
 import {
+  AdjustInventoryRequestSchema,
+  AdjustInventoryResponseSchema,
   ApiErrorSchema,
   HealthResponseSchema,
   InventoryBalanceSchema,
@@ -15,6 +17,10 @@ import {
   ProductDetailResponseSchema,
   ProductListResponseSchema,
   ProductSummarySchema,
+  ReceiveInventoryRequestSchema,
+  ReceiveInventoryResponseSchema,
+  TransferInventoryRequestSchema,
+  TransferInventoryResponseSchema,
 } from "../contracts";
 
 function jsonSchema(schema: z.ZodTypeAny) {
@@ -24,6 +30,8 @@ function jsonSchema(schema: z.ZodTypeAny) {
 const clerkSecurity = [{ clerkSessionToken: [] as string[] }];
 
 const tenantHeaderParameter = { $ref: "#/components/parameters/TenantIdHeader" };
+
+const idempotencyKeyHeaderParameter = { $ref: "#/components/parameters/IdempotencyKeyHeader" };
 
 function errorResponses(...statuses: number[]) {
   const responses: Record<string, { $ref: string }> = {};
@@ -70,6 +78,14 @@ function jsonResponse(description: string, schemaRef: string) {
   };
 }
 
+function jsonRequestBody(description: string, schemaRef: string) {
+  return {
+    required: true,
+    description,
+    content: { "application/json": { schema: { $ref: schemaRef } } },
+  };
+}
+
 export function generateOpenApiDocument() {
   return {
     openapi: "3.1.0",
@@ -80,7 +96,11 @@ export function generateOpenApiDocument() {
     tags: [
       { name: "me", description: "Identity bootstrap and permission context." },
       { name: "catalog", description: "Read-only product catalog." },
-      { name: "inventory", description: "Read-only inventory balances." },
+      {
+        name: "inventory",
+        description:
+          "Inventory balances (read) and management write operations: receive, adjust, transfer.",
+      },
       { name: "orders", description: "Read-only orders and fulfillment progress." },
     ],
     paths: {
@@ -210,6 +230,81 @@ export function generateOpenApiDocument() {
           },
         },
       },
+      "/api/v1/inventory/receipts": {
+        post: {
+          operationId: "receiveInventory",
+          tags: ["inventory"],
+          summary: "Receive stock into an inventory location.",
+          description:
+            "Records received stock at a single in-tenant inventory location. Requires the " +
+            "inventory.receive permission over the target location and a required Idempotency-Key " +
+            "header; a replay with the same key and body is not applied twice, and the same key with a " +
+            "different body is a 409.",
+          security: clerkSecurity,
+          parameters: [tenantHeaderParameter, idempotencyKeyHeaderParameter],
+          requestBody: jsonRequestBody(
+            "The receipt to record.",
+            "#/components/schemas/ReceiveInventoryRequest",
+          ),
+          responses: {
+            "200": jsonResponse(
+              "The recorded receipt and observed post-commit balance.",
+              "#/components/schemas/ReceiveInventoryResponse",
+            ),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
+      "/api/v1/inventory/adjustments": {
+        post: {
+          operationId: "adjustInventory",
+          tags: ["inventory"],
+          summary: "Reconcile an inventory count to a physically observed on-hand.",
+          description:
+            "Reconciles the balance at a single in-tenant inventory location to a counted on-hand, " +
+            "guarded by the version it was counted against (optimistic concurrency). Requires the " +
+            "inventory.adjust permission over the target location and a required Idempotency-Key " +
+            "header. A stale expectedVersion is a 409; a same-key/different-body replay is a 409.",
+          security: clerkSecurity,
+          parameters: [tenantHeaderParameter, idempotencyKeyHeaderParameter],
+          requestBody: jsonRequestBody(
+            "The physical count to reconcile.",
+            "#/components/schemas/AdjustInventoryRequest",
+          ),
+          responses: {
+            "200": jsonResponse(
+              "The authoritative before/after balance for the reconciliation.",
+              "#/components/schemas/AdjustInventoryResponse",
+            ),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
+      "/api/v1/inventory/transfers": {
+        post: {
+          operationId: "transferInventory",
+          tags: ["inventory"],
+          summary: "Transfer stock between two inventory locations.",
+          description:
+            "Atomically moves stock from a source to a destination inventory location. Requires the " +
+            "inventory.transfer permission over BOTH the source and the destination location and a " +
+            "required Idempotency-Key header. Insufficient source stock is a 409; a same-key/" +
+            "different-body replay is a 409.",
+          security: clerkSecurity,
+          parameters: [tenantHeaderParameter, idempotencyKeyHeaderParameter],
+          requestBody: jsonRequestBody(
+            "The transfer to record.",
+            "#/components/schemas/TransferInventoryRequest",
+          ),
+          responses: {
+            "200": jsonResponse(
+              "The recorded transfer and observed post-commit balances of both sides.",
+              "#/components/schemas/TransferInventoryResponse",
+            ),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
       "/api/v1/orders": {
         get: {
           operationId: "listOrders",
@@ -288,6 +383,15 @@ export function generateOpenApiDocument() {
           description: "The tenant the request operates within.",
           schema: { type: "string", format: "uuid" },
         },
+        IdempotencyKeyHeader: {
+          name: "Idempotency-Key",
+          in: "header",
+          required: true,
+          description:
+            "Caller-stable idempotency key for the write. A replay with the same key and body is not " +
+            "applied twice; the same key with a different body is rejected with a 409.",
+          schema: { type: "string", minLength: 1, maxLength: 200 },
+        },
       },
       responses: {
         Error400: jsonResponse("Invalid request.", "#/components/schemas/ApiError"),
@@ -315,6 +419,12 @@ export function generateOpenApiDocument() {
         ProductDetailResponse: jsonSchema(ProductDetailResponseSchema),
         InventoryBalance: jsonSchema(InventoryBalanceSchema),
         InventoryListResponse: jsonSchema(InventoryListResponseSchema),
+        ReceiveInventoryRequest: jsonSchema(ReceiveInventoryRequestSchema),
+        ReceiveInventoryResponse: jsonSchema(ReceiveInventoryResponseSchema),
+        AdjustInventoryRequest: jsonSchema(AdjustInventoryRequestSchema),
+        AdjustInventoryResponse: jsonSchema(AdjustInventoryResponseSchema),
+        TransferInventoryRequest: jsonSchema(TransferInventoryRequestSchema),
+        TransferInventoryResponse: jsonSchema(TransferInventoryResponseSchema),
         OrderSummary: jsonSchema(OrderSummarySchema),
         OrderListResponse: jsonSchema(OrderListResponseSchema),
         OrderDetailResponse: jsonSchema(OrderDetailResponseSchema),

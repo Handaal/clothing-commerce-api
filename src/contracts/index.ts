@@ -57,8 +57,20 @@ export {
 export {
   InventoryBalanceSchema,
   InventoryListResponseSchema,
+  ReceiveInventoryRequestSchema,
+  AdjustInventoryRequestSchema,
+  TransferInventoryRequestSchema,
+  ReceiveInventoryResponseSchema,
+  AdjustInventoryResponseSchema,
+  TransferInventoryResponseSchema,
   type InventoryBalance,
   type InventoryListResponse,
+  type ReceiveInventoryRequest,
+  type AdjustInventoryRequest,
+  type TransferInventoryRequest,
+  type ReceiveInventoryResponse,
+  type AdjustInventoryResponse,
+  type TransferInventoryResponse,
 } from "./management/inventory";
 export {
   OrderChannelSchema,

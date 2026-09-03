@@ -10,6 +10,8 @@ import { FulfillmentService } from "../fulfillments";
 import { createSupabaseFulfillmentRepository } from "../fulfillments";
 import { InventoryReadService } from "../inventory/inventory-read-service";
 import { createSupabaseInventoryReadRepository } from "../inventory/supabase-inventory-read-repository";
+import { InventoryService } from "../inventory/inventory-service";
+import { createSupabaseInventoryRepository } from "../inventory/supabase-inventory-repository";
 import { OrderService } from "../orders";
 import { createSupabaseOrdersRepository } from "../orders";
 import { OrdersReadService } from "../orders/orders-read-service";
@@ -50,6 +52,13 @@ export function createManagementApiBoundary(
     createSupabaseInventoryReadRepository(supabaseConfiguration),
   );
 
+  // The Phase 2G inventory WRITE surface. It authorizes every command against the target inventory
+  // location(s) via the shared authorization service before any privileged database access.
+  const inventoryService = new InventoryService(
+    authorizationService,
+    createSupabaseInventoryRepository(supabaseConfiguration),
+  );
+
   const orderService = new OrderService(
     authorizationService,
     createSupabaseOrdersRepository(supabaseConfiguration),
@@ -70,6 +79,7 @@ export function createManagementApiBoundary(
     contextService,
     catalogReadService,
     inventoryReadService,
+    inventoryService,
     ordersReadService,
   } as const;
 }

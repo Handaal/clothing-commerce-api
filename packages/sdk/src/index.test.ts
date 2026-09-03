@@ -165,3 +165,168 @@ describe("Commerce SDK management surface", () => {
     expect(tenantA.tenantId).not.toBe(tenantB.tenantId);
   });
 });
+
+const VARIANT = "66666666-6666-4666-8666-666666666671";
+const LOCATION = "66666666-6666-4666-8666-666666666681";
+const LOCATION_DEST = "66666666-6666-4666-8666-666666666682";
+const OPERATION = "77777777-7777-4777-8777-777777777701";
+
+describe("Commerce SDK inventory write surface", () => {
+  it("receives stock via POST with the idempotency-key header and a JSON body (key not in body)", async () => {
+    const fetchImplementation = vi.fn<typeof globalThis.fetch>(async () =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            operationId: OPERATION,
+            variantId: VARIANT,
+            inventoryLocationId: LOCATION,
+            observedOnHand: 12,
+            observedVersion: 3,
+          }),
+        ),
+      ),
+    );
+    const client = createCommerceClient({
+      baseUrl: "https://api.example.test",
+      client: { type: "admin-mobile", version: "1.2.3" },
+      getToken: async () => "session-token",
+      fetch: fetchImplementation,
+    });
+
+    const result = await client.withTenant(TENANT).receiveInventory({
+      variantId: VARIANT,
+      inventoryLocationId: LOCATION,
+      quantity: 12,
+      idempotencyKey: "recv-key-1",
+      note: "pallet 7",
+    });
+    expect(result.observedOnHand).toBe(12);
+
+    const [url, init] = fetchImplementation.mock.calls[0]!;
+    expect(url).toBe("https://api.example.test/api/v1/inventory/receipts");
+    expect(init!.method).toBe("POST");
+    const headers = init!.headers as Record<string, string>;
+    expect(headers).toMatchObject({
+      Authorization: "Bearer session-token",
+      "X-Tenant-Id": TENANT,
+      "Idempotency-Key": "recv-key-1",
+      "Content-Type": "application/json",
+    });
+    const sentBody = JSON.parse(init!.body as string);
+    expect(sentBody).toEqual({
+      variantId: VARIANT,
+      inventoryLocationId: LOCATION,
+      quantity: 12,
+      note: "pallet 7",
+    });
+    // The idempotency key travels in the header only, never in the fingerprinted payload.
+    expect(sentBody).not.toHaveProperty("idempotencyKey");
+  });
+
+  it("adjusts stock to a route/body/response contract", async () => {
+    const fetchImplementation = vi.fn<typeof globalThis.fetch>(async () =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            operationId: OPERATION,
+            changed: true,
+            variantId: VARIANT,
+            inventoryLocationId: LOCATION,
+            previousOnHand: 5,
+            newOnHand: 8,
+            version: 2,
+          }),
+        ),
+      ),
+    );
+    const client = createCommerceClient({
+      baseUrl: "https://api.example.test",
+      getToken: async () => "t",
+      fetch: fetchImplementation,
+    });
+
+    const result = await client.withTenant(TENANT).adjustInventory({
+      variantId: VARIANT,
+      inventoryLocationId: LOCATION,
+      countedQuantity: 8,
+      expectedVersion: 1,
+      idempotencyKey: "adj-key-1",
+    });
+    expect(result).toMatchObject({ changed: true, newOnHand: 8 });
+
+    const [url, init] = fetchImplementation.mock.calls[0]!;
+    expect(url).toBe("https://api.example.test/api/v1/inventory/adjustments");
+    expect(init!.method).toBe("POST");
+    expect(JSON.parse(init!.body as string)).toEqual({
+      variantId: VARIANT,
+      inventoryLocationId: LOCATION,
+      countedQuantity: 8,
+      expectedVersion: 1,
+    });
+  });
+
+  it("transfers stock between two locations", async () => {
+    const fetchImplementation = vi.fn<typeof globalThis.fetch>(async () =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            operationId: OPERATION,
+            variantId: VARIANT,
+            source: { inventoryLocationId: LOCATION, observedOnHand: 3, observedVersion: 4 },
+            destination: {
+              inventoryLocationId: LOCATION_DEST,
+              observedOnHand: 9,
+              observedVersion: 4,
+            },
+          }),
+        ),
+      ),
+    );
+    const client = createCommerceClient({
+      baseUrl: "https://api.example.test",
+      getToken: async () => "t",
+      fetch: fetchImplementation,
+    });
+
+    const result = await client.withTenant(TENANT).transferInventory({
+      variantId: VARIANT,
+      sourceInventoryLocationId: LOCATION,
+      destinationInventoryLocationId: LOCATION_DEST,
+      quantity: 6,
+      idempotencyKey: "xfer-key-1",
+    });
+    expect(result.source.observedOnHand).toBe(3);
+    expect(result.destination.observedOnHand).toBe(9);
+
+    const [url, init] = fetchImplementation.mock.calls[0]!;
+    expect(url).toBe("https://api.example.test/api/v1/inventory/transfers");
+    expect((init!.headers as Record<string, string>)["Idempotency-Key"]).toBe("xfer-key-1");
+  });
+
+  it("surfaces an idempotency conflict as a typed 409 HTTP error", async () => {
+    const client = createCommerceClient({
+      baseUrl: "https://api.example.test",
+      getToken: async () => "t",
+      fetch: async () =>
+        new Response(
+          JSON.stringify({
+            error: {
+              code: "IDEMPOTENCY_CONFLICT",
+              message: "The idempotency key was reused with a different payload.",
+              requestId: REQUEST_ID,
+            },
+          }),
+          { status: 409, headers: { "X-Request-Id": REQUEST_ID } },
+        ),
+    });
+
+    const request = client.withTenant(TENANT).receiveInventory({
+      variantId: VARIANT,
+      inventoryLocationId: LOCATION,
+      quantity: 1,
+      idempotencyKey: "dup",
+    });
+    await expect(request).rejects.toBeInstanceOf(ApiHttpError);
+    await expect(request).rejects.toMatchObject({ status: 409, code: "IDEMPOTENCY_CONFLICT" });
+  });
+});

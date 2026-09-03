@@ -6,24 +6,46 @@ a platform/super-admin console, a tenant-provisioning backoffice, a billing surf
 customer/storefront API. Server-side RBAC is authoritative; a tenant header, client metadata, role name,
 or `service_role` is never treated as authorization.
 
-Phase 2F-A is **read-only**. See [ADR-034](../decisions/ADR-034-management-api-external-boundary.md).
+Phase 2F-A shipped a **read-only** boundary. Phase 2G adds the first **inventory write** operations
+(receive, adjust, transfer) on top of the same boundary, delegating to the existing Phase 2C inventory
+application service. See [ADR-034](../decisions/ADR-034-management-api-external-boundary.md) and
+[inventory-operations.md](../inventory/inventory-operations.md).
 
 ## Endpoints (frozen surface)
 
 All endpoints live under `/api/v1`.
 
-| Method & path               | Tenant header | Permission           | Description                                                   |
-| --------------------------- | ------------- | -------------------- | ------------------------------------------------------------- |
-| `GET /me/tenants`           | no            | none (identity only) | The caller's own selectable active tenants.                   |
-| `GET /me/context`           | yes           | derived              | The caller's effective read capability for the tenant.        |
-| `GET /products`             | yes           | `catalog.read`       | Paginated product summaries in the caller's brand scope.      |
-| `GET /products/{productId}` | yes           | `catalog.read`       | One product's detail (variants, options, prices).             |
-| `GET /inventory`            | yes           | `inventory.read`     | Paginated balances in the caller's location scope.            |
-| `GET /orders`               | yes           | `orders.read`        | Paginated order summaries in the caller's brand/branch scope. |
-| `GET /orders/{orderId}`     | yes           | `orders.read`        | One order's detail with embedded fulfillment progress.        |
+| Method & path                 | Tenant header | Idempotency-Key | Permission           | Description                                                           |
+| ----------------------------- | ------------- | --------------- | -------------------- | --------------------------------------------------------------------- |
+| `GET /me/tenants`             | no            | no              | none (identity only) | The caller's own selectable active tenants.                           |
+| `GET /me/context`             | yes           | no              | derived              | The caller's effective read capability for the tenant.                |
+| `GET /products`               | yes           | no              | `catalog.read`       | Paginated product summaries in the caller's brand scope.              |
+| `GET /products/{productId}`   | yes           | no              | `catalog.read`       | One product's detail (variants, options, prices).                     |
+| `GET /inventory`              | yes           | no              | `inventory.read`     | Paginated balances in the caller's location scope.                    |
+| `POST /inventory/receipts`    | yes           | yes             | `inventory.receive`  | Receive stock into one location.                                      |
+| `POST /inventory/adjustments` | yes           | yes             | `inventory.adjust`   | Reconcile a counted on-hand (version-guarded).                        |
+| `POST /inventory/transfers`   | yes           | yes             | `inventory.transfer` | Move stock between two locations (source **and** destination scoped). |
+| `GET /orders`                 | yes           | no              | `orders.read`        | Paginated order summaries in the caller's brand/branch scope.         |
+| `GET /orders/{orderId}`       | yes           | no              | `orders.read`        | One order's detail with embedded fulfillment progress.                |
 
-There are no mutation, fulfillment, organization-browsing, reporting/dashboard, payment, reservation,
-return, purchasing, or customer endpoints in this phase.
+Opening-stock and generic issue are intentionally **not** exposed: opening stock is an
+initialization-only primitive (the domain forbids re-opening after activity, and routine initial counts
+go through adjust), and generic issue has no reason/audit model — the sanctioned depletion path is order
+fulfillment. There are no catalog, orders, fulfillment, organization-browsing, reporting/dashboard,
+payment, reservation, return, purchasing, or customer write endpoints in this phase.
+
+## Inventory writes and idempotency
+
+Each write authorizes its permission against the target inventory location(s) through the existing
+authorization service, then delegates to the Phase 2C inventory service; no inventory SQL or business
+rule lives in the HTTP layer. Transfer authorizes **both** the source and the destination location
+independently — access to the source never implies permission over an arbitrary destination.
+
+Every write **requires** an `Idempotency-Key` header (1–200 chars). The mechanism is enforced in the
+database: replaying the same key with the same body returns the original result without re-applying the
+mutation, and reusing the same key with a **different** body is rejected with `409 IDEMPOTENCY_CONFLICT`.
+An adjustment additionally carries `expectedVersion`; a stale version is `409 CONCURRENT_MODIFICATION`
+rather than a blind overwrite. Insufficient source stock on a transfer is `409 INSUFFICIENT_STOCK`.
 
 ## Authentication and tenant selection
 
@@ -85,5 +107,21 @@ See [pagination.md](pagination.md), [serialization.md](serialization.md), and [e
 
 `openapi/openapi.json` is generated from the Zod contracts (`pnpm openapi:generate`) and checked by
 `pnpm test:openapi`. It declares a Clerk bearer security scheme, places `X-Tenant-Id` on tenant-scoped
-routes only (never on `/health` or `/me/tenants`), and reuses `ApiError`, `PageInfo`, and the management
-DTO schemas. No private RPCs or functions appear in the document.
+routes only (never on `/health` or `/me/tenants`), places the required `Idempotency-Key` header on the
+inventory write operations only, and reuses `ApiError`, `PageInfo`, and the management DTO schemas. No
+private RPCs or functions appear in the document.
+
+## SDK
+
+The packed SDK (`@shifted/clothing-commerce-sdk`) `0.3.0` adds the typed tenant-scoped write methods
+`receiveInventory`, `adjustInventory`, and `transferInventory`. Each takes an explicit `idempotencyKey`
+which the SDK sends as the `Idempotency-Key` header (never in the body). The tenant header remains
+SDK-owned and the auth token remains supplied by the caller's token provider.
+
+## Local validation
+
+The inventory write boundary has a dedicated integration suite that exercises the real HTTP handlers
+against a freshly reset local database with a disposable fixture:
+`pnpm test:inventory:write:integration` (requires Docker + local Supabase). It proves once-only
+application, safe replay, conflicting-replay rejection, authorization/scope enforcement, and tenant
+isolation.
