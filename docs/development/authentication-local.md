@@ -120,7 +120,7 @@ migrations. If they are missing, the command fails and tells you to run `pnpm su
 ### Run it
 
 ```powershell
-pnpm supabase:start
+pnpm exec supabase start --exclude realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
 pnpm supabase:reset            # applies migrations, incl. the read-permission catalog
 
 $env:COMMERCE_DEV_PROVISIONING = "1"
@@ -143,12 +143,20 @@ binding, or a suspended/deactivated identity), or if the existing tenant/members
 with the expected development shape; it will not silently rebind or widen access. To wipe the local data
 entirely, `pnpm supabase:stop` (the local stack is disposable) or `pnpm supabase:reset` and re-provision.
 
+### Seeding catalog data for the read slices
+
+Identity provisioning authorizes `dev-local` but leaves it empty. To seed a small deterministic
+catalog/inventory/order graph so the Admin Mobile Products (and later Inventory / Orders / Fulfillment)
+read slices have data to render, run the local commerce fixture **after** provisioning the identity —
+see [Local development commerce fixture](./commerce-fixture.md).
+
 ### Troubleshooting
 
 - **`COMMERCE_DEV_PROVISIONING=1` error:** the opt-in env var is unset; export it for the session.
 - **Non-local host refusal:** `SUPABASE_URL`/`supabase status` points at a non-local host. This command
   only provisions the local stack by design; use the local Supabase instance.
-- **Container not running:** run `pnpm supabase:start` first.
+- **Container/API not running:** use the API-capable local start command above, then run
+  `pnpm supabase:reset`.
 - **Canonical read permissions missing:** the local DB is behind on migrations; run `pnpm supabase:reset`.
 - **`PROVIDER_BINDING_MISSING` at runtime:** confirm you provisioned the exact Clerk User ID you signed in
   as. Email and metadata do not substitute.

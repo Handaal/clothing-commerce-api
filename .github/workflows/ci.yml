@@ -32,6 +32,8 @@ jobs:
         run: pnpm test:authorization:integration
       - name: Test development auth provisioning
         run: pnpm test:dev:provisioning
+      - name: Test development commerce fixture
+        run: pnpm test:dev:commerce-fixture
       - name: Test PostgreSQL persistence
         run: pnpm test:persistence
       - name: Test catalog PostgreSQL persistence
