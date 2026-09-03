@@ -107,6 +107,141 @@ export function deriveInventoryReadVisibility(
   return { canRead: true, tenantWide: false, locationIds };
 }
 
+/**
+ * Inventory WRITE-capability derivation for /me/context UX guidance ONLY. This mirrors — but never
+ * replaces — the server-side authorization the POST routes perform inside InventoryService. Each
+ * capability combines THREE independent facts and is true only when all three hold:
+ *   1. permission        — the caller holds inventory.receive / inventory.adjust / inventory.transfer
+ *   2. authorization scope — that grant is tenant-wide, or explicitly targets the location
+ *   3. location operational capability — the location's status + capability flags permit the op
+ * Scope alone never implies capability, and a flag alone never implies permission; both are required,
+ * fail-closed, exactly as the mutation path enforces at request time.
+ */
+
+export const ManagementWritePermission = {
+  receive: "inventory.receive",
+  adjust: "inventory.adjust",
+  transfer: "inventory.transfer",
+} as const;
+
+export interface InventoryWriteScope {
+  /** True when the caller holds the permission with at least one usable inventory_location target. */
+  readonly hasScope: boolean;
+  readonly tenantWide: boolean;
+  /** Explicit inventory_location targets; non-empty only when hasScope && !tenantWide. */
+  readonly locationIds: readonly string[];
+}
+
+/** Per-permission write scope. Same fail-closed semantics as read visibility (wrong-kind-only => none). */
+export function deriveInventoryWriteScope(
+  context: AuthorizationContext,
+  permissionKey: string,
+): InventoryWriteScope {
+  const granting = grantingAssignments(context.assignments, permissionKey);
+  if (granting.length === 0) {
+    return { hasScope: false, tenantWide: false, locationIds: [] };
+  }
+  if (hasTenantWideGrant(granting)) {
+    return { hasScope: true, tenantWide: true, locationIds: [] };
+  }
+  const locationIds = unionExplicitTargetIds(granting, "inventory_location");
+  if (locationIds.length === 0) {
+    return { hasScope: false, tenantWide: false, locationIds: [] };
+  }
+  return { hasScope: true, tenantWide: false, locationIds };
+}
+
+/** True when the permission's scope covers this specific location (tenant-wide or explicitly targeted). */
+export function writeScopeCoversLocation(scope: InventoryWriteScope, locationId: string): boolean {
+  if (!scope.hasScope) {
+    return false;
+  }
+  return scope.tenantWide || scope.locationIds.includes(locationId);
+}
+
+/** Operational facts of a candidate write location, read from the inventory_locations row. */
+export interface InventoryLocationCapability {
+  readonly id: string;
+  readonly name: string;
+  readonly status: "active" | "inactive" | "archived";
+  readonly isReceivingEnabled: boolean;
+  readonly isTransferOriginEnabled: boolean;
+  readonly isTransferDestinationEnabled: boolean;
+}
+
+export interface InventoryWriteLocationCapability {
+  readonly id: string;
+  readonly name: string;
+  readonly canReceive: boolean;
+  readonly canAdjust: boolean;
+  readonly canTransferOrigin: boolean;
+  readonly canTransferDestination: boolean;
+}
+
+export interface InventoryWriteCapability {
+  readonly canReceive: boolean;
+  readonly canAdjust: boolean;
+  readonly canTransfer: boolean;
+  readonly locations: readonly InventoryWriteLocationCapability[];
+}
+
+export interface InventoryWriteScopes {
+  readonly receive: InventoryWriteScope;
+  readonly adjust: InventoryWriteScope;
+  readonly transfer: InventoryWriteScope;
+}
+
+/**
+ * Pure combination of the three write scopes with each candidate location's operational capability.
+ * The per-location rules mirror InventoryService exactly:
+ *   - receive:            receiving-enabled AND status active
+ *   - adjust:             status not archived (active or inactive)
+ *   - transfer origin:    transfer-origin-enabled AND status not archived
+ *   - transfer dest:      transfer-destination-enabled AND status active
+ * Each is additionally gated by the matching permission's scope covering the location. Top-level
+ * booleans report whether the op is actually performable somewhere: transfer requires a valid origin
+ * AND a valid destination at two DISTINCT locations (a single location cannot transfer to itself).
+ */
+export function deriveInventoryWriteCapability(
+  scopes: InventoryWriteScopes,
+  locations: readonly InventoryLocationCapability[],
+): InventoryWriteCapability {
+  const perLocation = locations.map((location) => {
+    const notArchived = location.status !== "archived";
+    const active = location.status === "active";
+    return {
+      id: location.id,
+      name: location.name,
+      canReceive:
+        writeScopeCoversLocation(scopes.receive, location.id) &&
+        location.isReceivingEnabled &&
+        active,
+      canAdjust: writeScopeCoversLocation(scopes.adjust, location.id) && notArchived,
+      canTransferOrigin:
+        writeScopeCoversLocation(scopes.transfer, location.id) &&
+        location.isTransferOriginEnabled &&
+        notArchived,
+      canTransferDestination:
+        writeScopeCoversLocation(scopes.transfer, location.id) &&
+        location.isTransferDestinationEnabled &&
+        active,
+    };
+  });
+
+  const origins = perLocation.filter((location) => location.canTransferOrigin);
+  const destinations = perLocation.filter((location) => location.canTransferDestination);
+  const canTransfer = origins.some((origin) =>
+    destinations.some((destination) => destination.id !== origin.id),
+  );
+
+  return {
+    canReceive: perLocation.some((location) => location.canReceive),
+    canAdjust: perLocation.some((location) => location.canAdjust),
+    canTransfer,
+    locations: perLocation,
+  };
+}
+
 export function deriveOrderReadVisibility(context: AuthorizationContext): OrderReadVisibility {
   const granting = grantingAssignments(context.assignments, ManagementReadPermission.orders);
   if (granting.length === 0) {

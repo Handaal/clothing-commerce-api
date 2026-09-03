@@ -5,7 +5,8 @@
 --   Brand BG; Branch BRG; Locations LGA, LGB (both fully write-enabled).
 --   Product PG1 (active) -> variant VG1 (active). Seed balance (VG1, LGA) = 10 (version 1).
 --   Identities:
---     writer  -> tenant-wide inventory.receive + inventory.adjust + inventory.transfer.
+--     writer  -> tenant-wide inventory.read + receive + adjust + transfer (read enables the
+--                fresh-read -> adjust client contract flow).
 --     reader  -> tenant-wide inventory.read only (no write permission).
 --     scoped  -> inventory.transfer scoped to LGA ONLY (proves destination-scope enforcement).
 --     foreign -> member of TG2 only (proves tenant isolation).
@@ -43,15 +44,17 @@ insert into public.products (id, tenant_id, brand_id, name, slug, style_code, st
 values
   ('f2900007-0000-4000-8000-0000000000a1', 'f2900001-0000-4000-8000-000000000001', 'f2900002-0000-4000-8000-0000000000a1', 'Gamma One', 'gamma-one', 'SC-G1', 'active', '2026-05-01T00:00:00Z'),
   ('f2900007-0000-4000-8000-0000000000a2', 'f2900001-0000-4000-8000-000000000001', 'f2900002-0000-4000-8000-0000000000a1', 'Gamma Two', 'gamma-two', 'SC-G2', 'active', '2026-05-02T00:00:00Z'),
-  ('f2900007-0000-4000-8000-0000000000a3', 'f2900001-0000-4000-8000-000000000001', 'f2900002-0000-4000-8000-0000000000a1', 'Gamma Three', 'gamma-three', 'SC-G3', 'active', '2026-05-03T00:00:00Z');
+  ('f2900007-0000-4000-8000-0000000000a3', 'f2900001-0000-4000-8000-000000000001', 'f2900002-0000-4000-8000-0000000000a1', 'Gamma Three', 'gamma-three', 'SC-G3', 'active', '2026-05-03T00:00:00Z'),
+  ('f2900007-0000-4000-8000-0000000000a4', 'f2900001-0000-4000-8000-000000000001', 'f2900002-0000-4000-8000-0000000000a1', 'Gamma Four', 'gamma-four', 'SC-G4', 'active', '2026-05-04T00:00:00Z');
 
--- Three variants so each write scenario owns its own balance row and stays deterministic regardless of
--- test ordering: VG1 -> receive, VG2 -> adjust, VG3 -> transfer (source).
+-- Four variants so each write scenario owns its own balance row and stays deterministic regardless of
+-- test ordering: VG1 -> receive, VG2 -> adjust, VG3 -> transfer (source), VG4 -> read->adjust contract.
 insert into public.product_variants (id, tenant_id, product_id, sku, status)
 values
   ('f2900008-0000-4000-8000-0000000000a1', 'f2900001-0000-4000-8000-000000000001', 'f2900007-0000-4000-8000-0000000000a1', 'SKU-G1', 'active'),
   ('f2900008-0000-4000-8000-0000000000a2', 'f2900001-0000-4000-8000-000000000001', 'f2900007-0000-4000-8000-0000000000a2', 'SKU-G2', 'active'),
-  ('f2900008-0000-4000-8000-0000000000a3', 'f2900001-0000-4000-8000-000000000001', 'f2900007-0000-4000-8000-0000000000a3', 'SKU-G3', 'active');
+  ('f2900008-0000-4000-8000-0000000000a3', 'f2900001-0000-4000-8000-000000000001', 'f2900007-0000-4000-8000-0000000000a3', 'SKU-G3', 'active'),
+  ('f2900008-0000-4000-8000-0000000000a4', 'f2900001-0000-4000-8000-000000000001', 'f2900007-0000-4000-8000-0000000000a4', 'SKU-G4', 'active');
 
 -- Seed known starting balances (all on LGA, version 1) so assertions are deterministic.
 select set_config('inventory_private.allow_balance_write', 'on', true);
@@ -59,7 +62,8 @@ insert into public.inventory_balances (tenant_id, variant_id, inventory_location
 values
   ('f2900001-0000-4000-8000-000000000001', 'f2900008-0000-4000-8000-0000000000a1', 'f2900005-0000-4000-8000-0000000000e1', 10, 1),
   ('f2900001-0000-4000-8000-000000000001', 'f2900008-0000-4000-8000-0000000000a2', 'f2900005-0000-4000-8000-0000000000e1', 5, 1),
-  ('f2900001-0000-4000-8000-000000000001', 'f2900008-0000-4000-8000-0000000000a3', 'f2900005-0000-4000-8000-0000000000e1', 20, 1);
+  ('f2900001-0000-4000-8000-000000000001', 'f2900008-0000-4000-8000-0000000000a3', 'f2900005-0000-4000-8000-0000000000e1', 20, 1),
+  ('f2900001-0000-4000-8000-000000000001', 'f2900008-0000-4000-8000-0000000000a4', 'f2900005-0000-4000-8000-0000000000e1', 8, 1);
 select set_config('inventory_private.allow_balance_write', 'off', true);
 
 -- Identities ----------------------------------------------------------------------------------------
@@ -93,6 +97,7 @@ values
 
 insert into public.role_permissions (tenant_id, role_id, permission_id)
 values
+  ('f2900001-0000-4000-8000-000000000001', 'f2900013-0000-4000-8000-000000000001', (select id from public.permissions where key = 'inventory.read')),
   ('f2900001-0000-4000-8000-000000000001', 'f2900013-0000-4000-8000-000000000001', (select id from public.permissions where key = 'inventory.receive')),
   ('f2900001-0000-4000-8000-000000000001', 'f2900013-0000-4000-8000-000000000001', (select id from public.permissions where key = 'inventory.adjust')),
   ('f2900001-0000-4000-8000-000000000001', 'f2900013-0000-4000-8000-000000000001', (select id from public.permissions where key = 'inventory.transfer')),

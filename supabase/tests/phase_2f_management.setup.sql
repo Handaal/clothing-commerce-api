@@ -3,11 +3,13 @@
 --
 -- Graph summary (tenant T):
 --   Brands BA, BB; Branches BRA, BRB; Warehouse WH; Locations LA(BRA), LB(BRB), LW(WH).
+--   Location write flags: LA=receive+origin+dest, LB=origin-only, LW=receive+dest (no origin).
 --   Products: BrandA PA1..PA3 (older->newer), BrandB PB1..PB3 (newer). One variant each; a price on VA1.
 --   Balances: (VA1,LA)=5, (VA2,LA)=3, (VB1,LB)=7, (VA3,LW)=9.
 --   Orders: online BrandA/BrandB; pos BranchA/BranchB.
---   Identities: full(tenant-wide all), explicit(BrandA catalog / LA inventory / BrandA+BranchA orders),
---     wrong(wrong-kind-only scopes), noperm(orders-only tenant-wide), inactive-membership, foreign(T2).
+--   Identities: full(tenant-wide read all), explicit(BrandA catalog / LA inventory / BrandA+BranchA orders),
+--     wrong(wrong-kind-only scopes), noperm(orders-only tenant-wide), inactive-membership, foreign(T2),
+--     writer(tenant-wide inventory read+receive/adjust/transfer), write-scoped(same writes, LA only).
 
 begin;
 
@@ -33,11 +35,15 @@ insert into public.warehouses (id, tenant_id, code, display_name, timezone)
 values
   ('f2000004-0000-4000-8000-0000000000d1', 'f2000001-0000-4000-8000-000000000001', 'wh-1', 'Warehouse 1', 'UTC');
 
-insert into public.inventory_locations (id, tenant_id, branch_id, warehouse_id, code, display_name, location_type)
+-- Distinct operational capability profiles let /me/context write derivation be tested precisely:
+--   LA: receive + transfer-origin + transfer-destination (fully enabled, active)
+--   LB: transfer-origin only (receive off, destination off)
+--   LW: receive + transfer-destination (transfer-origin off)
+insert into public.inventory_locations (id, tenant_id, branch_id, warehouse_id, code, display_name, location_type, is_receiving_enabled, is_transfer_origin_enabled, is_transfer_destination_enabled)
 values
-  ('f2000005-0000-4000-8000-0000000000e1', 'f2000001-0000-4000-8000-000000000001', 'f2000003-0000-4000-8000-0000000000b1', null, 'loc-a', 'Location A', 'store'),
-  ('f2000005-0000-4000-8000-0000000000e2', 'f2000001-0000-4000-8000-000000000001', 'f2000003-0000-4000-8000-0000000000b2', null, 'loc-b', 'Location B', 'store'),
-  ('f2000005-0000-4000-8000-0000000000e3', 'f2000001-0000-4000-8000-000000000001', null, 'f2000004-0000-4000-8000-0000000000d1', 'loc-w', 'Location W', 'warehouse');
+  ('f2000005-0000-4000-8000-0000000000e1', 'f2000001-0000-4000-8000-000000000001', 'f2000003-0000-4000-8000-0000000000b1', null, 'loc-a', 'Location A', 'store', true, true, true),
+  ('f2000005-0000-4000-8000-0000000000e2', 'f2000001-0000-4000-8000-000000000001', 'f2000003-0000-4000-8000-0000000000b2', null, 'loc-b', 'Location B', 'store', false, true, false),
+  ('f2000005-0000-4000-8000-0000000000e3', 'f2000001-0000-4000-8000-000000000001', null, 'f2000004-0000-4000-8000-0000000000d1', 'loc-w', 'Location W', 'warehouse', true, false, true);
 
 insert into public.registers (id, tenant_id, branch_id, code, display_name, status, default_inventory_location_id)
 values
@@ -95,7 +101,9 @@ values
   ('f2000010-0000-4000-8000-000000000003', 'active'),
   ('f2000010-0000-4000-8000-000000000004', 'active'),
   ('f2000010-0000-4000-8000-000000000005', 'active'),
-  ('f2000010-0000-4000-8000-000000000006', 'active');
+  ('f2000010-0000-4000-8000-000000000006', 'active'),
+  ('f2000010-0000-4000-8000-000000000007', 'active'),
+  ('f2000010-0000-4000-8000-000000000008', 'active');
 
 insert into public.user_identity_provider_bindings (id, user_identity_id, provider, provider_subject)
 values
@@ -104,7 +112,9 @@ values
   ('f2000011-0000-4000-8000-000000000003', 'f2000010-0000-4000-8000-000000000003', 'clerk', 'clerk-wrong'),
   ('f2000011-0000-4000-8000-000000000004', 'f2000010-0000-4000-8000-000000000004', 'clerk', 'clerk-noperm'),
   ('f2000011-0000-4000-8000-000000000005', 'f2000010-0000-4000-8000-000000000005', 'clerk', 'clerk-inactive-membership'),
-  ('f2000011-0000-4000-8000-000000000006', 'f2000010-0000-4000-8000-000000000006', 'clerk', 'clerk-foreign');
+  ('f2000011-0000-4000-8000-000000000006', 'f2000010-0000-4000-8000-000000000006', 'clerk', 'clerk-foreign'),
+  ('f2000011-0000-4000-8000-000000000007', 'f2000010-0000-4000-8000-000000000007', 'clerk', 'clerk-writer'),
+  ('f2000011-0000-4000-8000-000000000008', 'f2000010-0000-4000-8000-000000000008', 'clerk', 'clerk-write-scoped');
 
 insert into public.memberships (id, tenant_id, user_identity_id, status, activated_at, suspended_at)
 values
@@ -113,7 +123,9 @@ values
   ('f2000012-0000-4000-8000-000000000003', 'f2000001-0000-4000-8000-000000000001', 'f2000010-0000-4000-8000-000000000003', 'active', now(), null),
   ('f2000012-0000-4000-8000-000000000004', 'f2000001-0000-4000-8000-000000000001', 'f2000010-0000-4000-8000-000000000004', 'active', now(), null),
   ('f2000012-0000-4000-8000-000000000005', 'f2000001-0000-4000-8000-000000000001', 'f2000010-0000-4000-8000-000000000005', 'suspended', now(), now()),
-  ('f2000012-0000-4000-8000-000000000006', 'f2000001-0000-4000-8000-000000000002', 'f2000010-0000-4000-8000-000000000006', 'active', now(), null);
+  ('f2000012-0000-4000-8000-000000000006', 'f2000001-0000-4000-8000-000000000002', 'f2000010-0000-4000-8000-000000000006', 'active', now(), null),
+  ('f2000012-0000-4000-8000-000000000007', 'f2000001-0000-4000-8000-000000000001', 'f2000010-0000-4000-8000-000000000007', 'active', now(), null),
+  ('f2000012-0000-4000-8000-000000000008', 'f2000001-0000-4000-8000-000000000001', 'f2000010-0000-4000-8000-000000000008', 'active', now(), null);
 
 -- Roles carrying the management read permissions (referenced by key from the migration-seeded catalog).
 insert into public.roles (id, tenant_id, name, status, is_protected)
@@ -125,7 +137,8 @@ values
   ('f2000013-0000-4000-8000-0000000000b1', 'f2000001-0000-4000-8000-000000000001', 'Wrong Catalog', 'active', false),
   ('f2000013-0000-4000-8000-0000000000b2', 'f2000001-0000-4000-8000-000000000001', 'Wrong Inventory', 'active', false),
   ('f2000013-0000-4000-8000-0000000000b3', 'f2000001-0000-4000-8000-000000000001', 'Wrong Orders', 'active', false),
-  ('f2000013-0000-4000-8000-0000000000c1', 'f2000001-0000-4000-8000-000000000001', 'Orders Only', 'active', false);
+  ('f2000013-0000-4000-8000-0000000000c1', 'f2000001-0000-4000-8000-000000000001', 'Orders Only', 'active', false),
+  ('f2000013-0000-4000-8000-0000000000d1', 'f2000001-0000-4000-8000-000000000001', 'Inventory Writer', 'active', false);
 
 insert into public.role_permissions (tenant_id, role_id, permission_id)
 values
@@ -138,7 +151,12 @@ values
   ('f2000001-0000-4000-8000-000000000001', 'f2000013-0000-4000-8000-0000000000b1', (select id from public.permissions where key = 'catalog.read')),
   ('f2000001-0000-4000-8000-000000000001', 'f2000013-0000-4000-8000-0000000000b2', (select id from public.permissions where key = 'inventory.read')),
   ('f2000001-0000-4000-8000-000000000001', 'f2000013-0000-4000-8000-0000000000b3', (select id from public.permissions where key = 'orders.read')),
-  ('f2000001-0000-4000-8000-000000000001', 'f2000013-0000-4000-8000-0000000000c1', (select id from public.permissions where key = 'orders.read'));
+  ('f2000001-0000-4000-8000-000000000001', 'f2000013-0000-4000-8000-0000000000c1', (select id from public.permissions where key = 'orders.read')),
+  -- Inventory Writer: read plus the three Phase 2G write permissions.
+  ('f2000001-0000-4000-8000-000000000001', 'f2000013-0000-4000-8000-0000000000d1', (select id from public.permissions where key = 'inventory.read')),
+  ('f2000001-0000-4000-8000-000000000001', 'f2000013-0000-4000-8000-0000000000d1', (select id from public.permissions where key = 'inventory.receive')),
+  ('f2000001-0000-4000-8000-000000000001', 'f2000013-0000-4000-8000-0000000000d1', (select id from public.permissions where key = 'inventory.adjust')),
+  ('f2000001-0000-4000-8000-000000000001', 'f2000013-0000-4000-8000-0000000000d1', (select id from public.permissions where key = 'inventory.transfer'));
 
 insert into public.access_scopes (id, tenant_id, name, scope_mode, status)
 values
@@ -148,7 +166,8 @@ values
   ('f2000014-0000-4000-8000-0000000000a3', 'f2000001-0000-4000-8000-000000000001', 'Brand A + Branch A Orders', 'explicit', 'active'),
   ('f2000014-0000-4000-8000-0000000000b1', 'f2000001-0000-4000-8000-000000000001', 'Wrong Catalog Branch', 'explicit', 'active'),
   ('f2000014-0000-4000-8000-0000000000b2', 'f2000001-0000-4000-8000-000000000001', 'Wrong Inventory Brand', 'explicit', 'active'),
-  ('f2000014-0000-4000-8000-0000000000b3', 'f2000001-0000-4000-8000-000000000001', 'Wrong Orders Warehouse', 'explicit', 'active');
+  ('f2000014-0000-4000-8000-0000000000b3', 'f2000001-0000-4000-8000-000000000001', 'Wrong Orders Warehouse', 'explicit', 'active'),
+  ('f2000014-0000-4000-8000-0000000000d1', 'f2000001-0000-4000-8000-000000000001', 'Location A Write', 'explicit', 'active');
 
 insert into public.access_scope_targets (id, tenant_id, access_scope_id, brand_id, branch_id, warehouse_id, inventory_location_id)
 values
@@ -158,7 +177,8 @@ values
   ('f2000015-0000-4000-8000-0000000000a4', 'f2000001-0000-4000-8000-000000000001', 'f2000014-0000-4000-8000-0000000000a3', null, 'f2000003-0000-4000-8000-0000000000b1', null, null),
   ('f2000015-0000-4000-8000-0000000000b1', 'f2000001-0000-4000-8000-000000000001', 'f2000014-0000-4000-8000-0000000000b1', null, 'f2000003-0000-4000-8000-0000000000b1', null, null),
   ('f2000015-0000-4000-8000-0000000000b2', 'f2000001-0000-4000-8000-000000000001', 'f2000014-0000-4000-8000-0000000000b2', 'f2000002-0000-4000-8000-0000000000a1', null, null, null),
-  ('f2000015-0000-4000-8000-0000000000b3', 'f2000001-0000-4000-8000-000000000001', 'f2000014-0000-4000-8000-0000000000b3', null, null, 'f2000004-0000-4000-8000-0000000000d1', null);
+  ('f2000015-0000-4000-8000-0000000000b3', 'f2000001-0000-4000-8000-000000000001', 'f2000014-0000-4000-8000-0000000000b3', null, null, 'f2000004-0000-4000-8000-0000000000d1', null),
+  ('f2000015-0000-4000-8000-0000000000d1', 'f2000001-0000-4000-8000-000000000001', 'f2000014-0000-4000-8000-0000000000d1', null, null, null, 'f2000005-0000-4000-8000-0000000000e1');
 
 insert into public.membership_role_assignments (id, tenant_id, membership_id, role_id, access_scope_id, assigned_at)
 values
@@ -173,6 +193,10 @@ values
   ('f2000016-0000-4000-8000-0000000000b2', 'f2000001-0000-4000-8000-000000000001', 'f2000012-0000-4000-8000-000000000003', 'f2000013-0000-4000-8000-0000000000b2', 'f2000014-0000-4000-8000-0000000000b2', now() - interval '1 day'),
   ('f2000016-0000-4000-8000-0000000000b3', 'f2000001-0000-4000-8000-000000000001', 'f2000012-0000-4000-8000-000000000003', 'f2000013-0000-4000-8000-0000000000b3', 'f2000014-0000-4000-8000-0000000000b3', now() - interval '1 day'),
   -- noperm: orders-only tenant-wide (no catalog/inventory permission at all)
-  ('f2000016-0000-4000-8000-0000000000c1', 'f2000001-0000-4000-8000-000000000001', 'f2000012-0000-4000-8000-000000000004', 'f2000013-0000-4000-8000-0000000000c1', 'f2000014-0000-4000-8000-000000000001', now() - interval '1 day');
+  ('f2000016-0000-4000-8000-0000000000c1', 'f2000001-0000-4000-8000-000000000001', 'f2000012-0000-4000-8000-000000000004', 'f2000013-0000-4000-8000-0000000000c1', 'f2000014-0000-4000-8000-000000000001', now() - interval '1 day'),
+  -- writer: tenant-wide inventory read + receive/adjust/transfer across all locations
+  ('f2000016-0000-4000-8000-0000000000d1', 'f2000001-0000-4000-8000-000000000001', 'f2000012-0000-4000-8000-000000000007', 'f2000013-0000-4000-8000-0000000000d1', 'f2000014-0000-4000-8000-000000000001', now() - interval '1 day'),
+  -- write-scoped: same write role but explicitly scoped to Location A only
+  ('f2000016-0000-4000-8000-0000000000d2', 'f2000001-0000-4000-8000-000000000001', 'f2000012-0000-4000-8000-000000000008', 'f2000013-0000-4000-8000-0000000000d1', 'f2000014-0000-4000-8000-0000000000d1', now() - interval '1 day');
 
 commit;

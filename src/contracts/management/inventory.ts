@@ -5,8 +5,9 @@ import { paginated } from "../common/pagination";
 
 /**
  * Inventory management DTO. A single joined query projects the on-hand balance together with the
- * variant/product display data a manager needs. The internal projection's version, movement ledger,
- * operation metadata, and signed deltas are never exposed.
+ * variant/product display data a manager needs. `version` is the authoritative optimistic-concurrency
+ * token of the persisted balance row: a client reads it here and passes it back as `expectedVersion`
+ * on an adjustment. The movement ledger, operation metadata, and signed deltas are never exposed.
  */
 
 const UuidSchema = z.string().uuid();
@@ -17,6 +18,9 @@ export const InventoryBalanceSchema = z.object({
   productName: z.string(),
   sku: z.string(),
   onHand: NonNegativeIntegerSchema,
+  // Authoritative persisted balance version (0 for a key with no history). This is the same value
+  // adjustInventory guards against; it is never a client-manufactured or onHand-derived number.
+  version: NonNegativeIntegerSchema,
 });
 
 export type InventoryBalance = z.infer<typeof InventoryBalanceSchema>;

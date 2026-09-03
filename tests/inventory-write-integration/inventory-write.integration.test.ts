@@ -9,14 +9,22 @@ import type { ExternalIdentityVerifier } from "../../src/authentication/external
 import {
   AdjustInventoryRequestSchema,
   AdjustInventoryResponseSchema,
+  InventoryListResponseSchema,
   ReceiveInventoryRequestSchema,
   ReceiveInventoryResponseSchema,
   TransferInventoryRequestSchema,
   TransferInventoryResponseSchema,
 } from "../../src/contracts";
-import { runTenantManagementWriteRoute } from "../../src/http/management-route";
+import {
+  parseRequest,
+  runTenantManagementRoute,
+  runTenantManagementWriteRoute,
+} from "../../src/http/management-route";
+import { InventoryReadService } from "../../src/inventory/inventory-read-service";
 import { InventoryService } from "../../src/inventory/inventory-service";
+import { createSupabaseInventoryReadRepository } from "../../src/inventory/supabase-inventory-read-repository";
 import { createSupabaseInventoryRepository } from "../../src/inventory/supabase-inventory-repository";
+import { InventoryListQuerySchema, queryRecord } from "../../src/management/request";
 
 const url = process.env.MGMT_TEST_SUPABASE_URL;
 const serviceRoleKey = process.env.MGMT_TEST_SUPABASE_SERVICE_ROLE_KEY;
@@ -34,6 +42,7 @@ const LGB = "f2900005-0000-4000-8000-0000000000e2";
 const VG1 = "f2900008-0000-4000-8000-0000000000a1"; // receive scenario, seeded 10
 const VG2 = "f2900008-0000-4000-8000-0000000000a2"; // adjust scenario, seeded 5 (version 1)
 const VG3 = "f2900008-0000-4000-8000-0000000000a3"; // transfer scenario, seeded 20
+const VG4 = "f2900008-0000-4000-8000-0000000000a4"; // read->adjust contract, seeded 8 (version 1)
 
 // Fake verifier: Authorization header carries "Bearer subject:<subject>"; this isolates the test from
 // Clerk while exercising the full AuthorizationContextResolver against the real database.
@@ -50,6 +59,7 @@ class FakeVerifier implements ExternalIdentityVerifier {
 
 let contextResolver: AuthorizationContextResolver;
 let inventory: InventoryService;
+let inventoryRead: InventoryReadService;
 
 beforeAll(() => {
   const verifier = new FakeVerifier();
@@ -57,6 +67,7 @@ beforeAll(() => {
   contextResolver = new AuthorizationContextResolver(verifier, authRepository);
   const authorizationService = new AuthorizationService(authRepository);
   inventory = new InventoryService(authorizationService, createSupabaseInventoryRepository(config));
+  inventoryRead = new InventoryReadService(createSupabaseInventoryReadRepository(config));
 });
 
 interface WriteOptions {
@@ -155,6 +166,37 @@ async function transfer(options: Omit<WriteOptions, "path">) {
             observedVersion: r.destination.observedVersion,
           },
         })),
+  });
+}
+
+async function listInventory(subject: string, tenantId: string, query: string) {
+  const headers = new Headers();
+  headers.set("Authorization", `Bearer subject:${subject}`);
+  headers.set("X-Tenant-Id", tenantId);
+  const httpRequest = new Request(`http://test/api/v1/inventory${query}`, { headers });
+  return runTenantManagementRoute({
+    request: httpRequest,
+    contextResolver,
+    responseSchema: InventoryListResponseSchema,
+    handler: (context) => {
+      const params = parseRequest(
+        InventoryListQuerySchema,
+        queryRecord(new URL(httpRequest.url).searchParams, [
+          "inventoryLocationId",
+          "variantId",
+          "limit",
+          "cursor",
+        ]),
+      );
+      return inventoryRead.listBalances(context, {
+        ...(params.inventoryLocationId !== undefined
+          ? { inventoryLocationId: params.inventoryLocationId }
+          : {}),
+        ...(params.variantId !== undefined ? { variantId: params.variantId } : {}),
+        limit: params.limit,
+        cursor: params.cursor ?? null,
+      });
+    },
   });
 }
 
@@ -324,5 +366,64 @@ describe("transfer stock through the HTTP write boundary", () => {
     });
     expect(denied.status).toBe(403);
     expect((await body(denied)).error.code).toBe("SCOPE_DENIED");
+  });
+});
+
+describe("adjust client contract: fresh read provides the version, refresh recovers from a 409", () => {
+  it("reads the authoritative version, adjusts against it, and refreshes after a stale conflict", async () => {
+    // 1. Fresh inventory read gives the client everything it needs to adjust safely: onHand + version.
+    const firstRead = await listInventory(
+      "clerk-g-writer",
+      TG,
+      `?variantId=${VG4}&inventoryLocationId=${LGA}`,
+    );
+    expect(firstRead.status).toBe(200);
+    const firstRow = (await body(firstRead)).items[0];
+    expect(firstRow).toMatchObject({ variantId: VG4, inventoryLocationId: LGA, onHand: 8 });
+    expect(typeof firstRow.version).toBe("number");
+    const observedVersion = firstRow.version;
+
+    // 2. Adjust using exactly the version the read returned -> success, version advances.
+    const applied = await adjust({
+      subject: "clerk-g-writer",
+      tenantId: TG,
+      idempotencyKey: "adj-contract-1",
+      body: {
+        variantId: VG4,
+        inventoryLocationId: LGA,
+        countedQuantity: 15,
+        expectedVersion: observedVersion,
+      },
+    });
+    expect(applied.status).toBe(200);
+    const appliedResult = await body(applied);
+    expect(appliedResult).toMatchObject({ changed: true, previousOnHand: 8, newOnHand: 15 });
+    expect(appliedResult.version).toBeGreaterThan(observedVersion);
+
+    // 3. Re-using the now-stale version is a safe CONCURRENT_MODIFICATION, never a blind overwrite.
+    const stale = await adjust({
+      subject: "clerk-g-writer",
+      tenantId: TG,
+      idempotencyKey: "adj-contract-stale",
+      body: {
+        variantId: VG4,
+        inventoryLocationId: LGA,
+        countedQuantity: 99,
+        expectedVersion: observedVersion,
+      },
+    });
+    expect(stale.status).toBe(409);
+    expect((await body(stale)).error.code).toBe("CONCURRENT_MODIFICATION");
+
+    // 4. A refresh read returns the newer authoritative version so the client can retry with user reconfirmation.
+    const refreshed = await listInventory(
+      "clerk-g-writer",
+      TG,
+      `?variantId=${VG4}&inventoryLocationId=${LGA}`,
+    );
+    const refreshedRow = (await body(refreshed)).items[0];
+    expect(refreshedRow.onHand).toBe(15);
+    expect(refreshedRow.version).toBe(appliedResult.version);
+    expect(refreshedRow.version).toBeGreaterThan(observedVersion);
   });
 });

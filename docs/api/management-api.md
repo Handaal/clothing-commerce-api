@@ -47,6 +47,20 @@ mutation, and reusing the same key with a **different** body is rejected with `4
 An adjustment additionally carries `expectedVersion`; a stale version is `409 CONCURRENT_MODIFICATION`
 rather than a blind overwrite. Insufficient source stock on a transfer is `409 INSUFFICIENT_STOCK`.
 
+### Inventory read version (Adjust flow)
+
+Every `GET /inventory` row carries `version`, the authoritative optimistic-concurrency token of the
+persisted balance (0 for a variant/location with no history). This is the value an adjustment guards
+against, so a fresh read is self-sufficient for the safe recount flow:
+
+1. `GET /inventory` → authoritative `onHand` **and** `version`.
+2. `POST /inventory/adjustments` with `countedQuantity` + that `expectedVersion`.
+3. On `409 CONCURRENT_MODIFICATION`, re-`GET /inventory` to obtain the newer `version`, require user
+   reconfirmation, and retry.
+
+The version is read straight from the balance row — it is never client-manufactured, derived from
+`onHand`, or carried over from a previous mutation response.
+
 ## Authentication and tenant selection
 
 See [authentication.md](authentication.md). Tenant-scoped routes require a present, UUID-valid
@@ -99,6 +113,30 @@ resources the caller's effective access already covers (all tenant resources whe
 authorized ids when explicit). It never returns raw `RolePermission`, `AccessScope`, permission keys, or
 scope targets.
 
+### Inventory write capability (`access.inventory.write`)
+
+`access.inventory.write` lets the Mobile client decide which write actions and locations to offer
+**before** submitting, instead of discovering permission through a `403` after the fact. It reports
+top-level `canReceive` / `canAdjust` / `canTransfer` plus a per-location `locations[]` with
+`canReceive`, `canAdjust`, `canTransferOrigin`, and `canTransferDestination`.
+
+Each flag is **server-derived** by combining three facts, exactly as the mutation path authorizes them:
+
+- **permission** — the caller holds `inventory.receive` / `inventory.adjust` / `inventory.transfer`;
+- **authorization scope** — that grant is tenant-wide, or explicitly targets the location (a scoped
+  caller is never shown a location outside its scope);
+- **location operational capability** — the location's status and capability flags permit the op
+  (receive → receiving-enabled + active; adjust → not archived; transfer origin → origin-enabled + not
+  archived; transfer destination → destination-enabled + active).
+
+Transfer is split into origin vs destination because the two are governed by independent location
+flags; top-level `canTransfer` is true only when a valid origin and a **distinct** valid destination
+both exist (a single location cannot transfer to itself).
+
+**This block is UX guidance ONLY.** It never grants access: every `POST` route performs the full
+server-side authorization independently and no mutation relies on the context result. There is no
+owner/admin bypass.
+
 ## Pagination, serialization, and errors
 
 See [pagination.md](pagination.md), [serialization.md](serialization.md), and [errors.md](errors.md).
@@ -117,6 +155,10 @@ The packed SDK (`@shifted/clothing-commerce-sdk`) `0.3.0` adds the typed tenant-
 `receiveInventory`, `adjustInventory`, and `transferInventory`. Each takes an explicit `idempotencyKey`
 which the SDK sends as the `Idempotency-Key` header (never in the body). The tenant header remains
 SDK-owned and the auth token remains supplied by the caller's token provider.
+
+`0.3.1` is an additive client-contract patch (no new methods, no breaking changes): the inventory list
+row now carries `version`, and `getContext()` returns `access.inventory.write` — both flow through the
+existing `listInventory` and `getContext` methods via their shared contract types.
 
 ## Local validation
 

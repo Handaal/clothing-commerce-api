@@ -16,6 +16,7 @@ const BalanceListRowSchema = z.object({
   inventory_location_id: z.string().uuid(),
   variant_id: z.string().uuid(),
   on_hand_quantity: z.union([z.number(), z.string()]),
+  version: z.union([z.number(), z.string()]),
   product_variants: z.object({
     sku: z.string(),
     products: z.object({ name: z.string() }),
@@ -57,7 +58,7 @@ export class SupabaseInventoryReadRepository implements InventoryReadRepository 
     let request = this.client
       .from("inventory_balances")
       .select(
-        "inventory_location_id,variant_id,on_hand_quantity,product_variants!inner(sku,products!inner(name))",
+        "inventory_location_id,variant_id,on_hand_quantity,version,product_variants!inner(sku,products!inner(name))",
       )
       .eq("tenant_id", query.tenantId);
 
@@ -91,6 +92,7 @@ export class SupabaseInventoryReadRepository implements InventoryReadRepository 
         productName: row.product_variants.products.name,
         sku: row.product_variants.sku,
         onHand: toSafeInteger(row.on_hand_quantity),
+        version: toSafeInteger(row.version),
       },
       cursor: {
         inventoryLocationId: row.inventory_location_id,
