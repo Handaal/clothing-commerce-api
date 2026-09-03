@@ -4,7 +4,10 @@
   "tags": [
     { "name": "me", "description": "Identity bootstrap and permission context." },
     { "name": "catalog", "description": "Read-only product catalog." },
-    { "name": "inventory", "description": "Read-only inventory balances." },
+    {
+      "name": "inventory",
+      "description": "Inventory balances (read) and management write operations: receive, adjust, transfer."
+    },
     { "name": "orders", "description": "Read-only orders and fulfillment progress." }
   ],
   "paths": {
@@ -202,6 +205,123 @@
         }
       }
     },
+    "/api/v1/inventory/receipts": {
+      "post": {
+        "operationId": "receiveInventory",
+        "tags": ["inventory"],
+        "summary": "Receive stock into an inventory location.",
+        "description": "Records received stock at a single in-tenant inventory location. Requires the inventory.receive permission over the target location and a required Idempotency-Key header; a replay with the same key and body is not applied twice, and the same key with a different body is a 409.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          { "$ref": "#/components/parameters/IdempotencyKeyHeader" }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "The receipt to record.",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ReceiveInventoryRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The recorded receipt and observed post-commit balance.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ReceiveInventoryResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "409": { "$ref": "#/components/responses/Error409" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/v1/inventory/adjustments": {
+      "post": {
+        "operationId": "adjustInventory",
+        "tags": ["inventory"],
+        "summary": "Reconcile an inventory count to a physically observed on-hand.",
+        "description": "Reconciles the balance at a single in-tenant inventory location to a counted on-hand, guarded by the version it was counted against (optimistic concurrency). Requires the inventory.adjust permission over the target location and a required Idempotency-Key header. A stale expectedVersion is a 409; a same-key/different-body replay is a 409.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          { "$ref": "#/components/parameters/IdempotencyKeyHeader" }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "The physical count to reconcile.",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/AdjustInventoryRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The authoritative before/after balance for the reconciliation.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AdjustInventoryResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "409": { "$ref": "#/components/responses/Error409" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/v1/inventory/transfers": {
+      "post": {
+        "operationId": "transferInventory",
+        "tags": ["inventory"],
+        "summary": "Transfer stock between two inventory locations.",
+        "description": "Atomically moves stock from a source to a destination inventory location. Requires the inventory.transfer permission over BOTH the source and the destination location and a required Idempotency-Key header. Insufficient source stock is a 409; a same-key/different-body replay is a 409.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          { "$ref": "#/components/parameters/IdempotencyKeyHeader" }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "The transfer to record.",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/TransferInventoryRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The recorded transfer and observed post-commit balances of both sides.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TransferInventoryResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "409": { "$ref": "#/components/responses/Error409" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
     "/api/v1/orders": {
       "get": {
         "operationId": "listOrders",
@@ -317,6 +437,13 @@
         "required": true,
         "description": "The tenant the request operates within.",
         "schema": { "type": "string", "format": "uuid" }
+      },
+      "IdempotencyKeyHeader": {
+        "name": "Idempotency-Key",
+        "in": "header",
+        "required": true,
+        "description": "Caller-stable idempotency key for the write. A replay with the same key and body is not applied twice; the same key with a different body is rejected with a 409.",
+        "schema": { "type": "string", "minLength": 1, "maxLength": 200 }
       }
     },
     "responses": {
@@ -789,6 +916,189 @@
           }
         },
         "required": ["items", "pageInfo"],
+        "additionalProperties": false
+      },
+      "ReceiveInventoryRequest": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "variantId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "inventoryLocationId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "quantity": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+          "note": { "type": "string", "minLength": 1, "maxLength": 500 }
+        },
+        "required": ["variantId", "inventoryLocationId", "quantity"],
+        "additionalProperties": false
+      },
+      "ReceiveInventoryResponse": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "operationId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "variantId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "inventoryLocationId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "observedOnHand": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+          "observedVersion": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+        },
+        "required": [
+          "operationId",
+          "variantId",
+          "inventoryLocationId",
+          "observedOnHand",
+          "observedVersion"
+        ],
+        "additionalProperties": false
+      },
+      "AdjustInventoryRequest": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "variantId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "inventoryLocationId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "countedQuantity": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+          "expectedVersion": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+          "note": { "type": "string", "minLength": 1, "maxLength": 500 }
+        },
+        "required": ["variantId", "inventoryLocationId", "countedQuantity", "expectedVersion"],
+        "additionalProperties": false
+      },
+      "AdjustInventoryResponse": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "operationId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "changed": { "type": "boolean" },
+          "variantId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "inventoryLocationId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "previousOnHand": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+          "newOnHand": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+          "version": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+        },
+        "required": [
+          "operationId",
+          "changed",
+          "variantId",
+          "inventoryLocationId",
+          "previousOnHand",
+          "newOnHand",
+          "version"
+        ],
+        "additionalProperties": false
+      },
+      "TransferInventoryRequest": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "variantId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "sourceInventoryLocationId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "destinationInventoryLocationId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "quantity": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+          "note": { "type": "string", "minLength": 1, "maxLength": 500 }
+        },
+        "required": [
+          "variantId",
+          "sourceInventoryLocationId",
+          "destinationInventoryLocationId",
+          "quantity"
+        ],
+        "additionalProperties": false
+      },
+      "TransferInventoryResponse": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "operationId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "variantId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "source": {
+            "type": "object",
+            "properties": {
+              "inventoryLocationId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "observedOnHand": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+              "observedVersion": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+            },
+            "required": ["inventoryLocationId", "observedOnHand", "observedVersion"],
+            "additionalProperties": false
+          },
+          "destination": {
+            "type": "object",
+            "properties": {
+              "inventoryLocationId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "observedOnHand": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+              "observedVersion": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+            },
+            "required": ["inventoryLocationId", "observedOnHand", "observedVersion"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["operationId", "variantId", "source", "destination"],
         "additionalProperties": false
       },
       "OrderSummary": {
