@@ -30,6 +30,7 @@ const VARIANT_M_ID = "71a71a00-0000-4000-8000-000000000001";
 const VARIANT_L_ID = "71a71a00-0000-4000-8000-000000000002";
 const VARIANT_TOTE_ID = "71a71a00-0000-4000-8000-000000000003";
 const LOCATION_ID = "10ca7100-0000-4000-8000-000000000001";
+const LOCATION_2_ID = "10ca7100-0000-4000-8000-000000000002";
 
 interface RunResult {
   status: number | null;
@@ -206,11 +207,38 @@ describe("development commerce fixture (local Postgres)", () => {
       .eq("status", "active");
     expect(priceCount).toBe(3); // two active-product variants + one draft-product variant
 
-    // Inventory: opening 25/40/12 minus the fulfillment issue (3 of M, 1 of L).
+    // Inventory: opening 25/40/12 minus the fulfillment issue (3 of M, 1 of L). All primary balances
+    // live on the original location; the second location starts empty.
     const balances = await balancesByVariant(tenantId);
     expect(balances.get(VARIANT_M_ID)).toBe(22);
     expect(balances.get(VARIANT_L_ID)).toBe(39);
     expect(balances.get(VARIANT_TOTE_ID)).toBe(12);
+
+    // Inventory locations: two active locations both usable for the Phase 2G writes. Every write flag is
+    // enabled on both so receive and transfer (source + destination) work through normal authorization;
+    // the second location suits Transfer as a distinct destination.
+    const { data: locations } = await admin
+      .from("inventory_locations")
+      .select(
+        "id,status,is_receiving_enabled,is_transfer_origin_enabled,is_transfer_destination_enabled",
+      )
+      .eq("tenant_id", tenantId)
+      .order("id", { ascending: true });
+    expect(locations?.map((l) => l.id).sort()).toEqual([LOCATION_ID, LOCATION_2_ID].sort());
+    for (const location of locations ?? []) {
+      expect(location.status).toBe("active");
+      expect(location.is_receiving_enabled).toBe(true);
+      expect(location.is_transfer_origin_enabled).toBe(true);
+      expect(location.is_transfer_destination_enabled).toBe(true);
+    }
+
+    // The second location carries no stock yet (a valid empty balance): no balance rows reference it.
+    const { count: location2Balances } = await admin
+      .from("inventory_balances")
+      .select("variant_id", { count: "exact", head: true })
+      .eq("tenant_id", tenantId)
+      .eq("inventory_location_id", LOCATION_2_ID);
+    expect(location2Balances).toBe(0);
 
     // Order: one placed online order with two lines.
     const { data: orders } = await admin
@@ -249,6 +277,12 @@ describe("development commerce fixture (local Postgres)", () => {
     expect(result.status).toBe(0);
 
     expect(await countProducts(tenantId)).toBe(2);
+    // Exactly the two deterministic locations remain: a re-run never duplicates them.
+    const { count: locationCount } = await admin
+      .from("inventory_locations")
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", tenantId);
+    expect(locationCount).toBe(2);
     const { count: orderCount } = await admin
       .from("orders")
       .select("id", { count: "exact", head: true })
@@ -270,19 +304,50 @@ describe("development commerce fixture (local Postgres)", () => {
   it("(no extra authorization) the fixture grants no permissions or roles", async () => {
     const tenantId = (await devTenantId()) as string;
 
-    // Only the identity provisioning's single role and its exactly-three read grants exist; the fixture
-    // never touches roles/permissions/scopes.
+    // Only the identity provisioning's single role and its exact six management grants exist; the commerce
+    // fixture never touches roles/permissions/scopes. The exact set is the three reads plus the Phase 2G
+    // inventory writes (receive/adjust/transfer) — deliberately WITHOUT opening/issue or any wildcard.
     const { count: roleCount } = await admin
       .from("roles")
       .select("id", { count: "exact", head: true })
       .eq("tenant_id", tenantId);
     expect(roleCount).toBe(1);
 
-    const { count: grantCount } = await admin
+    const { data: grants, count: grantCount } = await admin
       .from("role_permissions")
-      .select("permission_id", { count: "exact", head: true })
+      .select("permission_id, permissions(key)", { count: "exact" })
       .eq("tenant_id", tenantId);
-    expect(grantCount).toBe(3);
+    expect(grantCount).toBe(6);
+
+    type Grant = { permissions: { key: string } | { key: string }[] | null };
+    const grantedKeys = ((grants ?? []) as Grant[])
+      .flatMap((g) => {
+        const p = g.permissions;
+        if (!p) return [];
+        return Array.isArray(p) ? p.map((x) => x.key) : [p.key];
+      })
+      .sort();
+    expect(grantedKeys).toEqual(
+      [
+        "catalog.read",
+        "inventory.read",
+        "orders.read",
+        "inventory.receive",
+        "inventory.adjust",
+        "inventory.transfer",
+      ].sort(),
+    );
+    // Explicitly absent: opening stock, generic issue, other-domain writes, and any wildcard/admin grant.
+    for (const forbidden of [
+      "inventory.opening",
+      "inventory.issue",
+      "catalog.create",
+      "orders.create",
+      "orders.cancel",
+    ]) {
+      expect(grantedKeys).not.toContain(forbidden);
+    }
+    expect(grantedKeys.some((k) => k.includes("*"))).toBe(false);
   });
 });
 

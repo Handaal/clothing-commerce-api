@@ -5,10 +5,16 @@
 -- a REAL, externally-created Clerk development subject to the Commerce authorization model so that a
 -- genuine Clerk login can exercise GET /api/v1/me/tenants and GET /api/v1/me/context.
 --
--- It NEVER auto-provisions during an API request, NEVER grants a mutation permission, NEVER creates a
--- platform/super-admin identity, and introduces NO owner/manager bypass. `service_role`/superuser access
--- is used strictly as DB transport; authorization is still the tenant Role -> RolePermission -> Scope ->
--- MembershipRoleAssignment graph the API already evaluates.
+-- It NEVER auto-provisions during an API request, NEVER creates a platform/super-admin identity, and
+-- introduces NO owner/manager bypass. `service_role`/superuser access is used strictly as DB transport;
+-- authorization is still the tenant Role -> RolePermission -> Scope -> MembershipRoleAssignment graph the
+-- API already evaluates.
+--
+-- Phase 2G: the development role now also grants the three sanctioned inventory-management WRITE
+-- permissions (inventory.receive, inventory.adjust, inventory.transfer) so a real Clerk login can
+-- exercise the Phase 2G write endpoints locally. It still grants NO opening-stock or generic-issue
+-- permission, NO catalog/order/fulfillment write, and NO wildcard/admin permission. The role remains an
+-- EXACT set (fail-closed): the script asserts the grant count and never widens beyond the declared keys.
 --
 -- The Clerk subject is supplied by the caller through the psql variable :clerk_subject. It is copied once
 -- into a transaction-local GUC via psql's safe quoting (:'clerk_subject') and read inside the DO block
@@ -59,15 +65,18 @@ begin
     raise exception 'DEV_PROVISIONING: a non-empty Clerk subject is required.';
   end if;
 
-  -- 0. Require the canonical migration-seeded read permissions BEFORE any write. A missing key means the
-  --    local database is behind on migrations; this script must not repair migration drift.
+  -- 0. Require the canonical migration-seeded permissions this role grants BEFORE any write. A missing key
+  --    means the local database is behind on migrations; this script must not repair migration drift.
   select count(*) into v_perm_count
   from public.permissions
-  where key in ('catalog.read', 'inventory.read', 'orders.read')
+  where key in (
+      'catalog.read', 'inventory.read', 'orders.read',
+      'inventory.receive', 'inventory.adjust', 'inventory.transfer'
+    )
     and status = 'active';
-  if v_perm_count <> 3 then
+  if v_perm_count <> 6 then
     raise exception
-      'DEV_PROVISIONING: expected 3 active canonical read permissions (catalog.read, inventory.read, orders.read) but found %. Run `pnpm supabase:reset` to apply migrations.',
+      'DEV_PROVISIONING: expected 6 active canonical permissions (catalog.read, inventory.read, orders.read, inventory.receive, inventory.adjust, inventory.transfer) but found %. Run `pnpm supabase:reset` to apply migrations.',
       v_perm_count;
   end if;
 
@@ -147,21 +156,26 @@ begin
     v_role_created := true;
   end if;
 
-  -- 5. Grant EXACTLY the three read permissions. Idempotent insert, then assert the role carries no
-  --    other (e.g. mutation) grant. If it carries anything else, fail rather than silently narrow/widen.
+  -- 5. Grant EXACTLY the six management permissions (three reads + three inventory writes). The idempotent
+  --    insert reconciles the old three-read state up to the full set; the count assertion then keeps the
+  --    role an EXACT set. If it carries anything beyond these six (e.g. inventory.opening/issue or any
+  --    other grant), fail rather than silently narrow/widen. A re-run inserts nothing and re-asserts six.
   insert into public.role_permissions (tenant_id, role_id, permission_id)
   select v_tenant_id, v_role_id, p.id
   from public.permissions p
-  where p.key in ('catalog.read', 'inventory.read', 'orders.read')
+  where p.key in (
+    'catalog.read', 'inventory.read', 'orders.read',
+    'inventory.receive', 'inventory.adjust', 'inventory.transfer'
+  )
   on conflict (tenant_id, role_id, permission_id) do nothing;
 
   select count(*) into v_role_perm_count
   from public.role_permissions
   where tenant_id = v_tenant_id
     and role_id = v_role_id;
-  if v_role_perm_count <> 3 then
+  if v_role_perm_count <> 6 then
     raise exception
-      'DEV_PROVISIONING: role "Dev Management Reader" must grant exactly the 3 read permissions but carries % grants; refusing to alter an unexpected grant set.',
+      'DEV_PROVISIONING: role "Dev Management Reader" must grant exactly the 6 management permissions but carries % grants; refusing to alter an unexpected grant set.',
       v_role_perm_count;
   end if;
 
@@ -235,7 +249,7 @@ select
 from dev_provision_result
 order by sort_key;
 
-\pset title 'Granted permissions (read-only)'
+\pset title 'Granted permissions'
 select string_agg(p.key, ', ' order by p.key) as "Permissions"
 from public.role_permissions rp
 join public.permissions p on p.id = rp.permission_id

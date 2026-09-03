@@ -37,6 +37,7 @@ declare
   c_brand      constant uuid := 'b0a11d00-0000-4000-8000-000000000001';
   c_branch     constant uuid := 'b7a11c00-0000-4000-8000-000000000001';
   c_location   constant uuid := '10ca7100-0000-4000-8000-000000000001';
+  c_location2  constant uuid := '10ca7100-0000-4000-8000-000000000002';
   c_product1   constant uuid := '90000000-0000-4000-8000-000000000001';
   c_product2   constant uuid := '90000000-0000-4000-8000-000000000002';
   c_option     constant uuid := '0f710000-0000-4000-8000-000000000001';
@@ -51,6 +52,7 @@ declare
   v_brand_id uuid;
   v_branch_id uuid;
   v_location_id uuid;
+  v_location2_id uuid;
   v_product1_id uuid;
   v_product2_id uuid;
   v_option_id uuid;
@@ -94,18 +96,52 @@ begin
   select id into v_branch_id from public.branches
   where tenant_id = v_tenant_id and normalized_code = 'dev-branch';
 
-  -- 2b. Inventory location: one sellable, fulfillment-enabled branch location (branch parent, not a
-  --     warehouse). Fulfillment issue requires active + is_fulfillment_enabled.
+  -- 2b. Inventory location 1: one sellable, fulfillment-enabled branch location (branch parent, not a
+  --     warehouse). Fulfillment issue requires active + is_fulfillment_enabled. The three write-capability
+  --     flags are enabled so Phase 2G management writes (receive, transfer origin/destination) are usable
+  --     against it; adjust needs no capability flag.
   insert into public.inventory_locations (
-    id, tenant_id, branch_id, code, display_name, location_type, status, is_sellable, is_fulfillment_enabled
+    id, tenant_id, branch_id, code, display_name, location_type, status, is_sellable, is_fulfillment_enabled,
+    is_receiving_enabled, is_transfer_origin_enabled, is_transfer_destination_enabled
   )
   values (
     c_location, v_tenant_id, v_branch_id, 'DEV-LOC-1', 'Dev Flagship Stockroom', 'stockroom',
-    'active', true, true
+    'active', true, true, true, true, true
   )
   on conflict (tenant_id, normalized_code) do nothing;
   select id into v_location_id from public.inventory_locations
   where tenant_id = v_tenant_id and normalized_code = 'dev-loc-1';
+
+  -- 2c. Inventory location 2: a second active location so Transfer has a distinct destination. It starts
+  --     with NO stock (a valid empty balance in this domain) and carries the same write-capability flags,
+  --     so it can serve as a transfer destination (and, if needed, a receive target or transfer source).
+  --     It is NOT fulfillment-enabled: it only exists for the inventory write slice, not order execution.
+  insert into public.inventory_locations (
+    id, tenant_id, branch_id, code, display_name, location_type, status, is_sellable, is_fulfillment_enabled,
+    is_receiving_enabled, is_transfer_origin_enabled, is_transfer_destination_enabled
+  )
+  values (
+    c_location2, v_tenant_id, v_branch_id, 'DEV-LOC-2', 'Dev Overflow Stockroom', 'stockroom',
+    'active', false, false, true, true, true
+  )
+  on conflict (tenant_id, normalized_code) do nothing;
+  select id into v_location2_id from public.inventory_locations
+  where tenant_id = v_tenant_id and normalized_code = 'dev-loc-2';
+
+  -- Idempotent upgrade path: if either location already existed from an earlier fixture version without
+  -- the write-capability flags, force them on. Setting a boolean to the same value is a stable no-op on
+  -- re-run and never touches inventory balances.
+  update public.inventory_locations
+  set is_receiving_enabled = true,
+      is_transfer_origin_enabled = true,
+      is_transfer_destination_enabled = true
+  where tenant_id = v_tenant_id
+    and id in (v_location_id, v_location2_id)
+    and not (
+      is_receiving_enabled
+      and is_transfer_origin_enabled
+      and is_transfer_destination_enabled
+    );
 
   -- 3. Product 1: an ACTIVE style with a Size option (M, L) and two active variants.
   insert into public.products (id, tenant_id, brand_id, name, slug, style_code, description, status)
@@ -271,14 +307,15 @@ begin
     (2, 'brand', v_brand_id, false),
     (3, 'branch', v_branch_id, false),
     (4, 'inventory_location', v_location_id, false),
-    (5, 'product_active', v_product1_id, false),
-    (6, 'product_draft', v_product2_id, false),
-    (7, 'variant_m', v_variant_m_id, false),
-    (8, 'variant_l', v_variant_l_id, false),
-    (9, 'variant_tote', v_variant_2_id, false),
-    (10, 'inventory_operation', v_inventory_operation_id, false),
-    (11, 'order', v_order_id, false),
-    (12, 'fulfillment', v_fulfillment_id, false);
+    (5, 'inventory_location_2', v_location2_id, false),
+    (6, 'product_active', v_product1_id, false),
+    (7, 'product_draft', v_product2_id, false),
+    (8, 'variant_m', v_variant_m_id, false),
+    (9, 'variant_l', v_variant_l_id, false),
+    (10, 'variant_tote', v_variant_2_id, false),
+    (11, 'inventory_operation', v_inventory_operation_id, false),
+    (12, 'order', v_order_id, false),
+    (13, 'fulfillment', v_fulfillment_id, false);
 end
 $$;
 
