@@ -304,19 +304,50 @@ describe("development commerce fixture (local Postgres)", () => {
   it("(no extra authorization) the fixture grants no permissions or roles", async () => {
     const tenantId = (await devTenantId()) as string;
 
-    // Only the identity provisioning's single role and its exactly-three read grants exist; the fixture
-    // never touches roles/permissions/scopes.
+    // Only the identity provisioning's single role and its exact six management grants exist; the commerce
+    // fixture never touches roles/permissions/scopes. The exact set is the three reads plus the Phase 2G
+    // inventory writes (receive/adjust/transfer) — deliberately WITHOUT opening/issue or any wildcard.
     const { count: roleCount } = await admin
       .from("roles")
       .select("id", { count: "exact", head: true })
       .eq("tenant_id", tenantId);
     expect(roleCount).toBe(1);
 
-    const { count: grantCount } = await admin
+    const { data: grants, count: grantCount } = await admin
       .from("role_permissions")
-      .select("permission_id", { count: "exact", head: true })
+      .select("permission_id, permissions(key)", { count: "exact" })
       .eq("tenant_id", tenantId);
-    expect(grantCount).toBe(3);
+    expect(grantCount).toBe(6);
+
+    type Grant = { permissions: { key: string } | { key: string }[] | null };
+    const grantedKeys = ((grants ?? []) as Grant[])
+      .flatMap((g) => {
+        const p = g.permissions;
+        if (!p) return [];
+        return Array.isArray(p) ? p.map((x) => x.key) : [p.key];
+      })
+      .sort();
+    expect(grantedKeys).toEqual(
+      [
+        "catalog.read",
+        "inventory.read",
+        "orders.read",
+        "inventory.receive",
+        "inventory.adjust",
+        "inventory.transfer",
+      ].sort(),
+    );
+    // Explicitly absent: opening stock, generic issue, other-domain writes, and any wildcard/admin grant.
+    for (const forbidden of [
+      "inventory.opening",
+      "inventory.issue",
+      "catalog.create",
+      "orders.create",
+      "orders.cancel",
+    ]) {
+      expect(grantedKeys).not.toContain(forbidden);
+    }
+    expect(grantedKeys.some((k) => k.includes("*"))).toBe(false);
   });
 });
 
