@@ -98,18 +98,22 @@ Supabase host is a hard failure with no override — the command cannot reach a 
 
 ### What it creates
 
-A single minimum representative Phase 2F-B management reader:
+A single minimum representative Phase 2G management identity:
 
 - an **active** `dev-local` Tenant (`slug=dev-local`, `default_currency=USD`),
 - an **active** UserIdentity bound to your Clerk subject through an **active** `clerk` provider binding,
 - an **active** Membership of that identity in `dev-local`,
-- an **active** Role `Dev Management Reader` granting **exactly** `catalog.read`, `inventory.read`, and
-  `orders.read` — no mutation permissions, no owner/platform bypass,
+- an **active** Role `Dev Management Reader` granting **exactly** the six management permissions
+  `catalog.read`, `inventory.read`, `orders.read`, `inventory.receive`, `inventory.adjust`, and
+  `inventory.transfer` — the three reads plus the Phase 2G inventory writes. It grants **no**
+  opening-stock or generic-issue permission, **no** catalog/order/fulfillment write, and no
+  owner/platform/wildcard bypass. The role remains an exact set (the provisioner asserts the grant count
+  and fails closed on anything unexpected),
 - an **active**, tenant-wide AccessScope `Dev Tenant Wide`, and
 - an **active** MembershipRoleAssignment tying them together.
 
-It never creates permission-catalog entries: the three read permissions must already exist from canonical
-migrations. If they are missing, the command fails and tells you to run `pnpm supabase:reset`.
+It never creates permission-catalog entries: the six permissions must already exist from canonical
+migrations. If any are missing, the command fails and tells you to run `pnpm supabase:reset`.
 
 ### First create a real Clerk development user
 
@@ -157,7 +161,7 @@ see [Local development commerce fixture](./commerce-fixture.md).
   only provisions the local stack by design; use the local Supabase instance.
 - **Container/API not running:** use the API-capable local start command above, then run
   `pnpm supabase:reset`.
-- **Canonical read permissions missing:** the local DB is behind on migrations; run `pnpm supabase:reset`.
+- **Canonical permissions missing:** the local DB is behind on migrations; run `pnpm supabase:reset`.
 - **`PROVIDER_BINDING_MISSING` at runtime:** confirm you provisioned the exact Clerk User ID you signed in
   as. Email and metadata do not substitute.
 

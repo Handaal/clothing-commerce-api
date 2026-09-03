@@ -22,6 +22,21 @@ const admin: SupabaseClient = createClient(url, serviceRoleKey, {
 
 const scriptPath = join(process.cwd(), "scripts", "provision-dev-identity.mjs");
 const READ_PERMISSIONS = ["catalog.read", "inventory.read", "orders.read"] as const;
+const INVENTORY_WRITE_PERMISSIONS = [
+  "inventory.receive",
+  "inventory.adjust",
+  "inventory.transfer",
+] as const;
+// The dev management role grants EXACTLY these six: three reads plus the three Phase 2G inventory writes.
+const EXPECTED_PERMISSIONS = [...READ_PERMISSIONS, ...INVENTORY_WRITE_PERMISSIONS] as const;
+// Deliberately excluded: opening stock, generic issue, and any catalog/order/fulfillment write.
+const FORBIDDEN_PERMISSIONS = [
+  "inventory.opening",
+  "inventory.issue",
+  "catalog.create",
+  "orders.create",
+  "orders.cancel",
+] as const;
 
 const SUBJECT_PRIMARY = "user_dev_primary";
 const SUBJECT_CONFLICT = "user_dev_conflict_suspended";
@@ -76,7 +91,7 @@ describe("development identity provisioning (local Postgres)", () => {
 
     const result = provision(SUBJECT_PRIMARY);
     expect(result.status).not.toBe(0);
-    expect(result.stderr).toMatch(/canonical read permissions/i);
+    expect(result.stderr).toMatch(/canonical permissions/i);
     expect(await devTenantId()).toBeNull();
     expect(await bindingsFor(SUBJECT_PRIMARY)).toHaveLength(0);
 
@@ -125,7 +140,8 @@ describe("development identity provisioning (local Postgres)", () => {
       .single();
     expect(membership?.status).toBe("active");
 
-    // (11 & 16) role grants EXACTLY the three read permissions, no mutation permissions
+    // (11 & 16) role grants EXACTLY the six management permissions (three reads + three inventory
+    //           writes), and no forbidden write (opening/issue, catalog/order/fulfillment write, wildcard)
     const { data: role } = await admin
       .from("roles")
       .select("id,is_protected,status")
@@ -149,10 +165,13 @@ describe("development identity provisioning (local Postgres)", () => {
         return Array.isArray(p) ? p.map((x) => x.key) : [p.key];
       })
       .sort();
-    expect(grantedKeys).toEqual([...READ_PERMISSIONS].sort());
-    expect(
-      grantedKeys.some((k) => /\.(create|adjust|receive|issue|transfer|cancel)$/.test(k)),
-    ).toBe(false);
+    expect(grantedKeys).toEqual([...EXPECTED_PERMISSIONS].sort());
+    // No opening-stock or generic-issue write, and nothing outside inventory receive/adjust/transfer.
+    for (const forbidden of FORBIDDEN_PERMISSIONS) {
+      expect(grantedKeys).not.toContain(forbidden);
+    }
+    expect(grantedKeys.some((k) => /\.(create|cancel)$/.test(k))).toBe(false);
+    expect(grantedKeys.some((k) => k.includes("*"))).toBe(false);
 
     // (12) tenant-wide scope owned by the dev tenant
     const { data: scope } = await admin
@@ -214,7 +233,7 @@ describe("development identity provisioning (local Postgres)", () => {
       .select("permission_id", { count: "exact", head: true })
       .eq("tenant_id", tenantId)
       .eq("role_id", role?.id);
-    expect(grantCount).toBe(3);
+    expect(grantCount).toBe(6);
   });
 
   it("(9) a third identical run leaves the same records and ids unchanged", async () => {
@@ -246,6 +265,57 @@ describe("development identity provisioning (local Postgres)", () => {
     expect(assignmentCount).toBe(1);
     expect(assignmentAfter?.[0].id).toBe(assignmentBefore?.id);
     expect(await bindingsFor(SUBJECT_PRIMARY)).toHaveLength(1);
+  });
+
+  it("(9b) reconciles an old three-read role up to the exact six-permission set", async () => {
+    const tenantId = await devTenantId();
+    const { data: role } = await admin
+      .from("roles")
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .eq("normalized_name", "dev management reader")
+      .single();
+
+    // Simulate a dev-local provisioned before Phase 2G: drop the three inventory write grants so the role
+    // carries only the original three reads.
+    const { data: writePerms } = await admin
+      .from("permissions")
+      .select("id")
+      .in("key", [...INVENTORY_WRITE_PERMISSIONS]);
+    await admin
+      .from("role_permissions")
+      .delete()
+      .eq("tenant_id", tenantId)
+      .eq("role_id", role?.id)
+      .in(
+        "permission_id",
+        (writePerms ?? []).map((p) => p.id),
+      );
+    const { count: beforeCount } = await admin
+      .from("role_permissions")
+      .select("permission_id", { count: "exact", head: true })
+      .eq("tenant_id", tenantId)
+      .eq("role_id", role?.id);
+    expect(beforeCount).toBe(3);
+
+    // Re-running the provisioner reconciles up to exactly six without duplicating the surviving reads.
+    const result = provision(SUBJECT_PRIMARY);
+    expect(result.status).toBe(0);
+
+    const { data: grants } = await admin
+      .from("role_permissions")
+      .select("permissions(key)")
+      .eq("tenant_id", tenantId)
+      .eq("role_id", role?.id);
+    type Grant = { permissions: { key: string } | { key: string }[] | null };
+    const grantedKeys = ((grants ?? []) as Grant[])
+      .flatMap((g) => {
+        const p = g.permissions;
+        if (!p) return [];
+        return Array.isArray(p) ? p.map((x) => x.key) : [p.key];
+      })
+      .sort();
+    expect(grantedKeys).toEqual([...EXPECTED_PERMISSIONS].sort());
   });
 
   it("(6b) refuses to reuse a membership carrying an extra live assignment (effective-permission exactness)", async () => {
