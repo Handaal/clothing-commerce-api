@@ -9,6 +9,7 @@ import { InventoryError } from "../inventory/errors";
 import { InvalidCursorError } from "../management/cursor";
 import { ManagementNotFoundError } from "../management/errors";
 import { OrderError } from "../orders/errors";
+import { PosSaleError } from "../pos/errors";
 import { corsHeaders } from "./cors";
 
 /**
@@ -106,11 +107,16 @@ async function parseJsonBody<T>(request: Request, schema: z.ZodType<T>): Promise
   return parseRequest(schema, raw);
 }
 
-function jsonResponse(status: number, body: unknown, requestId: string): Response {
+function jsonResponse(
+  status: number,
+  body: unknown,
+  requestId: string,
+  request?: Request,
+): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: {
-      ...corsHeaders,
+      ...corsHeaders(request),
       "Content-Type": "application/json",
       "X-Request-Id": requestId,
     },
@@ -133,36 +139,57 @@ function errorBody(
   };
 }
 
-function mapError(error: unknown, requestId: string): Response {
+function mapError(error: unknown, requestId: string, request?: Request): Response {
   if (error instanceof RequestValidationError) {
     return jsonResponse(
       400,
       errorBody("VALIDATION_ERROR", "The request is not valid.", requestId, error.issues),
       requestId,
+      request,
     );
   }
   if (error instanceof InvalidCursorError) {
-    return jsonResponse(400, errorBody("INVALID_CURSOR", error.message, requestId), requestId);
+    return jsonResponse(
+      400,
+      errorBody("INVALID_CURSOR", error.message, requestId),
+      requestId,
+      request,
+    );
   }
   if (error instanceof AuthorizationError) {
     return jsonResponse(
       error.httpStatus,
       errorBody(error.code, error.message, requestId),
       requestId,
+      request,
     );
   }
   if (error instanceof ManagementNotFoundError) {
-    return jsonResponse(404, errorBody(error.code, error.message, requestId), requestId);
+    return jsonResponse(404, errorBody(error.code, error.message, requestId), requestId, request);
   }
   if (
     error instanceof OrderError ||
     error instanceof FulfillmentError ||
-    error instanceof InventoryError
+    error instanceof InventoryError ||
+    error instanceof PosSaleError
   ) {
+    const details =
+      error instanceof PosSaleError &&
+      error.code === "PRICE_CHANGED" &&
+      error.authoritativeTotalMinor !== undefined
+        ? [
+            {
+              path: ["expectedTotalMinor"],
+              message: "Refresh and reconfirm the authoritative total.",
+              value: error.authoritativeTotalMinor,
+            },
+          ]
+        : undefined;
     return jsonResponse(
       error.httpStatus,
-      errorBody(error.code, error.message, requestId),
+      errorBody(error.code, error.message, requestId, details),
       requestId,
+      request,
     );
   }
   // Unknown/internal (including ResponseContractError and any repository defect). Never leak details.
@@ -170,6 +197,7 @@ function mapError(error: unknown, requestId: string): Response {
     500,
     errorBody("INTERNAL_ERROR", "An unexpected error occurred.", requestId),
     requestId,
+    request,
   );
 }
 
@@ -182,8 +210,8 @@ function validateResponse<T>(schema: z.ZodType<T>, value: unknown): T {
 }
 
 /** OPTIONS preflight response shared by every management route. */
-export function managementOptionsResponse(): Response {
-  return new Response(null, { status: 204, headers: corsHeaders });
+export function managementOptionsResponse(request?: Request): Response {
+  return new Response(null, { status: 204, headers: corsHeaders(request) });
 }
 
 /**
@@ -205,9 +233,14 @@ export async function runTenantManagementRoute<T>(options: {
       requestedTenantId,
     });
     const value = await options.handler(context, requestId);
-    return jsonResponse(200, validateResponse(options.responseSchema, value), requestId);
+    return jsonResponse(
+      200,
+      validateResponse(options.responseSchema, value),
+      requestId,
+      options.request,
+    );
   } catch (error) {
-    return mapError(error, requestId);
+    return mapError(error, requestId, options.request);
   }
 }
 
@@ -241,9 +274,14 @@ export async function runTenantManagementWriteRoute<TBody, TResult>(options: {
     });
     const body = await parseJsonBody(options.request, options.requestSchema);
     const value = await options.handler({ context, body, idempotencyKey, requestId });
-    return jsonResponse(200, validateResponse(options.responseSchema, value), requestId);
+    return jsonResponse(
+      200,
+      validateResponse(options.responseSchema, value),
+      requestId,
+      options.request,
+    );
   } catch (error) {
-    return mapError(error, requestId);
+    return mapError(error, requestId, options.request);
   }
 }
 
@@ -252,14 +290,20 @@ export async function runTenantManagementWriteRoute<TBody, TResult>(options: {
  * any tenant context and never reads X-Tenant-Id.
  */
 export async function runIdentityManagementRoute<T>(options: {
+  readonly request?: Request;
   readonly responseSchema: z.ZodType<T>;
   readonly handler: (requestId: string) => Promise<T>;
 }): Promise<Response> {
   const requestId = crypto.randomUUID();
   try {
     const value = await options.handler(requestId);
-    return jsonResponse(200, validateResponse(options.responseSchema, value), requestId);
+    return jsonResponse(
+      200,
+      validateResponse(options.responseSchema, value),
+      requestId,
+      options.request,
+    );
   } catch (error) {
-    return mapError(error, requestId);
+    return mapError(error, requestId, options.request);
   }
 }

@@ -165,6 +165,7 @@ Use this README as the map; detailed design and operational guidance live under 
 | Inventory domain           | [Inventory domain](docs/inventory/inventory-domain.md), [inventory persistence](docs/inventory/inventory-persistence.md)                                                                                                                                                 | Operation/movement ledger, balance projection, concurrency, idempotency, and RLS                                                            |
 | Inventory operations       | [Inventory operations](docs/inventory/inventory-operations.md), [inventory authorization](docs/inventory/inventory-authorization.md)                                                                                                                                     | Phase 2C application commands, permissions/scopes, results, errors, and idempotency                                                         |
 | Fulfillment domain         | [Fulfillment domain](docs/fulfillment/fulfillment-domain.md), [persistence](docs/fulfillment/fulfillment-persistence.md), [authorization](docs/fulfillment/fulfillment-authorization.md), [inventory integration](docs/fulfillment/fulfillment-inventory-integration.md) | Phase 2E immutable physical execution, two-authority + composite proof, atomic inventory issue, idempotency/concurrency, cancellation guard |
+| Connected POS sale         | [Connected POS Sale V1](docs/pos/connected-pos-sale-v1.md)                                                                                                                                                                                                               | Phase 2H register context, atomic cash sale, price confirmation, authorization, idempotency, and tax/device deferrals                       |
 | Migrations                 | [Migration guide](docs/database/migrations.md)                                                                                                                                                                                                                           | Authoritative history, adding/reviewing/testing migrations, and rollback philosophy                                                         |
 | Docker                     | [Docker strategy](docs/docker/strategy.md), [database testing](docs/docker/database-testing.md), [local Supabase](docs/development/supabase-local.md)                                                                                                                    | Fast PostgreSQL tests, Supabase RLS tests, CI, and production direction                                                                     |
 | Testing                    | [Development testing guide](docs/development/testing.md), [catalog testing](docs/development/catalog-testing.md), [inventory testing](docs/development/inventory-testing.md)                                                                                             | Unit, authorization, contract drift, catalog/inventory persistence/RLS, build, SDK                                                          |
@@ -175,6 +176,16 @@ Use this README as the map; detailed design and operational guidance live under 
 | Troubleshooting            | [Database-test troubleshooting](docs/docker/database-testing.md#troubleshooting), [testing troubleshooting](docs/development/testing.md#troubleshooting-by-layer)                                                                                                        | How to isolate Docker, PostgreSQL, migration, SQL-test, build, and contract failures                                                        |
 
 ## Current implementation boundary
+
+The repository now owns catalog, append-only inventory, canonical Orders, immutable Fulfillments, the
+management API, and Connected POS Sale V1. A connected cash checkout composes its POS Order, captured
+Payment, full Fulfillment, and inventory issue atomically from a server-trusted Register context.
+Clerk-backed staff authorization remains the privileged boundary. There is still no Electron POS UI,
+offline database/sync, card or split tender, refund/return, promotion/loyalty, tax engine, device
+enrollment runtime, storefront, customer authentication, production Docker image/Compose file, or
+deployment. Fiscal/tax compliance must be completed before a production deployment where required.
+
+### Historical Phase 2A/2B boundary
 
 Phase 2A adds tenant-owned Product, ProductVariant, identifier, option, Category, Collection, and
 base-price persistence plus deny-by-default RLS. Phase 2B adds the inventory foundation — the

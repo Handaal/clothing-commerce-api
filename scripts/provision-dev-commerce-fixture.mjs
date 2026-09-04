@@ -1,9 +1,9 @@
-// Development-only canonical commerce fixture for Phase 2F-B Admin Mobile real-runtime acceptance.
+// Development-only canonical commerce fixture for Admin Mobile and Connected POS acceptance.
 //
 // It seeds a small, deterministic, representative commerce graph (brand -> branch -> inventory location
-// -> products/variants/options/prices -> opening inventory -> one online order -> one partial
-// fulfillment) into the EXISTING dev-local tenant so the Admin Mobile Products (and future Inventory /
-// Orders / Fulfillment) read slices have real data to render. It COMPLEMENTS
+// -> active USD register -> products/variants/options/prices -> opening inventory -> one online order ->
+// one partial fulfillment) into the EXISTING dev-local tenant so the API clients have real data to
+// exercise. It COMPLEMENTS
 // scripts/provision-dev-identity.mjs and requires the dev-local tenant to already exist.
 //
 // This command ONLY knows how to target the LOCAL disposable Supabase Postgres container. It refuses to
@@ -27,9 +27,9 @@ const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]", "0.0.0.0"
 
 export const USAGE = `Usage: COMMERCE_DEV_FIXTURES=1 pnpm dev:provision-commerce-fixture
 
-Seeds a small deterministic commerce graph (brand, branch, inventory location, two products with
-variants/options/prices, opening inventory, one online order, one partial fulfillment) into the
-existing local dev-local tenant so Admin Mobile can exercise the real Products list and detail runtime.
+Seeds a small deterministic commerce graph (brand, branch, inventory location, active USD register,
+two products with variants/options/prices, opening inventory, one online order, one partial
+fulfillment) into the existing local dev-local tenant for Admin Mobile and Connected POS acceptance.
 
 Required:
   COMMERCE_DEV_FIXTURES=1   Explicit development opt-in (environment variable).

@@ -42,6 +42,6 @@ export async function POST(request: Request) {
   });
 }
 
-export function OPTIONS() {
-  return managementOptionsResponse();
+export function OPTIONS(request: Request) {
+  return managementOptionsResponse(request);
 }

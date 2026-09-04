@@ -91,10 +91,10 @@ select pg_temp.assert_true(
       )
   )
   and (
-    -- 17 foundational per-table authenticated read policies, plus the one Phase 2E additive
-    -- inventory_writer read policy on inventory_locations (inventory_writer_fulfillment_read), which lets
-    -- the SECURITY DEFINER record_fulfillment_issue read Location status/capability. All are SELECT-only.
-    select count(*) = 18
+    -- 17 foundational per-table authenticated read policies, the Phase 2E inventory_writer Location
+    -- policy, and four Phase 2H POS writer policies on Branch/Register/Location/BranchBrand. All are
+    -- SELECT-only.
+    select count(*) = 22
     from pg_catalog.pg_policies
     where schemaname = 'public'
       and cmd = 'SELECT'
@@ -125,12 +125,11 @@ select pg_temp.assert_true(
   'all foundational tables use RLS and only approved SELECT policies exist'
 );
 
--- The Order/Sales domain arrived in Phase 2D (orders/order_lines exist); payment and customer domains
--- remain deferred and must still be absent.
+-- The generic Payment entity arrived in Phase 2H; the customer domain remains deferred.
 select pg_temp.assert_true(
-  to_regclass('public.payments') is null
+  to_regclass('public.payments') is not null
   and to_regclass('public.customers') is null,
-  'deferred payment and customer tables are absent'
+  'the payment table exists and the deferred customer table remains absent'
 );
 
 insert into public.tenants (

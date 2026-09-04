@@ -18,6 +18,12 @@ primitive, the fulfillment functions, fulfillment RLS, and a fix-forward extensi
 `orders_private.cancel_order` (shared order-execution lock + fulfillment guard). All earlier phase files
 remain unchanged.
 
+Phase 2H appends Register selling currency, the durable cash-only V1 Payment entity and
+`payments.capture`, and the immutable `pos_sales` composition with its single atomic
+`pos_sales_private.record_sale` boundary. The composed function delegates to the existing sanctioned
+Order and Fulfillment/inventory functions; authenticated/anonymous roles receive no table or function
+access. Run `pnpm test:pos:sale:integration` for the full boundary acceptance suite.
+
 The Phase 2D sequence is: `20260825180000_add_order_composite_keys.sql`,
 `20260825180100_seed_platform_permissions.sql`, `20260825180200_create_orders.sql`,
 `20260825180300_create_order_functions.sql`, `20260825180400_enable_orders_rls.sql`.

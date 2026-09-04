@@ -727,9 +727,9 @@ select ok(
   'provider bindings are not enumerable by authenticated users'
 );
 -- The platform permission catalog is seeded by the Phase 2D migration (8 stable keys), the Phase 2E
--- migration (1 more, 'orders.fulfill'), and the Phase 2F migration (1 more, 'catalog.read'); this
--- transaction-local fixture adds one more ('test.read'), so an active member reads 11 rows.
-select is((select count(*) from public.permissions), 11::bigint, 'active member can read Permission catalog');
+-- migration (1 more, 'orders.fulfill'), the Phase 2F migration (1 more, 'catalog.read'), and Phase 2H
+-- (1 more, 'payments.capture'); this transaction-local fixture adds 'test.read', for 12 visible rows.
+select is((select count(*) from public.permissions), 12::bigint, 'active member can read Permission catalog');
 
 select is(
   (

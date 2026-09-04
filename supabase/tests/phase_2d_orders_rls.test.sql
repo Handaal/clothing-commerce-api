@@ -74,9 +74,8 @@ select ok(
   'RLS is enabled and not forced on the order tables'
 );
 
--- Deny-by-default for clients: no policy on any order table targets anon or authenticated. Phase 2E
--- adds two SELECT-only policies for the internal, non-login fulfillments_writer role (so
--- record_fulfillment can read order state/lines); those never grant client access.
+-- Deny-by-default for clients: no policy on any order table targets anon or authenticated. Internal,
+-- non-login writer roles have only the narrow SELECT policies required for composition.
 select is(
   (
     select count(*)
@@ -89,16 +88,20 @@ select is(
   'the order tables carry no client-facing RLS policy (deny by default)'
 );
 
--- The only order-table policies are the two Phase 2E fulfillments_writer SELECT-only reads.
+-- Exact internal allowlist: Fulfillment reads Order and lines, Payment reads Order total/currency, and
+-- POS composition reads the newly created Order lines.
 select ok(
   (
-    select bool_and(cmd = 'SELECT' and roles = array['fulfillments_writer']::name[])
-      and count(*) = 2
+    select bool_and(cmd = 'SELECT')
+      and count(*) = 4
+      and count(*) filter (where roles = array['fulfillments_writer']::name[]) = 2
+      and count(*) filter (where roles = array['payments_writer']::name[]) = 1
+      and count(*) filter (where roles = array['pos_sales_writer']::name[]) = 1
     from pg_catalog.pg_policies
     where schemaname = 'public'
       and tablename in ('orders', 'order_lines', 'order_number_sequences')
   ),
-  'the only order-table policies are the fulfillments_writer SELECT-only reads'
+  'the only order-table policies are the sanctioned internal SELECT-only reads'
 );
 
 -- anon has no direct access to the order aggregate tables.

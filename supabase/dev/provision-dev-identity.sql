@@ -15,6 +15,9 @@
 -- exercise the Phase 2G write endpoints locally. It still grants NO opening-stock or generic-issue
 -- permission, NO catalog/order/fulfillment write, and NO wildcard/admin permission. The role remains an
 -- EXACT set (fail-closed): the script asserts the grant count and never widens beyond the declared keys.
+-- Connected POS V1 adds a separate, non-protected `Dev POS Cashier` role with exactly catalog.read,
+-- inventory.read/issue, orders.read/create/fulfill, and payments.capture. The existing management role
+-- is not widened; both assignments use the deterministic tenant-wide development scope.
 --
 -- The Clerk subject is supplied by the caller through the psql variable :clerk_subject. It is copied once
 -- into a transaction-local GUC via psql's safe quoting (:'clerk_subject') and read inside the DO block
@@ -44,6 +47,8 @@ declare
   v_unlinked_at timestamptz;
   v_perm_count integer;
   v_role_perm_count integer;
+  v_pos_perm_count integer;
+  v_pos_role_perm_count integer;
   v_other_assignments integer;
   v_tenant_id uuid;
   v_tenant_created boolean := false;
@@ -59,6 +64,10 @@ declare
   v_scope_created boolean := false;
   v_assignment_id uuid;
   v_assignment_created boolean := false;
+  v_pos_role_id uuid;
+  v_pos_role_created boolean := false;
+  v_pos_assignment_id uuid;
+  v_pos_assignment_created boolean := false;
 begin
   v_subject := btrim(current_setting('dev_provisioning.clerk_subject', true));
   if v_subject is null or v_subject = '' then
@@ -179,6 +188,46 @@ begin
       v_role_perm_count;
   end if;
 
+  -- Connected POS V1 uses a separate cashier role; the management role above remains unchanged.
+  select count(*) into v_pos_perm_count from public.permissions
+  where key in (
+    'catalog.read', 'inventory.read', 'orders.read', 'orders.create', 'orders.fulfill',
+    'inventory.issue', 'payments.capture'
+  ) and status = 'active';
+  if v_pos_perm_count <> 7 then
+    raise exception
+      'DEV_PROVISIONING: expected 7 active POS cashier permissions but found %. Run `pnpm supabase:reset`.',
+      v_pos_perm_count;
+  end if;
+
+  select id, status into v_pos_role_id, v_status from public.roles
+  where tenant_id = v_tenant_id and normalized_name = 'dev pos cashier';
+  if found then
+    if v_status <> 'active' then
+      raise exception 'DEV_PROVISIONING: role "Dev POS Cashier" is not active.';
+    end if;
+  else
+    insert into public.roles (tenant_id, name, status, is_protected)
+    values (v_tenant_id, 'Dev POS Cashier', 'active', false)
+    returning id into v_pos_role_id;
+    v_pos_role_created := true;
+  end if;
+
+  insert into public.role_permissions (tenant_id, role_id, permission_id)
+  select v_tenant_id, v_pos_role_id, p.id from public.permissions p
+  where p.key in (
+    'catalog.read', 'inventory.read', 'orders.read', 'orders.create', 'orders.fulfill',
+    'inventory.issue', 'payments.capture'
+  ) on conflict (tenant_id, role_id, permission_id) do nothing;
+
+  select count(*) into v_pos_role_perm_count from public.role_permissions
+  where tenant_id = v_tenant_id and role_id = v_pos_role_id;
+  if v_pos_role_perm_count <> 7 then
+    raise exception
+      'DEV_PROVISIONING: role "Dev POS Cashier" must grant exactly 7 permissions but carries %.',
+      v_pos_role_perm_count;
+  end if;
+
   -- 6. Tenant-wide AccessScope so all three read domains are exercisable. Tenant scopes carry no targets.
   select id, status, scope_mode into v_scope_id, v_status, v_scope_mode
   from public.access_scopes
@@ -210,6 +259,17 @@ begin
     v_assignment_created := true;
   end if;
 
+  select id into v_pos_assignment_id from public.membership_role_assignments
+  where tenant_id = v_tenant_id and membership_id = v_membership_id
+    and role_id = v_pos_role_id and access_scope_id = v_scope_id and unassigned_at is null;
+  if not found then
+    insert into public.membership_role_assignments
+      (tenant_id, membership_id, role_id, access_scope_id, assigned_at)
+    values (v_tenant_id, v_membership_id, v_pos_role_id, v_scope_id, now())
+    returning id into v_pos_assignment_id;
+    v_pos_assignment_created := true;
+  end if;
+
   -- 8. Effective-permission exactness: the membership's EFFECTIVE permissions come from ALL its live
   --    assignments, not just this role. Refuse to reuse a membership that already carries any other live
   --    assignment (which could grant extra or mutation permissions) rather than silently inheriting it.
@@ -218,7 +278,10 @@ begin
   where tenant_id = v_tenant_id
     and membership_id = v_membership_id
     and unassigned_at is null
-    and not (role_id = v_role_id and access_scope_id = v_scope_id);
+    and not (
+      (role_id = v_role_id and access_scope_id = v_scope_id)
+      or (role_id = v_pos_role_id and access_scope_id = v_scope_id)
+    );
   if v_other_assignments > 0 then
     raise exception
       'DEV_PROVISIONING: membership already has % other live role assignment(s); refusing to reuse a membership with unexpected access.',
@@ -233,7 +296,9 @@ begin
     (4, 'membership', v_membership_id, v_membership_created),
     (5, 'role', v_role_id, v_role_created),
     (6, 'access_scope', v_scope_id, v_scope_created),
-    (7, 'assignment', v_assignment_id, v_assignment_created);
+    (7, 'assignment', v_assignment_id, v_assignment_created),
+    (8, 'pos_cashier_role', v_pos_role_id, v_pos_role_created),
+    (9, 'pos_cashier_assignment', v_pos_assignment_id, v_pos_assignment_created);
 end
 $$;
 

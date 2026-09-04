@@ -330,3 +330,136 @@ describe("Commerce SDK inventory write surface", () => {
     await expect(request).rejects.toMatchObject({ status: 409, code: "IDEMPOTENCY_CONFLICT" });
   });
 });
+
+describe("Commerce SDK Connected POS surface", () => {
+  it("gets trusted context and sends one composed sale command", async () => {
+    const ORDER = "77777777-7777-4777-8777-777777777711";
+    const PAYMENT = "77777777-7777-4777-8777-777777777712";
+    const FULFILLMENT = "77777777-7777-4777-8777-777777777713";
+    const LINE = "77777777-7777-4777-8777-777777777714";
+    const FULFILLMENT_LINE = "77777777-7777-4777-8777-777777777715";
+    const BRANCH = "77777777-7777-4777-8777-777777777716";
+    const BRAND_ID = "77777777-7777-4777-8777-777777777717";
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    const fetchImplementation = vi.fn<typeof globalThis.fetch>(async (input, init) => {
+      calls.push({ url: String(input), init });
+      if (String(input).endsWith("/context")) {
+        return new Response(
+          JSON.stringify({
+            registers: [
+              {
+                registerId: "77777777-7777-4777-8777-777777777718",
+                registerName: "Front",
+                branchId: BRANCH,
+                branchName: "Main",
+                defaultInventoryLocationId: LOCATION,
+                defaultInventoryLocationName: "Floor",
+                sellingCurrency: "USD",
+                canSell: true,
+              },
+            ],
+          }),
+        );
+      }
+      const now = "2026-09-04T00:00:00.000Z";
+      return new Response(
+        JSON.stringify({
+          saleStatus: "completed",
+          order: {
+            id: ORDER,
+            orderNumber: "1",
+            channel: "pos",
+            status: "placed",
+            brandId: BRAND_ID,
+            branchId: BRANCH,
+            registerId: "77777777-7777-4777-8777-777777777718",
+            currency: "USD",
+            totalMinor: 2500,
+            actorMembershipId: MEMBERSHIP,
+            placedAt: now,
+            cancelledAt: null,
+            cancelledByMembershipId: null,
+            cancellationReason: null,
+            notes: null,
+            createdAt: now,
+            updatedAt: now,
+            lines: [
+              {
+                id: LINE,
+                lineNumber: 1,
+                variantId: VARIANT,
+                quantity: 1,
+                unitPriceMinor: 2500,
+                lineTotalMinor: 2500,
+                productName: "Tee",
+                variantName: null,
+                sku: "TEE",
+                optionSummary: null,
+              },
+            ],
+          },
+          payment: {
+            id: PAYMENT,
+            orderId: ORDER,
+            method: "cash",
+            status: "captured",
+            currency: "USD",
+            amountMinor: 2500,
+            cashReceivedMinor: 3000,
+            changeMinor: 500,
+            capturedByMembershipId: MEMBERSHIP,
+            capturedAt: now,
+            createdAt: now,
+            updatedAt: now,
+          },
+          fulfillment: {
+            id: FULFILLMENT,
+            orderId: ORDER,
+            inventoryLocationId: LOCATION,
+            inventoryOperationId: OPERATION,
+            actorMembershipId: MEMBERSHIP,
+            fulfilledAt: now,
+            createdAt: now,
+            lines: [
+              {
+                id: FULFILLMENT_LINE,
+                lineNumber: 1,
+                orderLineId: LINE,
+                variantId: VARIANT,
+                quantity: 1,
+              },
+            ],
+          },
+        }),
+      );
+    });
+    const scoped = createCommerceClient({
+      baseUrl: "https://api.example.test",
+      getToken: () => "clerk-token",
+      fetch: fetchImplementation,
+    }).withTenant(TENANT);
+
+    await expect(scoped.getPosContext()).resolves.toMatchObject({
+      registers: [{ sellingCurrency: "USD" }],
+    });
+    await expect(
+      scoped.createPosSale({
+        idempotencyKey: "sale-1",
+        registerId: "77777777-7777-4777-8777-777777777718",
+        expectedTotalMinor: 2500,
+        cashReceivedMinor: 3000,
+        lines: [{ variantId: VARIANT, quantity: 1 }],
+      }),
+    ).resolves.toMatchObject({ saleStatus: "completed", payment: { changeMinor: 500 } });
+
+    expect(calls[0]?.url).toBe("https://api.example.test/api/v1/pos/context");
+    expect(calls[1]?.url).toBe("https://api.example.test/api/v1/pos/sales");
+    expect(calls[1]?.init?.method).toBe("POST");
+    expect(calls[1]?.init?.headers).toMatchObject({
+      Authorization: "Bearer clerk-token",
+      "X-Tenant-Id": TENANT,
+      "Idempotency-Key": "sale-1",
+    });
+    expect(JSON.parse(calls[1]?.init?.body as string)).not.toHaveProperty("idempotencyKey");
+  });
+});

@@ -38,6 +38,7 @@ declare
   c_branch     constant uuid := 'b7a11c00-0000-4000-8000-000000000001';
   c_location   constant uuid := '10ca7100-0000-4000-8000-000000000001';
   c_location2  constant uuid := '10ca7100-0000-4000-8000-000000000002';
+  c_register   constant uuid := 'ae6157e0-0000-4000-8000-000000000001';
   c_product1   constant uuid := '90000000-0000-4000-8000-000000000001';
   c_product2   constant uuid := '90000000-0000-4000-8000-000000000002';
   c_option     constant uuid := '0f710000-0000-4000-8000-000000000001';
@@ -53,6 +54,7 @@ declare
   v_branch_id uuid;
   v_location_id uuid;
   v_location2_id uuid;
+  v_register_id uuid;
   v_product1_id uuid;
   v_product2_id uuid;
   v_option_id uuid;
@@ -142,6 +144,18 @@ begin
       and is_transfer_origin_enabled
       and is_transfer_destination_enabled
     );
+
+  -- 2d. Active deterministic register. Branch, fulfillment location, and currency are server-trusted
+  --     inputs to Connected POS Sale V1; clients submit only this register id.
+  insert into public.registers (
+    id, tenant_id, branch_id, code, display_name, status,
+    default_inventory_location_id, selling_currency
+  ) values (
+    c_register, v_tenant_id, v_branch_id, 'DEV-REG-1', 'Dev Front Register', 'active',
+    v_location_id, 'USD'
+  ) on conflict (tenant_id, branch_id, normalized_code) do nothing;
+  select id into v_register_id from public.registers
+  where tenant_id = v_tenant_id and branch_id = v_branch_id and normalized_code = 'dev-reg-1';
 
   -- 3. Product 1: an ACTIVE style with a Size option (M, L) and two active variants.
   insert into public.products (id, tenant_id, brand_id, name, slug, style_code, description, status)
@@ -308,14 +322,15 @@ begin
     (3, 'branch', v_branch_id, false),
     (4, 'inventory_location', v_location_id, false),
     (5, 'inventory_location_2', v_location2_id, false),
-    (6, 'product_active', v_product1_id, false),
-    (7, 'product_draft', v_product2_id, false),
-    (8, 'variant_m', v_variant_m_id, false),
-    (9, 'variant_l', v_variant_l_id, false),
-    (10, 'variant_tote', v_variant_2_id, false),
-    (11, 'inventory_operation', v_inventory_operation_id, false),
-    (12, 'order', v_order_id, false),
-    (13, 'fulfillment', v_fulfillment_id, false);
+    (6, 'register', v_register_id, false),
+    (7, 'product_active', v_product1_id, false),
+    (8, 'product_draft', v_product2_id, false),
+    (9, 'variant_m', v_variant_m_id, false),
+    (10, 'variant_l', v_variant_l_id, false),
+    (11, 'variant_tote', v_variant_2_id, false),
+    (12, 'inventory_operation', v_inventory_operation_id, false),
+    (13, 'order', v_order_id, false),
+    (14, 'fulfillment', v_fulfillment_id, false);
 end
 $$;
 

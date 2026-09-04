@@ -1,90 +1,61 @@
 # SDK consumption and handoff
 
-`@shifted/clothing-commerce-sdk` is the validated, platform-neutral client for the Clothing Commerce API.
-See [ADR-036](../decisions/ADR-036-sdk-distribution-and-consumption.md).
-
-## Version
-
-`0.3.1` — additive client-contract patch over `0.3.0` (which added the inventory write methods): the
-inventory list row now carries `version` and `getContext()` returns `access.inventory.write`. No new
-methods and no breaking changes — both surface through the existing `listInventory` / `getContext` via
-their shared contract types. The root package version is unchanged.
-
-## Client shape
+`@shifted/clothing-commerce-sdk` is the validated, platform-neutral client for the Clothing Commerce
+API. Version `0.4.0` adds typed Connected POS methods while preserving the existing management and
+inventory surface.
 
 ```ts
 import { createCommerceClient } from "@shifted/clothing-commerce-sdk";
 
 const client = createCommerceClient({
   baseUrl: "https://api.example.com",
-  client: { type: "admin-mobile", version: "1.0.0" },
-  getToken: async () => clerk.session?.getToken() ?? null, // Clerk user/session-token seam
+  client: { type: "pos-desktop", version: "1.0.0" },
+  getToken: async () => clerk.session?.getToken() ?? null,
 });
 
-// Identity bootstrap (no tenant context, no X-Tenant-Id):
-const tenants = await client.getMyTenants();
-
-// Immutable per-tenant context:
-const tenant = client.withTenant(tenants[0].tenantId);
-const context = await tenant.getContext();
-const products = await tenant.listProducts({ brandId, limit: 25 });
-const nextPage = await tenant.listProducts({ cursor: products.pageInfo.nextCursor ?? undefined });
-const inventory = await tenant.listInventory({ inventoryLocationId });
-const orders = await tenant.listOrders({ channel: "pos" });
-const order = await tenant.getOrder(orderId);
+const tenant = client.withTenant(tenantId);
+const context = await tenant.getPosContext();
+const sale = await tenant.createPosSale({
+  idempotencyKey: crypto.randomUUID(),
+  registerId: context.registers[0].registerId,
+  expectedTotalMinor: 5198,
+  cashReceivedMinor: 6000,
+  lines: [{ variantId, quantity: 2 }],
+});
 ```
 
-The SDK uses standard `fetch`, sends `Authorization`, `X-Tenant-Id`, `X-Client-Type`, and
-`X-Client-Version`, parses the external error envelope into typed errors (`ApiHttpError` with `status`,
-`code`, `requestId`; `ApiNetworkError`; `ApiContractError`), and returns the paginated contract. Tenant
-context is immutable per client (`withTenant`), never a hidden mutable global. The SDK never owns Clerk
-UI/session and never accepts service-role credentials.
+The SDK calls the configured token provider, owns `X-Tenant-Id`, sends the caller's sale key as the
+`Idempotency-Key` header, and validates both successful and error responses. The body never carries
+branch, inventory location, currency, unit price, payment amount, or idempotency key. A
+`PRICE_CHANGED` `ApiHttpError` exposes the new total in `details[0].value`.
 
-## Packaging and distribution
+The SDK uses standard `fetch`, contains no Clerk UI/session implementation, and never accepts a
+service-role credential. Existing methods such as `getMyTenants`, `getContext`, `listProducts`,
+`listInventory`, the inventory writes, `listOrders`, and `getOrder` remain available.
 
-The SDK bundles the shared contract validators from the API source into the published package (tsup; no
-OpenAPI codegen). `zod` is declared as the SDK's single runtime dependency — the public declarations
-(`dist/index.d.ts`) import `zod`, so a consumer must be able to resolve it; declaring it means the
-consumer's package manager installs it transitively from the tarball with no manual setup. A post-build
-step strips esbuild's module-path banner comments so the tarball references no `../../src` in substance
-or text. After installation the package requires no API-repo source, workspace resolution, or sibling
-paths — only its declared `zod` dependency.
+## Packaging and verification
 
-`pnpm sdk:pack` produces:
+The API repository is the release owner. `zod` remains the single declared runtime dependency because
+the public declarations import its types. The build bundles shared validators and strips repository
+path banners; no workspace or sibling-source reference is published.
 
-```
-artifacts/shifted-clothing-commerce-sdk-0.2.0.tgz
+```text
+artifacts/shifted-clothing-commerce-sdk-0.4.0.tgz
 ```
 
-- **Filename:** `shifted-clothing-commerce-sdk-0.2.0.tgz`
-- **Version:** `0.2.0`
-- **SHA256 (this build):** `764a5b756ff549e3dc01faf1d82f8bc6cb654cfd0889b2c7d7728afca59f6e3b`
+Run `pnpm test:sdk` to typecheck, build, unit-test, and pack the SDK, then install only that tarball in
+an isolated temporary project. The gate proves ESM import, CJS require, strict TypeScript consumption
+with `skipLibCheck: false`, and transitive `zod` resolution. Compute the frozen artifact checksum with:
 
-Recompute the checksum against the frozen artifact with `pnpm sdk:pack` then
-`sha256sum artifacts/shifted-clothing-commerce-sdk-0.2.0.tgz`. The exact frozen value is recorded at
-handoff; the tarball must not be overwritten with different contents once frozen.
+```powershell
+Get-FileHash artifacts/shifted-clothing-commerce-sdk-0.4.0.tgz -Algorithm SHA256
+```
 
-`pnpm test:sdk` builds, typechecks, unit-tests, packs, and then — in a genuinely isolated temp project
-outside the repo — installs ONLY the tarball (never installing `zod` manually), asserts the packed
-manifest declares its `zod` runtime dependency, asserts the tarball has no `../../src`/workspace
-references, imports it via both ESM and CJS, and runs a strict `skipLibCheck: false` TypeScript typecheck
-against the public types so a future missing declaration dependency fails the gate.
+The final Phase 2H handoff records the resulting SHA256. Do not overwrite a released artifact with
+different bytes; publish a new semantic version instead. Consumer repositories should vendor the
+versioned tarball or use the approved private registry—never an absolute path, workspace dependency,
+or source import.
 
-## Phase 2F-B vendor-copy procedure (not performed in 2F-A)
-
-Phase 2F-A does **not** copy the tarball into Admin Mobile. Phase 2F-B will:
-
-1. Copy the exact versioned tarball into `clothing-commerce-admin-mobile/vendor/`.
-2. Commit the tarball in the **mobile** repo.
-3. Reference it with a relative dependency:
-
-   ```json
-   {
-     "dependencies": {
-       "@shifted/clothing-commerce-sdk": "file:vendor/shifted-clothing-commerce-sdk-0.2.0.tgz"
-     }
-   }
-   ```
-
-No absolute machine path, sibling source import, workspace dependency, or git submodule is used. A
-future private registry can replace the vendored tarball without changing consumer code.
+See [Connected POS Sale V1](../pos/connected-pos-sale-v1.md) for transaction, cash, price-change,
+authorization, idempotency, tax, and device-trust semantics, and
+[ADR-036](../decisions/ADR-036-sdk-distribution-and-consumption.md) for distribution ownership.

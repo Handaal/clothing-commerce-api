@@ -17,6 +17,9 @@ import {
   ProductDetailResponseSchema,
   ProductListResponseSchema,
   ProductSummarySchema,
+  PosContextResponseSchema,
+  CreatePosSaleRequestSchema,
+  CreatePosSaleResponseSchema,
   ReceiveInventoryRequestSchema,
   ReceiveInventoryResponseSchema,
   TransferInventoryRequestSchema,
@@ -102,6 +105,7 @@ export function generateOpenApiDocument() {
           "Inventory balances (read) and management write operations: receive, adjust, transfer.",
       },
       { name: "orders", description: "Read-only orders and fulfillment progress." },
+      { name: "pos", description: "Authorized register context and atomic POS checkout." },
     ],
     paths: {
       "/api/v1/health": {
@@ -365,6 +369,47 @@ export function generateOpenApiDocument() {
           },
         },
       },
+      "/api/v1/pos/context": {
+        get: {
+          operationId: "getPosContext",
+          tags: ["pos"],
+          summary: "List active registers the caller is fully authorized to sell from.",
+          security: clerkSecurity,
+          parameters: [tenantHeaderParameter],
+          responses: {
+            "200": jsonResponse(
+              "The caller's server-derived register selling contexts.",
+              "#/components/schemas/PosContextResponse",
+            ),
+            ...errorResponses(400, 401, 403, 500),
+          },
+        },
+      },
+      "/api/v1/pos/sales": {
+        post: {
+          operationId: "createPosSale",
+          tags: ["pos"],
+          summary: "Atomically complete a cash POS sale.",
+          description:
+            "Creates one canonical POS Order, captured cash Payment, full Fulfillment, and inventory " +
+            "issue in one transaction. Currency, branch, and location are derived from the Register. " +
+            "A stale expectedTotalMinor returns PRICE_CHANGED before mutation. One Idempotency-Key " +
+            "protects the complete sale intent.",
+          security: clerkSecurity,
+          parameters: [tenantHeaderParameter, idempotencyKeyHeaderParameter],
+          requestBody: jsonRequestBody(
+            "Register, expected total, received cash, and variant quantities.",
+            "#/components/schemas/CreatePosSaleRequest",
+          ),
+          responses: {
+            "200": jsonResponse(
+              "The completed atomic sale and its canonical components.",
+              "#/components/schemas/CreatePosSaleResponse",
+            ),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
     },
     components: {
       securitySchemes: {
@@ -428,6 +473,9 @@ export function generateOpenApiDocument() {
         OrderSummary: jsonSchema(OrderSummarySchema),
         OrderListResponse: jsonSchema(OrderListResponseSchema),
         OrderDetailResponse: jsonSchema(OrderDetailResponseSchema),
+        PosContextResponse: jsonSchema(PosContextResponseSchema),
+        CreatePosSaleRequest: jsonSchema(CreatePosSaleRequestSchema),
+        CreatePosSaleResponse: jsonSchema(CreatePosSaleResponseSchema),
       },
     },
   };
