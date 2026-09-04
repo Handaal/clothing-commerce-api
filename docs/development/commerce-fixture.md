@@ -21,7 +21,9 @@ Identical safety standard to identity provisioning. It is **development-only** a
   Supabase host is a hard failure with no override — it cannot reach a remote or production project.
 - It never auto-seeds during an API request, adds **no** production database function (the SQL is an
   anonymous `DO` block plus the existing sanctioned domain functions), and grants **no** permission,
-  role, membership, or scope. It only inserts domain records into the already-authorized tenant.
+  role, membership, or scope. It only inserts domain records into the already-authorized tenant. For
+  Connected POS it includes one active deterministic register whose trusted default location is the
+  fulfillment-enabled stockroom and whose `selling_currency` is `USD`.
 - It is idempotent and transactionally atomic: the whole graph commits together or not at all, and a
   re-run changes nothing.
 

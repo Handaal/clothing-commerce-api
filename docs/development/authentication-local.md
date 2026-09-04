@@ -98,7 +98,7 @@ Supabase host is a hard failure with no override — the command cannot reach a 
 
 ### What it creates
 
-A single minimum representative Phase 2G management identity:
+A single real development identity with separate management and Connected POS assignments:
 
 - an **active** `dev-local` Tenant (`slug=dev-local`, `default_currency=USD`),
 - an **active** UserIdentity bound to your Clerk subject through an **active** `clerk` provider binding,
@@ -109,10 +109,13 @@ A single minimum representative Phase 2G management identity:
   opening-stock or generic-issue permission, **no** catalog/order/fulfillment write, and no
   owner/platform/wildcard bypass. The role remains an exact set (the provisioner asserts the grant count
   and fails closed on anything unexpected),
-- an **active**, tenant-wide AccessScope `Dev Tenant Wide`, and
-- an **active** MembershipRoleAssignment tying them together.
+- an **active**, tenant-wide AccessScope `Dev Tenant Wide`,
+- a separate, non-protected **Dev POS Cashier** role granting exactly `catalog.read`,
+  `inventory.read`, `orders.read`, `orders.create`, `orders.fulfill`, `inventory.issue`, and
+  `payments.capture`, and
+- active MembershipRoleAssignments tying both exact roles to the tenant-wide development scope.
 
-It never creates permission-catalog entries: the six permissions must already exist from canonical
+It never creates permission-catalog entries: all permissions must already exist from canonical
 migrations. If any are missing, the command fails and tells you to run `pnpm supabase:reset`.
 
 ### First create a real Clerk development user

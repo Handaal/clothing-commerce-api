@@ -20,6 +20,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ orde
   });
 }
 
-export function OPTIONS() {
-  return managementOptionsResponse();
+export function OPTIONS(request: Request) {
+  return managementOptionsResponse(request);
 }

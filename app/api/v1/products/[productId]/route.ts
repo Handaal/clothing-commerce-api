@@ -23,6 +23,6 @@ export async function GET(
   });
 }
 
-export function OPTIONS() {
-  return managementOptionsResponse();
+export function OPTIONS(request: Request) {
+  return managementOptionsResponse(request);
 }

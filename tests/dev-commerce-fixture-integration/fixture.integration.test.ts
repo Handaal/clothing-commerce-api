@@ -283,6 +283,19 @@ describe("development commerce fixture (local Postgres)", () => {
       .select("id", { count: "exact", head: true })
       .eq("tenant_id", tenantId);
     expect(locationCount).toBe(2);
+    const { data: registers, count: registerCount } = await admin
+      .from("registers")
+      .select("display_name,status,default_inventory_location_id,selling_currency", {
+        count: "exact",
+      })
+      .eq("tenant_id", tenantId);
+    expect(registerCount).toBe(1);
+    expect(registers?.[0]).toMatchObject({
+      display_name: "Dev Front Register",
+      status: "active",
+      default_inventory_location_id: LOCATION_ID,
+      selling_currency: "USD",
+    });
     const { count: orderCount } = await admin
       .from("orders")
       .select("id", { count: "exact", head: true })
@@ -304,20 +317,20 @@ describe("development commerce fixture (local Postgres)", () => {
   it("(no extra authorization) the fixture grants no permissions or roles", async () => {
     const tenantId = (await devTenantId()) as string;
 
-    // Only the identity provisioning's single role and its exact six management grants exist; the commerce
-    // fixture never touches roles/permissions/scopes. The exact set is the three reads plus the Phase 2G
-    // inventory writes (receive/adjust/transfer) — deliberately WITHOUT opening/issue or any wildcard.
+    // Identity provisioning owns separate exact management and POS cashier roles; the commerce
+    // fixture never touches roles/permissions/scopes. The union includes management plus Connected POS
+    // inventory writes (receive/adjust/transfer/issue) — deliberately WITHOUT opening or any wildcard.
     const { count: roleCount } = await admin
       .from("roles")
       .select("id", { count: "exact", head: true })
       .eq("tenant_id", tenantId);
-    expect(roleCount).toBe(1);
+    expect(roleCount).toBe(2);
 
     const { data: grants, count: grantCount } = await admin
       .from("role_permissions")
       .select("permission_id, permissions(key)", { count: "exact" })
       .eq("tenant_id", tenantId);
-    expect(grantCount).toBe(6);
+    expect(grantCount).toBe(13);
 
     type Grant = { permissions: { key: string } | { key: string }[] | null };
     const grantedKeys = ((grants ?? []) as Grant[])
@@ -327,24 +340,22 @@ describe("development commerce fixture (local Postgres)", () => {
         return Array.isArray(p) ? p.map((x) => x.key) : [p.key];
       })
       .sort();
-    expect(grantedKeys).toEqual(
-      [
+    expect(new Set(grantedKeys)).toEqual(
+      new Set([
         "catalog.read",
         "inventory.read",
         "orders.read",
         "inventory.receive",
         "inventory.adjust",
         "inventory.transfer",
-      ].sort(),
+        "inventory.issue",
+        "orders.create",
+        "orders.fulfill",
+        "payments.capture",
+      ]),
     );
     // Explicitly absent: opening stock, generic issue, other-domain writes, and any wildcard/admin grant.
-    for (const forbidden of [
-      "inventory.opening",
-      "inventory.issue",
-      "catalog.create",
-      "orders.create",
-      "orders.cancel",
-    ]) {
+    for (const forbidden of ["inventory.opening", "catalog.create", "orders.cancel"]) {
       expect(grantedKeys).not.toContain(forbidden);
     }
     expect(grantedKeys.some((k) => k.includes("*"))).toBe(false);

@@ -1,9 +1,9 @@
-// Development-only Clerk identity provisioning for Phase 2F-B Admin Mobile real-runtime acceptance.
+// Development-only Clerk identity provisioning for Admin Mobile and Connected POS acceptance.
 //
 // It binds a REAL, externally-created Clerk development subject into the Commerce authorization model
-// (active UserIdentity -> active Clerk binding -> active dev tenant -> active Membership -> active Role
-// granting exactly catalog.read/inventory.read/orders.read -> tenant-wide AccessScope -> active
-// MembershipRoleAssignment) so a genuine Clerk login can call GET /api/v1/me/tenants and /me/context.
+// (active UserIdentity -> active Clerk binding -> active dev tenant -> active Membership -> exact
+// management and POS cashier roles -> tenant-wide AccessScope -> active MembershipRoleAssignments) so
+// one genuine Clerk development login can exercise both authorized API surfaces.
 //
 // This command ONLY knows how to target the LOCAL disposable Supabase Postgres container. It refuses to
 // run without the explicit COMMERCE_DEV_PROVISIONING=1 opt-in AND a positively-identified local target.
@@ -26,8 +26,8 @@ const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]", "0.0.0.0"
 
 export const USAGE = `Usage: pnpm dev:provision-identity -- --clerk-subject <REAL_CLERK_USER_ID>
 
-Binds a real Clerk development subject to the local Commerce authorization model so Admin Mobile can
-exercise the real /me/tenants and /me/context runtime flow.
+Binds a real Clerk development subject to the local Commerce authorization model so Admin Mobile and
+Connected POS can exercise their real authenticated runtime flows.
 
 Required:
   --clerk-subject <id>   The Clerk userId (subject) of a Clerk development user you created first.

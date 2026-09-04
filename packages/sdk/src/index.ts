@@ -9,6 +9,8 @@ import {
   OrderListResponseSchema,
   ProductDetailResponseSchema,
   ProductListResponseSchema,
+  PosContextResponseSchema,
+  CreatePosSaleResponseSchema,
   ReceiveInventoryResponseSchema,
   TransferInventoryResponseSchema,
   type AdjustInventoryResponse,
@@ -23,6 +25,8 @@ import {
   type ProductDetailResponse,
   type ProductListResponse,
   type ProductStatus,
+  type PosContextResponse,
+  type CreatePosSaleResponse,
   type ReceiveInventoryResponse,
   type TransferInventoryResponse,
 } from "../../../src/contracts";
@@ -103,6 +107,13 @@ export interface TransferInventoryInput extends IdempotentWrite {
   note?: string;
 }
 
+export interface CreatePosSaleInput extends IdempotentWrite {
+  registerId: string;
+  expectedTotalMinor: number;
+  cashReceivedMinor: number;
+  lines: ReadonlyArray<{ variantId: string; quantity: number }>;
+}
+
 /** Tenant-scoped management surface, obtained via `client.withTenant(tenantId)`. */
 export interface TenantCommerceClient {
   readonly tenantId: string;
@@ -115,6 +126,8 @@ export interface TenantCommerceClient {
   transferInventory(input: TransferInventoryInput): Promise<TransferInventoryResponse>;
   listOrders(query?: OrderListQuery): Promise<OrderListResponse>;
   getOrder(orderId: string): Promise<OrderDetailResponse>;
+  getPosContext(): Promise<PosContextResponse>;
+  createPosSale(input: CreatePosSaleInput): Promise<CreatePosSaleResponse>;
 }
 
 export interface CommerceClient {
@@ -140,6 +153,11 @@ export class ApiHttpError extends CommerceSdkError {
     readonly status: number,
     readonly code: string,
     readonly requestId: string | null,
+    readonly details?: ReadonlyArray<{
+      path: ReadonlyArray<string | number>;
+      message: string;
+      value?: number;
+    }>,
   ) {
     super(message);
     this.name = "ApiHttpError";
@@ -180,17 +198,19 @@ async function parseHttpError(response: Response): Promise<ApiHttpError> {
   let code = "HTTP_ERROR";
   let message = `Request failed with status ${response.status}`;
   let requestId = response.headers.get("X-Request-Id");
+  let details: ApiHttpError["details"];
   try {
     const parsed = ApiErrorSchema.safeParse(await response.json());
     if (parsed.success) {
       code = parsed.data.error.code;
       message = parsed.data.error.message;
       requestId = parsed.data.error.requestId;
+      details = parsed.data.error.details;
     }
   } catch {
     // Non-JSON or empty error body: keep the status-derived defaults.
   }
-  return new ApiHttpError(message, response.status, code, requestId);
+  return new ApiHttpError(message, response.status, code, requestId, details);
 }
 
 export function createCommerceClient({
@@ -319,6 +339,14 @@ export function createCommerceClient({
         request(`/api/v1/orders/${encodeURIComponent(orderId)}`, OrderDetailResponseSchema, {
           tenantId,
         }),
+      getPosContext: () => request("/api/v1/pos/context", PosContextResponseSchema, { tenantId }),
+      createPosSale: ({ idempotencyKey, ...body }: CreatePosSaleInput) =>
+        request("/api/v1/pos/sales", CreatePosSaleResponseSchema, {
+          tenantId,
+          method: "POST",
+          body,
+          idempotencyKey,
+        }),
     };
   }
 
@@ -341,4 +369,6 @@ export type {
   TransferInventoryResponse,
   OrderListResponse,
   OrderDetailResponse,
+  PosContextResponse,
+  CreatePosSaleResponse,
 };

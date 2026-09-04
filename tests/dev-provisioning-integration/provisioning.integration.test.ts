@@ -195,6 +195,46 @@ describe("development identity provisioning (local Postgres)", () => {
       .is("unassigned_at", null)
       .single();
     expect(assignment?.id).toBeTruthy();
+
+    const { data: posRole } = await admin
+      .from("roles")
+      .select("id,is_protected,status")
+      .eq("tenant_id", tenantId)
+      .eq("normalized_name", "dev pos cashier")
+      .single();
+    expect(posRole).toMatchObject({ status: "active", is_protected: false });
+    const { data: posGrants } = await admin
+      .from("role_permissions")
+      .select("permissions(key)")
+      .eq("tenant_id", tenantId)
+      .eq("role_id", posRole?.id);
+    const posKeys = ((posGrants ?? []) as Grant[])
+      .flatMap((grant) => {
+        const permission = grant.permissions;
+        if (!permission) return [];
+        return Array.isArray(permission) ? permission.map((item) => item.key) : [permission.key];
+      })
+      .sort();
+    expect(posKeys).toEqual(
+      [
+        "catalog.read",
+        "inventory.issue",
+        "inventory.read",
+        "orders.create",
+        "orders.fulfill",
+        "orders.read",
+        "payments.capture",
+      ].sort(),
+    );
+    const { count: posAssignmentCount } = await admin
+      .from("membership_role_assignments")
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", tenantId)
+      .eq("membership_id", membership?.id)
+      .eq("role_id", posRole?.id)
+      .eq("access_scope_id", scope?.id)
+      .is("unassigned_at", null);
+    expect(posAssignmentCount).toBe(1);
   });
 
   it("(6) second identical run is idempotent (no duplicates, same ids)", async () => {

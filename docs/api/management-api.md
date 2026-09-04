@@ -11,6 +11,10 @@ Phase 2F-A shipped a **read-only** boundary. Phase 2G adds the first **inventory
 application service. See [ADR-034](../decisions/ADR-034-management-api-external-boundary.md) and
 [inventory-operations.md](../inventory/inventory-operations.md).
 
+Phase 2H adds the Connected POS Sale V1 composed write and register context. Its complete semantics,
+atomicity, cash/tax boundary, and deferred device trust are documented in
+[Connected POS Sale V1](../pos/connected-pos-sale-v1.md).
+
 ## Endpoints (frozen surface)
 
 All endpoints live under `/api/v1`.
@@ -27,6 +31,8 @@ All endpoints live under `/api/v1`.
 | `POST /inventory/transfers`   | yes           | yes             | `inventory.transfer` | Move stock between two locations (source **and** destination scoped). |
 | `GET /orders`                 | yes           | no              | `orders.read`        | Paginated order summaries in the caller's brand/branch scope.         |
 | `GET /orders/{orderId}`       | yes           | no              | `orders.read`        | One order's detail with embedded fulfillment progress.                |
+| `GET /pos/context`            | yes           | no              | derived              | Active, fully authorized register selling contexts.                   |
+| `POST /pos/sales`             | yes           | yes             | five capabilities    | Atomic Order + cash Payment + full Fulfillment + inventory issue.     |
 
 Opening-stock and generic issue are intentionally **not** exposed: opening stock is an
 initialization-only primitive (the domain forbids re-opening after activity, and routine initial counts
@@ -146,8 +152,8 @@ See [pagination.md](pagination.md), [serialization.md](serialization.md), and [e
 `openapi/openapi.json` is generated from the Zod contracts (`pnpm openapi:generate`) and checked by
 `pnpm test:openapi`. It declares a Clerk bearer security scheme, places `X-Tenant-Id` on tenant-scoped
 routes only (never on `/health` or `/me/tenants`), places the required `Idempotency-Key` header on the
-inventory write operations only, and reuses `ApiError`, `PageInfo`, and the management DTO schemas. No
-private RPCs or functions appear in the document.
+inventory write operations and the composed POS sale, and reuses `ApiError`, `PageInfo`, and the
+management DTO schemas. No private RPCs or functions appear in the document.
 
 ## SDK
 
@@ -159,6 +165,10 @@ SDK-owned and the auth token remains supplied by the caller's token provider.
 `0.3.1` is an additive client-contract patch (no new methods, no breaking changes): the inventory list
 row now carries `version`, and `getContext()` returns `access.inventory.write` — both flow through the
 existing `listInventory` and `getContext` methods via their shared contract types.
+
+`0.4.0` adds `getPosContext()` and `createPosSale()`. The tenant header remains SDK-owned, Clerk
+session acquisition remains a `getToken` callback, and the caller supplies one sale-level
+`idempotencyKey`; no direct fetch or lower-level Order/Fulfillment mutation is required.
 
 ## Local validation
 

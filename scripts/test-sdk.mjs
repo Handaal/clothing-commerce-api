@@ -54,9 +54,10 @@ run("pnpm", ["sdk:pack"]);
 // 3. Static tarball inspection: extract into an isolated temp dir with no repo resolution.
 const workDirectory = mkdtempSync(join(tmpdir(), "sdk-tarball-"));
 try {
-  // GNU tar treats a Windows `C:\...` archive path as a remote host; --force-local disables that.
-  const tarExtraArgs = process.platform === "win32" ? ["--force-local"] : [];
-  run("tar", ["-xzf", tarballPath, "-C", workDirectory, ...tarExtraArgs]);
+  // Extract through a relative archive path so both GNU tar and Windows BSD tar avoid interpreting
+  // the drive-letter colon as a remote-host separator.
+  cpSync(tarballPath, join(workDirectory, tarballName));
+  run("tar", ["-xzf", tarballName, "-C", workDirectory], { cwd: workDirectory });
   const packageDirectory = join(workDirectory, "package");
 
   const manifest = JSON.parse(readFileSync(join(packageDirectory, "package.json"), "utf8"));
@@ -145,7 +146,9 @@ try {
       `  const context: MeContextResponse = await scoped.getContext();`,
       `  const products: ProductListResponse = await scoped.listProducts({ limit: 10 });`,
       `  const order: OrderDetailResponse = await scoped.getOrder("o");`,
-      `  return { context, products, order };`,
+      `  const posContext = await scoped.getPosContext();`,
+      `  const createPosSale = scoped.createPosSale;`,
+      `  return { context, products, order, posContext, createPosSale };`,
       `}`,
       `void main;`,
     ].join("\n"),

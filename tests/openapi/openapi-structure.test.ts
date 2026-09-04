@@ -52,6 +52,8 @@ describe("OpenAPI management surface", () => {
         "/api/v1/me/tenants",
         "/api/v1/orders",
         "/api/v1/orders/{orderId}",
+        "/api/v1/pos/context",
+        "/api/v1/pos/sales",
         "/api/v1/products",
         "/api/v1/products/{productId}",
       ].sort(),
@@ -69,7 +71,7 @@ describe("OpenAPI management surface", () => {
     expect(paths["/api/v1/inventory/issues"]).toBeUndefined();
   });
 
-  it("requires the idempotency-key header on every inventory write and nowhere else", () => {
+  it("requires the idempotency-key header on every inventory and POS sale write", () => {
     for (const writePath of inventoryWritePaths) {
       expect(hasIdempotencyHeader(writePath)).toBe(true);
       expect(hasTenantHeader(writePath)).toBe(true);
@@ -77,6 +79,7 @@ describe("OpenAPI management surface", () => {
     for (const readPath of ["/api/v1/inventory", "/api/v1/products", "/api/v1/orders"]) {
       expect(hasIdempotencyHeader(readPath)).toBe(false);
     }
+    expect(hasIdempotencyHeader("/api/v1/pos/sales")).toBe(true);
   });
 
   it("declares a Clerk bearer session-token security scheme", () => {
@@ -98,6 +101,8 @@ describe("OpenAPI management surface", () => {
       ...inventoryWritePaths,
       "/api/v1/orders",
       "/api/v1/orders/{orderId}",
+      "/api/v1/pos/context",
+      "/api/v1/pos/sales",
     ]) {
       expect(hasTenantHeader(tenantRoute)).toBe(true);
     }
@@ -116,6 +121,8 @@ describe("OpenAPI management surface", () => {
       ...inventoryWritePaths,
       "/api/v1/orders",
       "/api/v1/orders/{orderId}",
+      "/api/v1/pos/context",
+      "/api/v1/pos/sales",
     ]) {
       expect(operationOf(managementRoute).security).toEqual([{ clerkSessionToken: [] }]);
     }
@@ -146,6 +153,9 @@ describe("OpenAPI management surface", () => {
       "TransferInventoryResponse",
       "OrderListResponse",
       "OrderDetailResponse",
+      "PosContextResponse",
+      "CreatePosSaleRequest",
+      "CreatePosSaleResponse",
     ]) {
       expect(schemas[name]).toBeDefined();
     }

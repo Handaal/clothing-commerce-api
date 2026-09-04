@@ -10,11 +10,12 @@ import { getManagementApiBoundary } from "../../../../../src/management/server-m
 export async function GET(request: Request) {
   const boundary = getManagementApiBoundary();
   return runIdentityManagementRoute({
+    request,
     responseSchema: MeTenantsResponseSchema,
     handler: () => boundary.identityMembershipResolver.resolve(request),
   });
 }
 
-export function OPTIONS() {
-  return managementOptionsResponse();
+export function OPTIONS(request: Request) {
+  return managementOptionsResponse(request);
 }

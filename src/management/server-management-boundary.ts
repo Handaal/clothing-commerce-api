@@ -16,6 +16,7 @@ import { OrderService } from "../orders";
 import { createSupabaseOrdersRepository } from "../orders";
 import { OrdersReadService } from "../orders/orders-read-service";
 import { createSupabaseOrdersReadRepository } from "../orders/supabase-orders-read-repository";
+import { PosSaleService, createSupabasePosSaleRepository } from "../pos";
 import { ManagementContextService } from "./context-service";
 import { IdentityMembershipResolver } from "./identity-membership-resolver";
 import { createSupabaseIdentityMembershipRepository } from "./supabase-identity-membership-repository";
@@ -72,6 +73,11 @@ export function createManagementApiBoundary(
     orderService,
     fulfillmentService,
   );
+  const posSaleService = new PosSaleService(
+    authorizationService,
+    createSupabasePosSaleRepository(supabaseConfiguration),
+    createSupabaseOrdersRepository(supabaseConfiguration),
+  );
 
   return {
     contextResolver,
@@ -81,6 +87,7 @@ export function createManagementApiBoundary(
     inventoryReadService,
     inventoryService,
     ordersReadService,
+    posSaleService,
   } as const;
 }
 
