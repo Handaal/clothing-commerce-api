@@ -73,7 +73,8 @@ It prints a concise summary of the seeded entities and their deterministic ids; 
 All ids are **deterministic** (stable across runs), so tests and the Admin Mobile detail route can rely
 on a known product id.
 
-- **Brand** `Dev Threads` (`DEV-BRAND`, active).
+- **Brand** `Dev Threads` (`DEV-BRAND`, active), explicitly operated by the fixture branch so
+  register-resolved POS sales pass the server's branch/brand eligibility check.
 - **Branch** `Dev Flagship` (`DEV-BRANCH`, active) and one sellable, fulfillment-enabled **inventory
   location** `Dev Flagship Stockroom` (`DEV-LOC-1`, id `10ca7100-…-000000000001`).
 - **Product 1 — active** `Dev Linen Shirt` (id `90000000-…-000000000001`, style `DEV-LS-001`):
