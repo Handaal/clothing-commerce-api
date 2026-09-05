@@ -26,6 +26,7 @@ const fixtureScript = join(process.cwd(), "scripts", "provision-dev-commerce-fix
 // Deterministic fixture identifiers (must match supabase/dev/provision-dev-commerce-fixture.sql).
 const PRODUCT_ACTIVE_ID = "90000000-0000-4000-8000-000000000001";
 const PRODUCT_DRAFT_ID = "90000000-0000-4000-8000-000000000002";
+const BRANCH_ID = "b7a11c00-0000-4000-8000-000000000001";
 const VARIANT_M_ID = "71a71a00-0000-4000-8000-000000000001";
 const VARIANT_L_ID = "71a71a00-0000-4000-8000-000000000002";
 const VARIANT_TOTE_ID = "71a71a00-0000-4000-8000-000000000003";
@@ -177,6 +178,14 @@ describe("development commerce fixture (local Postgres)", () => {
     expect(draft?.status).toBe("draft");
     expect(active?.style_code).toBe("DEV-LS-001");
 
+    const { data: branchBrands } = await admin
+      .from("branch_brands")
+      .select("branch_id,brand_id")
+      .eq("tenant_id", tenantId);
+    expect(branchBrands).toHaveLength(1);
+    expect(branchBrands?.[0].branch_id).toBe(BRANCH_ID);
+    expect(branchBrands?.[0].brand_id).toBe(active?.brand_id);
+
     // Detail-relevant: variants, options, values, prices for the active product.
     const { data: variants } = await admin
       .from("product_variants")
@@ -296,6 +305,11 @@ describe("development commerce fixture (local Postgres)", () => {
       default_inventory_location_id: LOCATION_ID,
       selling_currency: "USD",
     });
+    const { count: branchBrandCount } = await admin
+      .from("branch_brands")
+      .select("brand_id", { count: "exact", head: true })
+      .eq("tenant_id", tenantId);
+    expect(branchBrandCount).toBe(1);
     const { count: orderCount } = await admin
       .from("orders")
       .select("id", { count: "exact", head: true })

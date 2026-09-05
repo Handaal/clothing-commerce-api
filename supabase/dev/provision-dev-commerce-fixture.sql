@@ -98,6 +98,12 @@ begin
   select id into v_branch_id from public.branches
   where tenant_id = v_tenant_id and normalized_code = 'dev-branch';
 
+  -- The branch must explicitly operate the fixture brand. POS sale creation validates this relationship
+  -- server-side after resolving the register and each variant's product brand.
+  insert into public.branch_brands (tenant_id, branch_id, brand_id)
+  values (v_tenant_id, v_branch_id, v_brand_id)
+  on conflict (tenant_id, branch_id, brand_id) do nothing;
+
   -- 2b. Inventory location 1: one sellable, fulfillment-enabled branch location (branch parent, not a
   --     warehouse). Fulfillment issue requires active + is_fulfillment_enabled. The three write-capability
   --     flags are enabled so Phase 2G management writes (receive, transfer origin/destination) are usable
