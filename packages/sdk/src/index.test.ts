@@ -61,7 +61,7 @@ describe("Commerce SDK", () => {
   });
 
   it("exposes semantic SDK version metadata", () => {
-    expect(SDK_VERSION).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(SDK_VERSION).toBe("0.5.0");
   });
 });
 
@@ -461,5 +461,117 @@ describe("Commerce SDK Connected POS surface", () => {
       "Idempotency-Key": "sale-1",
     });
     expect(JSON.parse(calls[1]?.init?.body as string)).not.toHaveProperty("idempotencyKey");
+  });
+});
+
+describe("Commerce SDK Offline POS surface", () => {
+  it("sends the stable sync identity in both header and signed body", async () => {
+    const now = "2026-09-06T00:00:00.000Z";
+    const syncCommandId = "77777777-7777-4777-8777-777777777791";
+    const fetchImplementation = vi.fn<typeof globalThis.fetch>(
+      async () =>
+        new Response(
+          JSON.stringify({
+            syncStatus: "needs_reconciliation",
+            ingestionId: "77777777-7777-4777-8777-777777777792",
+            localSaleId: "local-1",
+            receivedAt: now,
+            order: {
+              id: "77777777-7777-4777-8777-777777777793",
+              orderNumber: "1",
+              channel: "pos",
+              status: "placed",
+              brandId: BRAND,
+              branchId: "77777777-7777-4777-8777-777777777794",
+              registerId: "77777777-7777-4777-8777-777777777795",
+              currency: "USD",
+              totalMinor: 2500,
+              actorMembershipId: MEMBERSHIP,
+              placedAt: now,
+              cancelledAt: null,
+              cancelledByMembershipId: null,
+              cancellationReason: null,
+              notes: null,
+              createdAt: now,
+              updatedAt: now,
+              lines: [
+                {
+                  id: "77777777-7777-4777-8777-777777777796",
+                  lineNumber: 1,
+                  variantId: VARIANT,
+                  quantity: 1,
+                  unitPriceMinor: 2500,
+                  lineTotalMinor: 2500,
+                  productName: "Tee",
+                  variantName: null,
+                  sku: "TEE",
+                  optionSummary: null,
+                },
+              ],
+            },
+            payment: {
+              id: "77777777-7777-4777-8777-777777777797",
+              orderId: "77777777-7777-4777-8777-777777777793",
+              method: "cash",
+              status: "captured",
+              currency: "USD",
+              amountMinor: 2500,
+              cashReceivedMinor: 3000,
+              changeMinor: 500,
+              capturedByMembershipId: MEMBERSHIP,
+              capturedAt: now,
+              createdAt: now,
+              updatedAt: now,
+            },
+            fulfillment: null,
+            reconciliation: {
+              id: "77777777-7777-4777-8777-777777777798",
+              reason: "insufficient_stock_at_ingestion",
+              status: "open",
+              createdAt: now,
+              updatedAt: now,
+            },
+          }),
+        ),
+    );
+    const scoped = createCommerceClient({
+      baseUrl: "https://api.example.test",
+      fetch: fetchImplementation,
+    }).withTenant(TENANT);
+    await scoped.ingestOfflineSale({
+      idempotencyKey: syncCommandId,
+      command: {
+        schemaVersion: 1,
+        localSaleId: "local-1",
+        syncCommandId,
+        grantId: "77777777-7777-4777-8777-777777777799",
+        deviceId: "77777777-7777-4777-8777-777777777790",
+        registerId: "77777777-7777-4777-8777-777777777795",
+        acceptedAt: now,
+        currency: "USD",
+        lines: [
+          {
+            variantId: VARIANT,
+            quantity: 1,
+            grantedUnitPriceMinor: 2500,
+            priceId: "77777777-7777-4777-8777-777777777789",
+          },
+        ],
+        totalMinor: 2500,
+        cashReceivedMinor: 3000,
+        changeMinor: 500,
+        offlineSaleOrdinal: 1,
+        cumulativeExposureMinor: 2500,
+      },
+      signature: {
+        algorithm: "Ed25519",
+        credentialId: "77777777-7777-4777-8777-777777777788",
+        value: "YWJj",
+      },
+    });
+    const [url, init] = fetchImplementation.mock.calls[0]!;
+    expect(url).toBe("https://api.example.test/api/v1/pos/offline-sales");
+    expect((init!.headers as Record<string, string>)["Idempotency-Key"]).toBe(syncCommandId);
+    expect(JSON.parse(init!.body as string).command.syncCommandId).toBe(syncCommandId);
   });
 });

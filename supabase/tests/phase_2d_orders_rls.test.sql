@@ -88,15 +88,16 @@ select is(
   'the order tables carry no client-facing RLS policy (deny by default)'
 );
 
--- Exact internal allowlist: Fulfillment reads Order and lines, Payment reads Order total/currency, and
--- POS composition reads the newly created Order lines.
+-- Exact internal allowlist: Fulfillment reads Order and lines, Payment reads Order total/currency,
+-- connected POS composition reads newly created lines, and offline POS reads its created lines.
 select ok(
   (
     select bool_and(cmd = 'SELECT')
-      and count(*) = 4
+      and count(*) = 5
       and count(*) filter (where roles = array['fulfillments_writer']::name[]) = 2
       and count(*) filter (where roles = array['payments_writer']::name[]) = 1
       and count(*) filter (where roles = array['pos_sales_writer']::name[]) = 1
+      and count(*) filter (where roles = array['offline_pos_writer']::name[]) = 1
     from pg_catalog.pg_policies
     where schemaname = 'public'
       and tablename in ('orders', 'order_lines', 'order_number_sequences')

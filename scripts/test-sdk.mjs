@@ -113,9 +113,10 @@ try {
   writeFileSync(
     join(consumerDirectory, "run.mjs"),
     [
-      `import { createCommerceClient, SDK_VERSION } from "@shifted/clothing-commerce-sdk";`,
+      `import { createCommerceClient, SDK_VERSION, canonicalizeOfflineSaleCommand } from "@shifted/clothing-commerce-sdk";`,
       `const client = createCommerceClient({ baseUrl: "https://example.test" });`,
       `if (typeof client.withTenant !== "function") throw new Error("withTenant missing");`,
+      `if (typeof canonicalizeOfflineSaleCommand !== "function") throw new Error("canonical signer missing");`,
       `process.stdout.write("ESM_OK " + SDK_VERSION + "\\n");`,
     ].join("\n"),
   );
@@ -148,7 +149,8 @@ try {
       `  const order: OrderDetailResponse = await scoped.getOrder("o");`,
       `  const posContext = await scoped.getPosContext();`,
       `  const createPosSale = scoped.createPosSale;`,
-      `  return { context, products, order, posContext, createPosSale };`,
+      `  const ingestOfflineSale = scoped.ingestOfflineSale;`,
+      `  return { context, products, order, posContext, createPosSale, ingestOfflineSale };`,
       `}`,
       `void main;`,
     ].join("\n"),

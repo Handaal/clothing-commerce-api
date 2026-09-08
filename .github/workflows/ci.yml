@@ -84,6 +84,12 @@ jobs:
         run: pnpm test:api:integration
       - name: Test inventory write boundary integration
         run: pnpm test:inventory:write:integration
+      - name: Test connected POS sale integration
+        run: pnpm test:pos:sale:integration
+      - name: Test offline POS RLS
+        run: pnpm test:pos:offline:rls
+      - name: Test offline POS integration
+        run: pnpm test:pos:offline:integration
       - name: Test SDK build, contracts, and self-contained packaging
         run: pnpm test:sdk
       - run: pnpm build

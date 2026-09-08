@@ -10,6 +10,7 @@ import { InvalidCursorError } from "../management/cursor";
 import { ManagementNotFoundError } from "../management/errors";
 import { OrderError } from "../orders/errors";
 import { PosSaleError } from "../pos/errors";
+import { OfflinePosError } from "../pos/offline-errors";
 import { corsHeaders } from "./cors";
 
 /**
@@ -171,7 +172,8 @@ function mapError(error: unknown, requestId: string, request?: Request): Respons
     error instanceof OrderError ||
     error instanceof FulfillmentError ||
     error instanceof InventoryError ||
-    error instanceof PosSaleError
+    error instanceof PosSaleError ||
+    error instanceof OfflinePosError
   ) {
     const details =
       error instanceof PosSaleError &&
@@ -274,6 +276,35 @@ export async function runTenantManagementWriteRoute<TBody, TResult>(options: {
     });
     const body = await parseJsonBody(options.request, options.requestSchema);
     const value = await options.handler({ context, body, idempotencyKey, requestId });
+    return jsonResponse(
+      200,
+      validateResponse(options.responseSchema, value),
+      requestId,
+      options.request,
+    );
+  } catch (error) {
+    return mapError(error, requestId, options.request);
+  }
+}
+
+/** Device-authorized write boundary. It validates tenant, permanent sync key, body, and response,
+ * but deliberately does not require a live human browser session. */
+export async function runTenantDeviceWriteRoute<TBody, TResult>(options: {
+  readonly request: Request;
+  readonly requestSchema: z.ZodType<TBody>;
+  readonly responseSchema: z.ZodType<TResult>;
+  readonly handler: (input: {
+    readonly tenantId: string;
+    readonly body: TBody;
+    readonly idempotencyKey: string;
+  }) => Promise<TResult>;
+}): Promise<Response> {
+  const requestId = crypto.randomUUID();
+  try {
+    const tenantId = requireTenantId(options.request);
+    const idempotencyKey = requireIdempotencyKey(options.request);
+    const body = await parseJsonBody(options.request, options.requestSchema);
+    const value = await options.handler({ tenantId, body, idempotencyKey });
     return jsonResponse(
       200,
       validateResponse(options.responseSchema, value),

@@ -11,6 +11,9 @@ import {
   ProductListResponseSchema,
   PosContextResponseSchema,
   CreatePosSaleResponseSchema,
+  PosDeviceResponseSchema,
+  OfflineBootstrapResponseSchema,
+  IngestOfflineSaleResponseSchema,
   ReceiveInventoryResponseSchema,
   TransferInventoryResponseSchema,
   type AdjustInventoryResponse,
@@ -27,9 +30,17 @@ import {
   type ProductStatus,
   type PosContextResponse,
   type CreatePosSaleResponse,
+  type EnrollPosDeviceRequest,
+  type PosDeviceResponse,
+  type OfflineBootstrapRequest,
+  type OfflineBootstrapResponse,
+  type OfflineSaleCommand,
+  type IngestOfflineSaleRequest,
+  type IngestOfflineSaleResponse,
   type ReceiveInventoryResponse,
   type TransferInventoryResponse,
 } from "../../../src/contracts";
+export { canonicalizeOfflineSaleCommand } from "../../../src/contracts";
 import packageMetadata from "../package.json";
 import type { z } from "zod";
 
@@ -114,6 +125,20 @@ export interface CreatePosSaleInput extends IdempotentWrite {
   lines: ReadonlyArray<{ variantId: string; quantity: number }>;
 }
 
+export interface EnrollPosDeviceInput extends EnrollPosDeviceRequest, IdempotentWrite {}
+export interface RotatePosDeviceCredentialInput extends IdempotentWrite {
+  deviceId: string;
+  registerId: string;
+  publicKey: { algorithm: "Ed25519"; encoding: "spki_der_base64"; value: string };
+}
+export interface RevokePosDeviceInput extends IdempotentWrite {
+  deviceId: string;
+  registerId: string;
+  reason: string;
+}
+export interface OfflineBootstrapInput extends OfflineBootstrapRequest, IdempotentWrite {}
+export interface IngestOfflineSaleInput extends IngestOfflineSaleRequest, IdempotentWrite {}
+
 /** Tenant-scoped management surface, obtained via `client.withTenant(tenantId)`. */
 export interface TenantCommerceClient {
   readonly tenantId: string;
@@ -128,6 +153,11 @@ export interface TenantCommerceClient {
   getOrder(orderId: string): Promise<OrderDetailResponse>;
   getPosContext(): Promise<PosContextResponse>;
   createPosSale(input: CreatePosSaleInput): Promise<CreatePosSaleResponse>;
+  enrollPosDevice(input: EnrollPosDeviceInput): Promise<PosDeviceResponse>;
+  rotatePosDeviceCredential(input: RotatePosDeviceCredentialInput): Promise<PosDeviceResponse>;
+  revokePosDevice(input: RevokePosDeviceInput): Promise<PosDeviceResponse>;
+  createOfflineBootstrap(input: OfflineBootstrapInput): Promise<OfflineBootstrapResponse>;
+  ingestOfflineSale(input: IngestOfflineSaleInput): Promise<IngestOfflineSaleResponse>;
 }
 
 export interface CommerceClient {
@@ -347,6 +377,43 @@ export function createCommerceClient({
           body,
           idempotencyKey,
         }),
+      enrollPosDevice: ({ idempotencyKey, ...body }: EnrollPosDeviceInput) =>
+        request("/api/v1/pos/devices", PosDeviceResponseSchema, {
+          tenantId,
+          method: "POST",
+          body,
+          idempotencyKey,
+        }),
+      rotatePosDeviceCredential: ({
+        idempotencyKey,
+        deviceId,
+        ...body
+      }: RotatePosDeviceCredentialInput) =>
+        request(
+          `/api/v1/pos/devices/${encodeURIComponent(deviceId)}/credentials`,
+          PosDeviceResponseSchema,
+          { tenantId, method: "POST", body, idempotencyKey },
+        ),
+      revokePosDevice: ({ idempotencyKey, deviceId, ...body }: RevokePosDeviceInput) =>
+        request(
+          `/api/v1/pos/devices/${encodeURIComponent(deviceId)}/revoke`,
+          PosDeviceResponseSchema,
+          { tenantId, method: "POST", body, idempotencyKey },
+        ),
+      createOfflineBootstrap: ({ idempotencyKey, ...body }: OfflineBootstrapInput) =>
+        request("/api/v1/pos/offline-bootstrap", OfflineBootstrapResponseSchema, {
+          tenantId,
+          method: "POST",
+          body,
+          idempotencyKey,
+        }),
+      ingestOfflineSale: ({ idempotencyKey, ...body }: IngestOfflineSaleInput) =>
+        request("/api/v1/pos/offline-sales", IngestOfflineSaleResponseSchema, {
+          tenantId,
+          method: "POST",
+          body,
+          idempotencyKey,
+        }),
     };
   }
 
@@ -371,4 +438,8 @@ export type {
   OrderDetailResponse,
   PosContextResponse,
   CreatePosSaleResponse,
+  PosDeviceResponse,
+  OfflineBootstrapResponse,
+  OfflineSaleCommand,
+  IngestOfflineSaleResponse,
 };

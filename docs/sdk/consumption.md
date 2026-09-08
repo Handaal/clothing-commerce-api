@@ -1,7 +1,7 @@
 # SDK consumption and handoff
 
 `@shifted/clothing-commerce-sdk` is the validated, platform-neutral client for the Clothing Commerce
-API. Version `0.4.0` adds typed Connected POS methods while preserving the existing management and
+API. Version `0.5.0` adds typed Offline POS methods and canonical signing while preserving the existing management and
 inventory surface.
 
 ```ts
@@ -40,7 +40,7 @@ the public declarations import its types. The build bundles shared validators an
 path banners; no workspace or sibling-source reference is published.
 
 ```text
-artifacts/shifted-clothing-commerce-sdk-0.4.0.tgz
+artifacts/shifted-clothing-commerce-sdk-0.5.0.tgz
 ```
 
 Run `pnpm test:sdk` to typecheck, build, unit-test, and pack the SDK, then install only that tarball in
@@ -48,14 +48,16 @@ an isolated temporary project. The gate proves ESM import, CJS require, strict T
 with `skipLibCheck: false`, and transitive `zod` resolution. Compute the frozen artifact checksum with:
 
 ```powershell
-Get-FileHash artifacts/shifted-clothing-commerce-sdk-0.4.0.tgz -Algorithm SHA256
+Get-FileHash artifacts/shifted-clothing-commerce-sdk-0.5.0.tgz -Algorithm SHA256
 ```
 
-The final Phase 2H handoff records the resulting SHA256. Do not overwrite a released artifact with
+The final Phase 2I handoff records the resulting SHA256. Do not overwrite a released artifact with
 different bytes; publish a new semantic version instead. Consumer repositories should vendor the
 versioned tarball or use the approved private registry—never an absolute path, workspace dependency,
 or source import.
 
 See [Connected POS Sale V1](../pos/connected-pos-sale-v1.md) for transaction, cash, price-change,
 authorization, idempotency, tax, and device-trust semantics, and
+[Offline POS V1](../pos/offline-pos-v1.md) for grant, signing, historical-price, reconciliation,
+clock, and long-lived replay semantics, and
 [ADR-036](../decisions/ADR-036-sdk-distribution-and-consumption.md) for distribution ownership.

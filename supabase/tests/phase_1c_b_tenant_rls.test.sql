@@ -86,9 +86,10 @@ select is(
     from pg_catalog.pg_policies
     where schemaname = 'public'
       and cmd <> 'SELECT'
+      and roles && array['anon', 'authenticated']::name[]
   ),
   0::bigint,
-  'no authenticated mutation policy exists'
+  'no client mutation policy exists (internal non-login writer policies are allowed)'
 );
 
 select is(
