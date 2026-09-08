@@ -3,3 +3,7 @@ export * from "./model";
 export * from "./pos-sale-service";
 export * from "./repository";
 export * from "./supabase-pos-sale-repository";
+export * from "./offline-errors";
+export * from "./offline-repository";
+export * from "./offline-service";
+export * from "./supabase-offline-pos-repository";

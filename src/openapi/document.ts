@@ -20,6 +20,14 @@ import {
   PosContextResponseSchema,
   CreatePosSaleRequestSchema,
   CreatePosSaleResponseSchema,
+  EnrollPosDeviceRequestSchema,
+  PosDeviceResponseSchema,
+  RotatePosDeviceCredentialRequestSchema,
+  RevokePosDeviceRequestSchema,
+  OfflineBootstrapRequestSchema,
+  OfflineBootstrapResponseSchema,
+  IngestOfflineSaleRequestSchema,
+  IngestOfflineSaleResponseSchema,
   ReceiveInventoryRequestSchema,
   ReceiveInventoryResponseSchema,
   TransferInventoryRequestSchema,
@@ -410,6 +418,127 @@ export function generateOpenApiDocument() {
           },
         },
       },
+      "/api/v1/pos/devices": {
+        post: {
+          operationId: "enrollPosDevice",
+          tags: ["pos"],
+          summary: "Enroll and activate an offline-capable POS device.",
+          description:
+            "An authorized human binds a locally generated Ed25519 public key and installation to one tenant register. Private keys are never accepted.",
+          security: clerkSecurity,
+          parameters: [tenantHeaderParameter, idempotencyKeyHeaderParameter],
+          requestBody: jsonRequestBody(
+            "Device identity and public key.",
+            "#/components/schemas/EnrollPosDeviceRequest",
+          ),
+          responses: {
+            "200": jsonResponse(
+              "The active device credential.",
+              "#/components/schemas/PosDeviceResponse",
+            ),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
+      "/api/v1/pos/devices/{deviceId}/credentials": {
+        post: {
+          operationId: "rotatePosDeviceCredential",
+          tags: ["pos"],
+          summary: "Rotate an active POS device public key.",
+          security: clerkSecurity,
+          parameters: [
+            tenantHeaderParameter,
+            idempotencyKeyHeaderParameter,
+            {
+              name: "deviceId",
+              in: "path",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+          ],
+          requestBody: jsonRequestBody(
+            "Replacement public key and register authorization context.",
+            "#/components/schemas/RotatePosDeviceCredentialRequest",
+          ),
+          responses: {
+            "200": jsonResponse(
+              "The replacement credential.",
+              "#/components/schemas/PosDeviceResponse",
+            ),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
+      "/api/v1/pos/devices/{deviceId}/revoke": {
+        post: {
+          operationId: "revokePosDevice",
+          tags: ["pos"],
+          summary: "Revoke a POS device and its current credential.",
+          security: clerkSecurity,
+          parameters: [
+            tenantHeaderParameter,
+            idempotencyKeyHeaderParameter,
+            {
+              name: "deviceId",
+              in: "path",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+          ],
+          requestBody: jsonRequestBody(
+            "Revocation reason and register authorization context.",
+            "#/components/schemas/RevokePosDeviceRequest",
+          ),
+          responses: {
+            "200": jsonResponse("The revoked device.", "#/components/schemas/PosDeviceResponse"),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
+      "/api/v1/pos/offline-bootstrap": {
+        post: {
+          operationId: "createOfflineBootstrap",
+          tags: ["pos"],
+          summary: "Issue a bounded immutable offline grant and complete catalog snapshot.",
+          description:
+            "Requires a normal authorized human session. No policy means offline selling is disabled. At most one device may hold active authority per inventory location.",
+          security: clerkSecurity,
+          parameters: [tenantHeaderParameter, idempotencyKeyHeaderParameter],
+          requestBody: jsonRequestBody(
+            "Enrolled device and register.",
+            "#/components/schemas/OfflineBootstrapRequest",
+          ),
+          responses: {
+            "200": jsonResponse(
+              "The grant and exact price snapshot.",
+              "#/components/schemas/OfflineBootstrapResponse",
+            ),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
+      "/api/v1/pos/offline-sales": {
+        post: {
+          operationId: "ingestOfflineSale",
+          tags: ["pos"],
+          summary: "Ingest a cash sale already accepted offline.",
+          description:
+            "Device-authenticated ingestion verifies canonical Ed25519 intent and historical grant prices. It returns synced when stock can be issued, otherwise persists the order/payment and a governed reconciliation. Idempotency records are retained indefinitely (minimum guaranteed queue window: 365 days).",
+          security: [],
+          parameters: [tenantHeaderParameter, idempotencyKeyHeaderParameter],
+          requestBody: jsonRequestBody(
+            "Signed immutable offline sale command.",
+            "#/components/schemas/IngestOfflineSaleRequest",
+          ),
+          responses: {
+            "200": jsonResponse(
+              "Canonical ingestion result.",
+              "#/components/schemas/IngestOfflineSaleResponse",
+            ),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
     },
     components: {
       securitySchemes: {
@@ -476,6 +605,14 @@ export function generateOpenApiDocument() {
         PosContextResponse: jsonSchema(PosContextResponseSchema),
         CreatePosSaleRequest: jsonSchema(CreatePosSaleRequestSchema),
         CreatePosSaleResponse: jsonSchema(CreatePosSaleResponseSchema),
+        EnrollPosDeviceRequest: jsonSchema(EnrollPosDeviceRequestSchema),
+        PosDeviceResponse: jsonSchema(PosDeviceResponseSchema),
+        RotatePosDeviceCredentialRequest: jsonSchema(RotatePosDeviceCredentialRequestSchema),
+        RevokePosDeviceRequest: jsonSchema(RevokePosDeviceRequestSchema),
+        OfflineBootstrapRequest: jsonSchema(OfflineBootstrapRequestSchema),
+        OfflineBootstrapResponse: jsonSchema(OfflineBootstrapResponseSchema),
+        IngestOfflineSaleRequest: jsonSchema(IngestOfflineSaleRequestSchema),
+        IngestOfflineSaleResponse: jsonSchema(IngestOfflineSaleResponseSchema),
       },
     },
   };

@@ -482,6 +482,205 @@
           "500": { "$ref": "#/components/responses/Error500" }
         }
       }
+    },
+    "/api/v1/pos/devices": {
+      "post": {
+        "operationId": "enrollPosDevice",
+        "tags": ["pos"],
+        "summary": "Enroll and activate an offline-capable POS device.",
+        "description": "An authorized human binds a locally generated Ed25519 public key and installation to one tenant register. Private keys are never accepted.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          { "$ref": "#/components/parameters/IdempotencyKeyHeader" }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Device identity and public key.",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/EnrollPosDeviceRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The active device credential.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/PosDeviceResponse" } }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "409": { "$ref": "#/components/responses/Error409" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/v1/pos/devices/{deviceId}/credentials": {
+      "post": {
+        "operationId": "rotatePosDeviceCredential",
+        "tags": ["pos"],
+        "summary": "Rotate an active POS device public key.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          { "$ref": "#/components/parameters/IdempotencyKeyHeader" },
+          {
+            "name": "deviceId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Replacement public key and register authorization context.",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/RotatePosDeviceCredentialRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The replacement credential.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/PosDeviceResponse" } }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "409": { "$ref": "#/components/responses/Error409" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/v1/pos/devices/{deviceId}/revoke": {
+      "post": {
+        "operationId": "revokePosDevice",
+        "tags": ["pos"],
+        "summary": "Revoke a POS device and its current credential.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          { "$ref": "#/components/parameters/IdempotencyKeyHeader" },
+          {
+            "name": "deviceId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Revocation reason and register authorization context.",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/RevokePosDeviceRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The revoked device.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/PosDeviceResponse" } }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "409": { "$ref": "#/components/responses/Error409" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/v1/pos/offline-bootstrap": {
+      "post": {
+        "operationId": "createOfflineBootstrap",
+        "tags": ["pos"],
+        "summary": "Issue a bounded immutable offline grant and complete catalog snapshot.",
+        "description": "Requires a normal authorized human session. No policy means offline selling is disabled. At most one device may hold active authority per inventory location.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          { "$ref": "#/components/parameters/IdempotencyKeyHeader" }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Enrolled device and register.",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/OfflineBootstrapRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The grant and exact price snapshot.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/OfflineBootstrapResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "409": { "$ref": "#/components/responses/Error409" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/v1/pos/offline-sales": {
+      "post": {
+        "operationId": "ingestOfflineSale",
+        "tags": ["pos"],
+        "summary": "Ingest a cash sale already accepted offline.",
+        "description": "Device-authenticated ingestion verifies canonical Ed25519 intent and historical grant prices. It returns synced when stock can be issued, otherwise persists the order/payment and a governed reconciliation. Idempotency records are retained indefinitely (minimum guaranteed queue window: 365 days).",
+        "security": [],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          { "$ref": "#/components/parameters/IdempotencyKeyHeader" }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Signed immutable offline sale command.",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/IngestOfflineSaleRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Canonical ingestion result.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/IngestOfflineSaleResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "409": { "$ref": "#/components/responses/Error409" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
     }
   },
   "components": {
@@ -1819,6 +2018,798 @@
           }
         },
         "required": ["saleStatus", "order", "payment", "fulfillment"],
+        "additionalProperties": false
+      },
+      "EnrollPosDeviceRequest": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "registerId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "installationId": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "displayName": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "publicKey": {
+            "type": "object",
+            "properties": {
+              "algorithm": { "type": "string", "const": "Ed25519" },
+              "encoding": { "type": "string", "const": "spki_der_base64" },
+              "value": { "type": "string", "pattern": "^[A-Za-z0-9+/]+={0,2}$" }
+            },
+            "required": ["algorithm", "encoding", "value"],
+            "additionalProperties": false
+          },
+          "clientVersion": { "type": "string", "minLength": 1, "maxLength": 100 },
+          "platform": { "type": "string", "minLength": 1, "maxLength": 100 },
+          "osVersion": { "type": "string", "minLength": 1, "maxLength": 100 }
+        },
+        "required": ["registerId", "installationId", "displayName", "publicKey"],
+        "additionalProperties": false
+      },
+      "PosDeviceResponse": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "deviceId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "credentialId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "registerId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "status": { "type": "string", "enum": ["active", "revoked"] },
+          "publicKeyFingerprint": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+          "activatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          },
+          "revokedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+              },
+              { "type": "null" }
+            ]
+          }
+        },
+        "required": [
+          "deviceId",
+          "credentialId",
+          "registerId",
+          "status",
+          "publicKeyFingerprint",
+          "activatedAt",
+          "revokedAt"
+        ],
+        "additionalProperties": false
+      },
+      "RotatePosDeviceCredentialRequest": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "registerId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "publicKey": {
+            "type": "object",
+            "properties": {
+              "algorithm": { "type": "string", "const": "Ed25519" },
+              "encoding": { "type": "string", "const": "spki_der_base64" },
+              "value": { "type": "string", "pattern": "^[A-Za-z0-9+/]+={0,2}$" }
+            },
+            "required": ["algorithm", "encoding", "value"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["registerId", "publicKey"],
+        "additionalProperties": false
+      },
+      "RevokePosDeviceRequest": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "registerId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "reason": { "type": "string", "minLength": 1, "maxLength": 500 }
+        },
+        "required": ["registerId", "reason"],
+        "additionalProperties": false
+      },
+      "OfflineBootstrapRequest": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "deviceId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "registerId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          }
+        },
+        "required": ["deviceId", "registerId"],
+        "additionalProperties": false
+      },
+      "OfflineBootstrapResponse": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "grantId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "snapshotId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "schemaVersion": { "type": "number", "const": 1 },
+          "minimumClientVersion": { "type": "string" },
+          "tenantId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "deviceId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "registerId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "branchId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "inventoryLocationId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "operatorMembershipId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "currency": { "type": "string", "pattern": "^[A-Z]{3}$" },
+          "issuedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          },
+          "operatorExpiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          },
+          "catalogValidUntil": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          },
+          "acceptedUntil": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          },
+          "policy": {
+            "type": "object",
+            "properties": {
+              "enabled": { "type": "boolean" },
+              "operatorLeaseSeconds": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "catalogGrantSeconds": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "maxSaleAmountMinor": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "maxCumulativeExposureMinor": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "maxQuantityPerLine": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "maxPendingOfflineSales": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "enabled",
+              "operatorLeaseSeconds",
+              "catalogGrantSeconds",
+              "maxSaleAmountMinor",
+              "maxCumulativeExposureMinor",
+              "maxQuantityPerLine",
+              "maxPendingOfflineSales"
+            ],
+            "additionalProperties": false
+          },
+          "catalog": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "productId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "brandId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "name": { "type": "string" },
+                "active": { "type": "boolean" },
+                "variants": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "variantId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      },
+                      "sku": { "type": "string" },
+                      "optionSummary": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                      "active": { "type": "boolean" },
+                      "authorizedUnitPriceMinor": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "priceId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      },
+                      "priceVersion": {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                      },
+                      "advisoryInventory": {
+                        "type": "object",
+                        "properties": {
+                          "onHandQuantity": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "version": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "asOf": {
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                          }
+                        },
+                        "required": ["onHandQuantity", "version", "asOf"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": [
+                      "variantId",
+                      "sku",
+                      "optionSummary",
+                      "active",
+                      "authorizedUnitPriceMinor",
+                      "priceId",
+                      "priceVersion",
+                      "advisoryInventory"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": ["productId", "brandId", "name", "active", "variants"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "grantId",
+          "snapshotId",
+          "schemaVersion",
+          "minimumClientVersion",
+          "tenantId",
+          "deviceId",
+          "registerId",
+          "branchId",
+          "inventoryLocationId",
+          "operatorMembershipId",
+          "currency",
+          "issuedAt",
+          "operatorExpiresAt",
+          "catalogValidUntil",
+          "acceptedUntil",
+          "policy",
+          "catalog"
+        ],
+        "additionalProperties": false
+      },
+      "IngestOfflineSaleRequest": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "command": {
+            "type": "object",
+            "properties": {
+              "schemaVersion": { "type": "number", "const": 1 },
+              "localSaleId": { "type": "string", "minLength": 1, "maxLength": 200 },
+              "syncCommandId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "grantId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "deviceId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "registerId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "acceptedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+              },
+              "currency": { "type": "string", "pattern": "^[A-Z]{3}$" },
+              "lines": {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "variantId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "quantity": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+                    "grantedUnitPriceMinor": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "priceId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    }
+                  },
+                  "required": ["variantId", "quantity", "grantedUnitPriceMinor", "priceId"],
+                  "additionalProperties": false
+                }
+              },
+              "totalMinor": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+              "cashReceivedMinor": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+              "changeMinor": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+              "offlineSaleOrdinal": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "cumulativeExposureMinor": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "localSaleId",
+              "syncCommandId",
+              "grantId",
+              "deviceId",
+              "registerId",
+              "acceptedAt",
+              "currency",
+              "lines",
+              "totalMinor",
+              "cashReceivedMinor",
+              "changeMinor",
+              "offlineSaleOrdinal",
+              "cumulativeExposureMinor"
+            ],
+            "additionalProperties": false
+          },
+          "signature": {
+            "type": "object",
+            "properties": {
+              "algorithm": { "type": "string", "const": "Ed25519" },
+              "credentialId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "value": { "type": "string", "pattern": "^[A-Za-z0-9+/]+={0,2}$" }
+            },
+            "required": ["algorithm", "credentialId", "value"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["command", "signature"],
+        "additionalProperties": false
+      },
+      "IngestOfflineSaleResponse": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "syncStatus": { "type": "string", "enum": ["synced", "needs_reconciliation"] },
+          "ingestionId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "localSaleId": { "type": "string" },
+          "receivedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          },
+          "order": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "orderNumber": { "type": "string" },
+              "channel": { "type": "string", "const": "pos" },
+              "status": { "type": "string", "const": "placed" },
+              "brandId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "branchId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "registerId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "currency": { "type": "string", "pattern": "^[A-Z]{3}$" },
+              "totalMinor": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+              "actorMembershipId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "placedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+              },
+              "cancelledAt": { "type": "null" },
+              "cancelledByMembershipId": { "type": "null" },
+              "cancellationReason": { "type": "null" },
+              "notes": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+              },
+              "lines": {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "lineNumber": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+                    "variantId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "quantity": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+                    "unitPriceMinor": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "lineTotalMinor": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "productName": { "type": "string" },
+                    "variantName": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                    "sku": { "type": "string" },
+                    "optionSummary": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
+                  },
+                  "required": [
+                    "id",
+                    "lineNumber",
+                    "variantId",
+                    "quantity",
+                    "unitPriceMinor",
+                    "lineTotalMinor",
+                    "productName",
+                    "variantName",
+                    "sku",
+                    "optionSummary"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "id",
+              "orderNumber",
+              "channel",
+              "status",
+              "brandId",
+              "branchId",
+              "registerId",
+              "currency",
+              "totalMinor",
+              "actorMembershipId",
+              "placedAt",
+              "cancelledAt",
+              "cancelledByMembershipId",
+              "cancellationReason",
+              "notes",
+              "createdAt",
+              "updatedAt",
+              "lines"
+            ],
+            "additionalProperties": false
+          },
+          "payment": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "orderId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "method": { "type": "string", "const": "cash" },
+              "status": { "type": "string", "const": "captured" },
+              "currency": { "type": "string", "pattern": "^[A-Z]{3}$" },
+              "amountMinor": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+              "cashReceivedMinor": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+              "changeMinor": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+              "capturedByMembershipId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "capturedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+              }
+            },
+            "required": [
+              "id",
+              "orderId",
+              "method",
+              "status",
+              "currency",
+              "amountMinor",
+              "cashReceivedMinor",
+              "changeMinor",
+              "capturedByMembershipId",
+              "capturedAt",
+              "createdAt",
+              "updatedAt"
+            ],
+            "additionalProperties": false
+          },
+          "fulfillment": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "orderId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "inventoryLocationId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "inventoryOperationId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "actorMembershipId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "fulfilledAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                  },
+                  "createdAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                  },
+                  "lines": {
+                    "minItems": 1,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                        },
+                        "lineNumber": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 9007199254740991
+                        },
+                        "orderLineId": {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                        },
+                        "variantId": {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                        },
+                        "quantity": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 }
+                      },
+                      "required": ["id", "lineNumber", "orderLineId", "variantId", "quantity"],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "id",
+                  "orderId",
+                  "inventoryLocationId",
+                  "inventoryOperationId",
+                  "actorMembershipId",
+                  "fulfilledAt",
+                  "createdAt",
+                  "lines"
+                ],
+                "additionalProperties": false
+              },
+              { "type": "null" }
+            ]
+          },
+          "reconciliation": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "reason": {
+                    "type": "string",
+                    "enum": ["insufficient_stock_at_ingestion", "device_revoked_at_ingestion"]
+                  },
+                  "status": { "type": "string", "const": "open" },
+                  "createdAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                  },
+                  "updatedAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                  }
+                },
+                "required": ["id", "reason", "status", "createdAt", "updatedAt"],
+                "additionalProperties": false
+              },
+              { "type": "null" }
+            ]
+          }
+        },
+        "required": [
+          "syncStatus",
+          "ingestionId",
+          "localSaleId",
+          "receivedAt",
+          "order",
+          "payment",
+          "fulfillment",
+          "reconciliation"
+        ],
         "additionalProperties": false
       }
     }

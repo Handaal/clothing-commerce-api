@@ -54,6 +54,11 @@ describe("OpenAPI management surface", () => {
         "/api/v1/orders/{orderId}",
         "/api/v1/pos/context",
         "/api/v1/pos/sales",
+        "/api/v1/pos/devices",
+        "/api/v1/pos/devices/{deviceId}/credentials",
+        "/api/v1/pos/devices/{deviceId}/revoke",
+        "/api/v1/pos/offline-bootstrap",
+        "/api/v1/pos/offline-sales",
         "/api/v1/products",
         "/api/v1/products/{productId}",
       ].sort(),
@@ -80,6 +85,14 @@ describe("OpenAPI management surface", () => {
       expect(hasIdempotencyHeader(readPath)).toBe(false);
     }
     expect(hasIdempotencyHeader("/api/v1/pos/sales")).toBe(true);
+    for (const path of [
+      "/api/v1/pos/devices",
+      "/api/v1/pos/devices/{deviceId}/credentials",
+      "/api/v1/pos/devices/{deviceId}/revoke",
+      "/api/v1/pos/offline-bootstrap",
+      "/api/v1/pos/offline-sales",
+    ])
+      expect(hasIdempotencyHeader(path)).toBe(true);
   });
 
   it("declares a Clerk bearer session-token security scheme", () => {
@@ -103,6 +116,11 @@ describe("OpenAPI management surface", () => {
       "/api/v1/orders/{orderId}",
       "/api/v1/pos/context",
       "/api/v1/pos/sales",
+      "/api/v1/pos/devices",
+      "/api/v1/pos/devices/{deviceId}/credentials",
+      "/api/v1/pos/devices/{deviceId}/revoke",
+      "/api/v1/pos/offline-bootstrap",
+      "/api/v1/pos/offline-sales",
     ]) {
       expect(hasTenantHeader(tenantRoute)).toBe(true);
     }
@@ -123,9 +141,14 @@ describe("OpenAPI management surface", () => {
       "/api/v1/orders/{orderId}",
       "/api/v1/pos/context",
       "/api/v1/pos/sales",
+      "/api/v1/pos/devices",
+      "/api/v1/pos/devices/{deviceId}/credentials",
+      "/api/v1/pos/devices/{deviceId}/revoke",
+      "/api/v1/pos/offline-bootstrap",
     ]) {
       expect(operationOf(managementRoute).security).toEqual([{ clerkSessionToken: [] }]);
     }
+    expect(operationOf("/api/v1/pos/offline-sales").security).toEqual([]);
     expect(
       (paths["/api/v1/health"] as { get: { security?: unknown } }).get.security,
     ).toBeUndefined();
@@ -156,6 +179,12 @@ describe("OpenAPI management surface", () => {
       "PosContextResponse",
       "CreatePosSaleRequest",
       "CreatePosSaleResponse",
+      "EnrollPosDeviceRequest",
+      "PosDeviceResponse",
+      "OfflineBootstrapRequest",
+      "OfflineBootstrapResponse",
+      "IngestOfflineSaleRequest",
+      "IngestOfflineSaleResponse",
     ]) {
       expect(schemas[name]).toBeDefined();
     }

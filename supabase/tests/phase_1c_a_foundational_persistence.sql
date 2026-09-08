@@ -91,13 +91,13 @@ select pg_temp.assert_true(
       )
   )
   and (
-    -- 17 foundational per-table authenticated read policies, the Phase 2E inventory_writer Location
-    -- policy, and four Phase 2H POS writer policies on Branch/Register/Location/BranchBrand. All are
-    -- SELECT-only.
-    select count(*) = 22
+    -- Keep the client contract exact while allowing later dedicated NOLOGIN writer roles to receive
+    -- narrowly scoped internal policies on foundational tables.
+    select count(*) = 17
     from pg_catalog.pg_policies
     where schemaname = 'public'
       and cmd = 'SELECT'
+      and roles = array['authenticated']::name[]
       and tablename = any (
         array[
           'tenants', 'brands', 'branches', 'warehouses', 'branch_brands',
@@ -113,6 +113,7 @@ select pg_temp.assert_true(
     from pg_catalog.pg_policies
     where schemaname = 'public'
       and cmd <> 'SELECT'
+      and roles && array['anon', 'authenticated']::name[]
   )
   and not exists (
     select 1

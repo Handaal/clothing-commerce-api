@@ -29,7 +29,7 @@ export const USAGE = `Usage: COMMERCE_DEV_FIXTURES=1 pnpm dev:provision-commerce
 
 Seeds a small deterministic commerce graph (brand, branch, inventory location, active USD register,
 two products with variants/options/prices, opening inventory, one online order, one partial
-fulfillment) into the existing local dev-local tenant for Admin Mobile and Connected POS acceptance.
+fulfillment, and a bounded offline policy) into the existing local dev-local tenant for API acceptance.
 
 Required:
   COMMERCE_DEV_FIXTURES=1   Explicit development opt-in (environment variable).

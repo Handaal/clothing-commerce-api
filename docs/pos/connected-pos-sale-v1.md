@@ -71,6 +71,6 @@ For local runtime, run the existing real-Clerk identity provisioner and commerce
 the separate exact `Dev POS Cashier` role/assignment, active register, USD price, and starting stock;
 both tools remain local-only, explicitly opted in, deterministic, idempotent, and safe to rerun.
 
-SDK `0.4.0` adds typed `getPosContext()` and `createPosSale()` methods on a tenant-bound client. The
+SDK `0.5.0` preserves the typed `getPosContext()` and `createPosSale()` methods on a tenant-bound client. The
 SDK continues to own `X-Tenant-Id`, calls the supplied `getToken`, and takes the sale idempotency key
 as an explicit method input.

@@ -24,6 +24,9 @@ Identical safety standard to identity provisioning. It is **development-only** a
   role, membership, or scope. It only inserts domain records into the already-authorized tenant. For
   Connected POS it includes one active deterministic register whose trusted default location is the
   fulfillment-enabled stockroom and whose `selling_currency` is `USD`.
+  It also adds an offline-enabled register policy (12-hour operator lease, 24-hour catalog grant,
+  explicit fixture-only sale/exposure/quantity/pending limits). Device enrollment still uses the API;
+  no private key, public key, or hardcoded Clerk subject is stored by this fixture.
 - It is idempotent and transactionally atomic: the whole graph commits together or not at all, and a
   re-run changes nothing.
 

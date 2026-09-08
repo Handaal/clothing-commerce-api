@@ -41,6 +41,9 @@ implementation as complete.
 | API contracts              | `pnpm test:api:contracts`                    | Management DTO parsing, safe integers, ISO-UTC time, pagination envelope, cursor encode/decode, envelope  | Live database or authorization behavior                   |
 | OpenAPI                    | `pnpm test:openapi`                          | Seven paths, Clerk security scheme, tenant-header placement, schemas/error responses, health unchanged    | Runtime request handling                                  |
 | Management API integration | `pnpm test:api:integration`                  | Real resolver + read services vs Supabase: auth, /me/*, visibility-before-pagination, 404/403, detail     | Real Clerk configuration                                  |
+| Connected POS integration  | `pnpm test:pos:sale:integration`             | Connected price/stock/authorization, atomic composition, and replay                                       | Offline device authority                                  |
+| Offline POS RLS            | `pnpm test:pos:offline:rls`                  | New table denial, writer ownership, function grants, tenant-safe keys                                     | Application command semantics                             |
+| Offline POS integration    | `pnpm test:pos:offline:integration`          | Enrollment, grant, signature, policy, historical price, replay, reconciliation, revocation                | Electron/local persistence                                |
 | SDK check                  | `pnpm test:sdk`                              | Build, types, methods, token/tenant/client headers, error parsing, pack, isolated self-contained tarball  | Publication to a remote registry                          |
 | Build                      | `pnpm build`                                 | Compilation and build-time integration                                                                    | Deployment/runtime infrastructure                         |
 | SDK package check          | `pnpm sdk:pack`                              | The SDK can be packaged and its included files inspected                                                  | Publication or consumer integration in a remote registry  |
@@ -78,6 +81,9 @@ pnpm test:catalog:rls
 pnpm test:inventory:rls
 pnpm test:catalog:concurrency
 pnpm test:inventory:concurrency
+pnpm test:pos:sale:integration
+pnpm test:pos:offline:rls
+pnpm test:pos:offline:integration
 pnpm build
 pnpm sdk:pack
 git diff --check

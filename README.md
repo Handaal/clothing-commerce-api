@@ -137,7 +137,7 @@ protected Roles, and the privileged-operation gate without live Clerk or Supabas
 `test:authorization:integration` resets a disposable local Supabase API stack and exercises the
 real privileged authorization repository. It requires Docker but no cloud credentials.
 
-`sdk:pack` creates `artifacts/shifted-clothing-commerce-sdk-0.1.0.tgz`. During registry bootstrap,
+`sdk:pack` creates `artifacts/shifted-clothing-commerce-sdk-0.5.0.tgz`. During registry bootstrap,
 that exact tarball is copied into each client repository's `vendor/` directory and locked by pnpm.
 This makes every client independently cloneable and testable without a sibling checkout. After a
 private registry is approved, clients replace the vendored artifact locator with an explicit
@@ -166,6 +166,7 @@ Use this README as the map; detailed design and operational guidance live under 
 | Inventory operations       | [Inventory operations](docs/inventory/inventory-operations.md), [inventory authorization](docs/inventory/inventory-authorization.md)                                                                                                                                     | Phase 2C application commands, permissions/scopes, results, errors, and idempotency                                                         |
 | Fulfillment domain         | [Fulfillment domain](docs/fulfillment/fulfillment-domain.md), [persistence](docs/fulfillment/fulfillment-persistence.md), [authorization](docs/fulfillment/fulfillment-authorization.md), [inventory integration](docs/fulfillment/fulfillment-inventory-integration.md) | Phase 2E immutable physical execution, two-authority + composite proof, atomic inventory issue, idempotency/concurrency, cancellation guard |
 | Connected POS sale         | [Connected POS Sale V1](docs/pos/connected-pos-sale-v1.md)                                                                                                                                                                                                               | Phase 2H register context, atomic cash sale, price confirmation, authorization, idempotency, and tax/device deferrals                       |
+| Offline POS sale           | [Offline POS V1](docs/pos/offline-pos-v1.md)                                                                                                                                                                                                                             | Device enrollment, bounded grants, canonical signatures, historical prices, ingestion, replay, and reconciliation                           |
 | Migrations                 | [Migration guide](docs/database/migrations.md)                                                                                                                                                                                                                           | Authoritative history, adding/reviewing/testing migrations, and rollback philosophy                                                         |
 | Docker                     | [Docker strategy](docs/docker/strategy.md), [database testing](docs/docker/database-testing.md), [local Supabase](docs/development/supabase-local.md)                                                                                                                    | Fast PostgreSQL tests, Supabase RLS tests, CI, and production direction                                                                     |
 | Testing                    | [Development testing guide](docs/development/testing.md), [catalog testing](docs/development/catalog-testing.md), [inventory testing](docs/development/inventory-testing.md)                                                                                             | Unit, authorization, contract drift, catalog/inventory persistence/RLS, build, SDK                                                          |
@@ -178,11 +179,11 @@ Use this README as the map; detailed design and operational guidance live under 
 ## Current implementation boundary
 
 The repository now owns catalog, append-only inventory, canonical Orders, immutable Fulfillments, the
-management API, and Connected POS Sale V1. A connected cash checkout composes its POS Order, captured
+management API, Connected POS Sale V1, and the Phase 2I Offline POS server boundary. A connected cash checkout composes its POS Order, captured
 Payment, full Fulfillment, and inventory issue atomically from a server-trusted Register context.
-Clerk-backed staff authorization remains the privileged boundary. There is still no Electron POS UI,
-offline database/sync, card or split tender, refund/return, promotion/loyalty, tax engine, device
-enrollment runtime, storefront, customer authentication, production Docker image/Compose file, or
+Clerk-backed staff authorization remains the privileged human boundary; signed offline ingestion uses
+previously issued device authority. There is still no Electron POS UI, local offline database, card or
+split tender, refund/return, promotion/loyalty, tax engine, storefront, customer authentication, production Docker image/Compose file, or
 deployment. Fiscal/tax compliance must be completed before a production deployment where required.
 
 ### Historical Phase 2A/2B boundary

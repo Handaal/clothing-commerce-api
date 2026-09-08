@@ -39,6 +39,7 @@ declare
   c_location   constant uuid := '10ca7100-0000-4000-8000-000000000001';
   c_location2  constant uuid := '10ca7100-0000-4000-8000-000000000002';
   c_register   constant uuid := 'ae6157e0-0000-4000-8000-000000000001';
+  c_offline_policy constant uuid := '0ff11e00-0000-4000-8000-000000000001';
   c_product1   constant uuid := '90000000-0000-4000-8000-000000000001';
   c_product2   constant uuid := '90000000-0000-4000-8000-000000000002';
   c_option     constant uuid := '0f710000-0000-4000-8000-000000000001';
@@ -162,6 +163,17 @@ begin
   ) on conflict (tenant_id, branch_id, normalized_code) do nothing;
   select id into v_register_id from public.registers
   where tenant_id = v_tenant_id and branch_id = v_branch_id and normalized_code = 'dev-reg-1';
+
+  -- Phase 2I development-only limits. Enrollment still happens through the authenticated API so this
+  -- fixture never stores a public/private key or invents a device identity.
+  insert into public.offline_pos_policies (
+    id, tenant_id, register_id, enabled, operator_lease_seconds, catalog_grant_seconds,
+    max_sale_amount_minor, max_cumulative_exposure_minor, max_quantity_per_line,
+    max_pending_offline_sales
+  ) values (
+    c_offline_policy, v_tenant_id, v_register_id, true, 43200, 86400,
+    100000, 500000, 20, 50
+  ) on conflict (tenant_id, register_id) do nothing;
 
   -- 3. Product 1: an ACTIVE style with a Size option (M, L) and two active variants.
   insert into public.products (id, tenant_id, brand_id, name, slug, style_code, description, status)

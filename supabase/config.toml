@@ -17,5 +17,5 @@ enabled = false
 # are. In particular fulfillments_private.record_fulfillment_issue lives in inventory_private and is
 # granted to fulfillments_writer only, so exposing these schemas never lets service_role issue stock
 # directly. public remains the default client surface.
-schemas = ["public", "inventory_private", "orders_private", "fulfillments_private", "pos_sales_private"]
+schemas = ["public", "inventory_private", "orders_private", "fulfillments_private", "pos_sales_private", "offline_pos_private"]
 extra_search_path = ["public", "extensions"]

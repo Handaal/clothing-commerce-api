@@ -166,7 +166,7 @@ SDK-owned and the auth token remains supplied by the caller's token provider.
 row now carries `version`, and `getContext()` returns `access.inventory.write` — both flow through the
 existing `listInventory` and `getContext` methods via their shared contract types.
 
-`0.4.0` adds `getPosContext()` and `createPosSale()`. The tenant header remains SDK-owned, Clerk
+`0.5.0` preserves `getPosContext()` and `createPosSale()` and adds the offline POS contracts. The tenant header remains SDK-owned, Clerk
 session acquisition remains a `getToken` callback, and the caller supplies one sale-level
 `idempotencyKey`; no direct fetch or lower-level Order/Fulfillment mutation is required.
 
