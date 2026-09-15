@@ -41,6 +41,7 @@
     "test:fulfillment:persistence": "node scripts/test-fulfillment-persistence.mjs",
     "test:fulfillment:rls": "node scripts/test-fulfillment-rls.mjs",
     "test:catalog:persistence": "node scripts/test-catalog-persistence.mjs",
+    "test:catalog:management": "node scripts/test-catalog-management.mjs",
     "test:catalog:rls": "node scripts/test-catalog-rls.mjs",
     "test:inventory:concurrency": "node scripts/test-inventory-concurrency.mjs",
     "test:inventory:operations:concurrency": "node scripts/test-inventory-operations-concurrency.mjs",
