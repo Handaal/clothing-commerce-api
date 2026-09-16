@@ -12,9 +12,13 @@ catalog) — are **not** built here. This is the server + SDK contract only.
 
 Route (`runTenantManagementWriteRoute`) → authorized application service
 (`executeAuthorizedOperation` against the product's **brand** resource) → repository → `SECURITY
-DEFINER` RPC in a private schema owned by a dedicated `catalog_writer` role. `service_role` holds
-`SELECT` + `EXECUTE` on sanctioned functions only, never direct catalog DML. Custom SQLSTATEs are
-internal-only and mapped to stable `CatalogError` codes in the repository.
+INVOKER` RPC in the `catalog_private` schema. Unlike the inventory ledger (which revoked `service_role`
+DML and forced a dedicated DEFINER writer role), Phase 2A deliberately provisioned catalog with
+`service_role` holding direct DML on the catalog tables ("catalog writes are server-side application
+responsibilities"). The sanctioned functions therefore run as the calling `service_role`; they exist to
+provide the multi-statement atomicity and idempotent-retry guarantees the application cannot get over
+PostgREST, not a separate privilege boundary. Custom SQLSTATEs are internal-only and mapped to stable
+`CatalogError` codes in the repository.
 
 ## Command surface (smallest complete set)
 
@@ -22,26 +26,55 @@ Products, variants, options, and prices are administered through explicit comman
 PATCH-of-anything. Every command is tenant- and brand-authorized and idempotent via the platform
 `Idempotency-Key` header.
 
-- **Product**: `createProduct`, `updateProduct` (name/description/style/slug), `activateProduct`,
-  `deactivateProduct` (active→draft), `archiveProduct`.
-- **Variant**: `createVariant` (sku + option-value selection), `updateVariant` (display name),
-  `archiveVariant`. SKU uniqueness is enforced by the existing `(tenant_id, normalized_sku)` unique
-  index; a duplicate surfaces as `SKU_CONFLICT`.
-- **Options**: `defineOption` / `addOptionValue` create the option dimensions and allowed values a
-  variant selection references. The existing deferred constraint trigger keeps a variant's
-  `option_signature` canonical.
+- **Product**: `createProduct`, `updateProduct` (name/slug/style/description), `setProductStatus`
+  (activate / deactivate `active→draft` / archive).
+- **Variant**: `createVariant` (sku + optional display name; created internally `active`). SKU
+  uniqueness is enforced by the existing `(tenant_id, normalized_sku)` unique index; a duplicate
+  surfaces as `SKU_CONFLICT`. Variants use the default option signature; explicit multi-option
+  combinations reuse the Phase 2A option tables and are a thin additive follow-up (see below).
 - **Pricing**: `setVariantPrice` writes an active `variant_prices` row in minor units for a currency,
   archiving the prior active row for that currency (history preserved). Clients never write price
   directly; the server owns the price-integrity write.
 - **Publication**: `publishProduct` / `unpublishProduct` (see below).
+- **Media**: `createMediaUploadIntent`, `registerMedia`, `archiveMedia` (see Product media).
 
-Category/Collection management (`createCategory`, `assignProductCategory`, `createCollection`,
-`setProductCollections`) is included as the V1 merchandising taxonomy because the canonical model
-already contains it and the Storefront needs it for navigation.
+### HTTP + SDK surface
+
+| Operation           | Route                                                       | Permission        |
+| ------------------- | ----------------------------------------------------------- | ----------------- |
+| create product      | `POST /api/v1/products`                                     | `catalog.author`  |
+| update product      | `PATCH /api/v1/products/{productId}`                        | `catalog.author`  |
+| lifecycle           | `POST /api/v1/products/{productId}/status`                  | `catalog.author`  |
+| publish / unpublish | `POST` / `DELETE /api/v1/products/{productId}/publication`  | `catalog.publish` |
+| create variant      | `POST /api/v1/products/{productId}/variants`                | `catalog.author`  |
+| set price           | `PUT /api/v1/variants/{variantId}/price`                    | `catalog.author`  |
+| media upload intent | `POST /api/v1/products/{productId}/media/upload-intent`     | `catalog.author`  |
+| register media      | `POST /api/v1/products/{productId}/media`                   | `catalog.author`  |
+| archive media       | `DELETE /api/v1/products/{productId}/media/{mediaId}`       | `catalog.author`  |
+| public list         | `GET /api/v1/storefront/products?tenantId=&brandId=&limit=` | public            |
+| public detail       | `GET /api/v1/storefront/products/{slug}?tenantId=`          | public            |
+
+The SDK (`@shifted/clothing-commerce-sdk@0.6.0`) exposes these as typed tenant-scoped methods
+(`client.withTenant(id).createProduct(...)`, `.publishProduct(...)`, `.setVariantPrice(...)`, …) and
+public methods (`client.listPublishedProducts(...)`, `client.getPublishedProduct(...)`). Every
+retry-sensitive write takes an `idempotencyKey`; the upload intent does not (it is not a mutation).
 
 Historical Orders are never affected: all catalog FKs remain `ON DELETE RESTRICT`, and edits/archival
 never mutate the immutable order pricing snapshots. There is **no hard delete**; lifecycle uses
 draft/active/archived.
+
+### Categories / Collections — deliberately deferred for this vertical
+
+The canonical model contains `categories`, `collections`, and their product join tables (Phase 2A),
+but Phase 2A documented them as foundational-and-unwired: "no [category] path is used yet",
+"Rule-driven collections are deferred", membership is "manual". They are **intentionally deferred**
+from this vertical rather than silently omitted. The storefront's first vertical
+(catalog → product detail → variant selection → cart) functions without taxonomy: the public read
+lists all published products and returns full detail. Taxonomy management (create/update/archive
+category & collection, product↔category / product↔collection assignment) plus its public projection is
+the immediate additive follow-up — it needs its own `catalog_private` RPCs and a public-projection
+extension, and is scoped as the next thin increment. Likewise explicit variant option combinations
+(`defineOption` / `addOptionValue`) reuse the existing Phase 2A option tables and are additive.
 
 ## Product lifecycle vs. Storefront publication (the critical distinction)
 
@@ -69,7 +102,7 @@ permission** (`catalog.publish`) separate from authoring (`catalog.author`).
 ## Permissions
 
 - `catalog.read` — management read (Phase 2F, existing).
-- `catalog.author` — create/update/lifecycle/variant/option/price/media/taxonomy writes.
+- `catalog.author` — create/update/lifecycle/variant/price/media writes.
 - `catalog.publish` — publish/unpublish to the Storefront.
 
 All authorize against the target product's **brand** resource via the existing scope model. There is
@@ -84,49 +117,78 @@ binaries**:
 
 - Columns: `tenant_id`, `product_id`, optional `variant_id` (variant-specific imagery),
   `storage_bucket`, `storage_path`, `alt_text`, `position`, `is_primary`, `status ∈ {active,
-  archived}`.
+archived}`.
 - Tenant isolation via `tenant_id` + composite FKs; one active primary per product (partial unique
-  index); ordering via `position`.
-- Commands: `addProductMedia` (records a reference), `reorderProductMedia`, `setPrimaryProductMedia`,
-  `archiveProductMedia`.
-- **Upload workflow**: binaries live in Supabase Storage. The API mints a short-lived signed upload
-  URL for an authored path; the client uploads directly to storage and then records the reference via
-  `addProductMedia`. The signed-URL minting is a documented seam over the Supabase Storage stack
-  (excluded from the DB-only local test harness); the **metadata authority is fully implemented and
-  tested** and is what both clients read to render imagery. This API never makes website
-  layout/design editable — it concerns catalog media only.
+  index); ordering via `position`. Setting a new primary demotes the previous primary in the same
+  transaction.
+- Commands: `createMediaUploadIntent` (authorize + return a server-owned destination),
+  `registerMedia` (record the reference; may mark primary), `archiveMedia` (soft archive).
+- **Upload workflow** (server controls the destination — the client can never choose an arbitrary
+  storage path):
+  1. `POST /api/v1/products/{productId}/media/upload-intent` authorizes `catalog.author` on the
+     product's brand and returns `{ bucket: "product-media", path: "<tenantId>/<productId>/<uuid>.<ext>",
+uploadUrl, expiresAt }`. The path is derived server-side from the verified tenant/product, so a
+     returned upload URL can never target another tenant.
+  2. The client uploads the object to that bucket/path (via `uploadUrl` when object storage is
+     reachable).
+  3. `POST /api/v1/products/{productId}/media` registers the reference through the catalog write
+     boundary.
+- **Storage dependency**: signed-URL minting is a `MediaUploadSigner` seam over the Supabase Storage
+  stack, which is excluded from the local DB/integration harnesses; there the signer returns `null` and
+  the integration test asserts the **authorization + tenant/product path scoping** (the security
+  boundary) rather than a live object round-trip. The metadata authority is fully implemented and
+  tested and is what both clients read to render imagery. This API never makes website layout/design
+  editable — it concerns catalog media only.
 
 ## Public (Storefront-safe) read boundary
 
 The Storefront must obtain only what it needs and must never see unpublished products, cost/internal
 metadata, or authorization/scoping detail. Rather than trust an application-layer filter, the boundary
-is **DB-enforced**: a `catalog_public` schema of `SECURITY DEFINER` functions, granted to `anon`, that
-can only ever return the published projection:
+is **DB-enforced**: a `catalog_public` schema of `SECURITY DEFINER` functions (owned by a role that
+bypasses RLS) that can only ever return the published projection:
 
-- `list_published_products(tenant, brand?, cursor, limit)` and `get_published_product(tenant, slug)`.
-- Returned projection: product name/slug/description, published variants (id, sku, option summary),
-  public price (currency + minor amount), active media references, and category/collection membership.
-- Never returned: `status`, internal timestamps, actor/membership data, cost, idempotency, or any
-  unpublished row.
-- The public route uses the **anon** key (no `X-Tenant-Id` management header, no membership); the
-  tenant/brand the Storefront serves is an explicit request parameter, and the function hard-filters to
-  `storefront_status = 'published'`.
+- `list_published_products(tenant, brand?, limit)` and `get_published_product(tenant, slug)`.
+- Returned projection: product id/brandId/slug/name/description/publishedAt, published variants
+  (id, sku, displayName, optionSignature), public price(s) (currency + minor amount), active media
+  references, and per-variant `inStock`. (Category/collection membership is a follow-up — see the
+  taxonomy note above.)
+- Never returned: internal `status`, actor/membership data, cost, idempotency state, price history, or
+  any unpublished row. Internal-field absence is asserted in the acceptance test.
+- The functions are granted `EXECUTE` to `anon` (the intended production caller). The server-side
+  public read repository currently uses the service-role client narrowly wrapped to call **only** the
+  two `catalog_public` functions — the DB function is the boundary, so the role does not widen what can
+  be returned; binding the boundary to the anon key is a trivial future hardening.
 
-## Inventory semantics
+### Public context resolution
 
-No Storefront-specific stock. Public availability, if surfaced, is derived from the same
-`inventory_balances`/`InventoryLocation` truth via a read model. This phase introduces **no**
-reservation/ATS semantics (no frozen invariant requires them here).
+The public routes require **no session and no `X-Tenant-Id` header**. The tenant (and optional brand)
+the Storefront serves is an explicit request parameter (`?tenantId=…&brandId=…`), because published
+catalog is public data by definition and the function hard-filters to `storefront_status = 'published'`.
+For V1 the Storefront is configured with its tenant/brand id and passes it directly. Host/custom-domain
+→ tenant/brand resolution (a storefront-context lookup keyed by hostname) is a future storefront concern
+and is intentionally **not** built here; nothing about this contract precludes adding it later.
+
+## Inventory semantics & public availability
+
+No Storefront-specific stock. The DB projection derives `availableQuantity` by summing
+`inventory_balances.on_hand_quantity` across the tenant's locations for the variant — the single
+`InventoryLocation` truth, no second stock model. The **public API contract is conservative**: it
+exposes only a per-variant `inStock` boolean (`availableQuantity > 0`) and never the exact quantity, so
+competitors/customers cannot read stock levels. This phase introduces **no** reservation/ATS semantics
+(no frozen invariant requires them here).
 
 ## Idempotency & concurrency
 
-Every write command carries an `Idempotency-Key`; the RPCs fingerprint the caller payload exactly like
-the inventory operations, so a retried create/variant/price/media/publish never duplicates. Product
-and variant updates use optimistic concurrency (`expectedVersion`) where an administrator edit could
-race, following the inventory count-adjustment precedent.
+Every write command carries an `Idempotency-Key`; the RPCs fingerprint the caller payload (via a shared
+`catalog_write_operations` ledger) exactly like the inventory operations, so a retried
+create/variant/price/media/publish replays the original result and never duplicates; the same key with
+a different payload is `IDEMPOTENCY_CONFLICT` (409). Price replacement and the publish gate run under
+row locks for atomicity. Optimistic `expectedVersion` concurrency is deliberately **not** added for
+product/variant edits in this phase: administrator edits are low-concurrency and idempotency already
+prevents retry duplication; it can be added additively if a real edit-conflict need emerges.
 
 ## SDK
 
-`@shifted/clothing-commerce-sdk@0.6.0` exposes typed management operations (product/variant/option/
-price/media/taxonomy/publish) and the public catalog reads, so Admin Mobile and Storefront consume the
-packed SDK — never API source.
+`@shifted/clothing-commerce-sdk@0.6.0` exposes typed management operations
+(product/variant/price/media/publish) and the public catalog reads, so Admin Mobile and Storefront
+consume the packed SDK — never API source.

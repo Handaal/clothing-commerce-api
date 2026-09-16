@@ -37,6 +37,7 @@ end-to-end."
 ## Backlog
 
 ### Done / backend-ready (context only — not this batch)
+
 - Auth, tenant bootstrap/context, memberships/roles/permissions/scopes (backend), device trust.
 - Organization model + management reads.
 - Catalog **read** + full catalog **schema** (products/variants/options/SKU/pricing/categories/collections).
@@ -45,6 +46,7 @@ end-to-end."
 - POS offline durability (POS repo, Codex PR2) and offline sync (Codex PR3, in progress — **not ours**).
 
 ### This batch (Phase 2J — Catalog management + Storefront publication, API + SDK)
+
 - Catalog **write**: product create/update/lifecycle (draft→active→archived), variant create/update,
   option/value management, SKU integrity, price set/change.
 - **Storefront publication boundary**: distinguish internal catalog state from publicly sellable.
@@ -53,28 +55,31 @@ end-to-end."
 - OpenAPI + SDK `0.6.0`.
 
 ### Required for V1, not yet built (future batches — DO NOT LOSE)
-| Domain | State | Notes / unresolved decisions to freeze later |
-| --- | --- | --- |
-| **Customers** | Missing | Entity/profile, lookup, order history, POS attach. *Decision: guest vs registered login policy.* |
-| **Storefront online sales** (cart/checkout/order/confirmation/status) | Missing | Public order-orchestration layer + online payment. |
-| **Online payment** | Missing | *Decision: provider + capture semantics (auth-then-capture vs capture-on-order). Not yet chosen — do not assume one.* |
-| **Returns / Refunds** | Missing | Eligibility, return lines, refund lifecycle, inventory restock disposition, POS + admin UI. *Decision: return-policy rules.* |
-| **Suppliers** | Missing | Supplier entity + purchasing/receiving linkage. *Decision: supplier workflow depth (directory only vs full PO).* |
-| **Vouchers / promotions / discounts** | Missing | Where the pricing/order model permits. *Decision: exact voucher/discount semantics; affects immutable order pricing snapshot — integrity-sensitive.* |
-| **Staff management / administration** | Missing (backend perms exist) | Membership/role admin UI + lifecycle. *Decision: staff-management depth.* |
-| **Reports / Analytics** | Missing | Sales/orders/inventory/channel/period + owner dashboard + exports. *Decision: exact report/export list.* |
-| **POS Settings** | Missing | Register/receipt/cash-drawer/session configuration (POS repo). |
-| **Admin/business settings** | Missing | Tenant/brand/branch/tax/currency/business configuration. |
-| **Delivery / fulfillment (online)** | Partial | Canonical fulfillment exists; online delivery/shipping requirements not modeled. |
-| **Multi-brand / multi-branch workflows** | Partial | Data model + scoping exist; single-brand UX + brand switcher + branch selectors in clients. |
-| **Org management writes** | Missing | Create/edit branch, warehouse, inventory location, register, device. |
+
+| Domain                                                                | State                         | Notes / unresolved decisions to freeze later                                                                                                         |
+| --------------------------------------------------------------------- | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Customers**                                                         | Missing                       | Entity/profile, lookup, order history, POS attach. _Decision: guest vs registered login policy._                                                     |
+| **Storefront online sales** (cart/checkout/order/confirmation/status) | Missing                       | Public order-orchestration layer + online payment.                                                                                                   |
+| **Online payment**                                                    | Missing                       | _Decision: provider + capture semantics (auth-then-capture vs capture-on-order). Not yet chosen — do not assume one._                                |
+| **Returns / Refunds**                                                 | Missing                       | Eligibility, return lines, refund lifecycle, inventory restock disposition, POS + admin UI. _Decision: return-policy rules._                         |
+| **Suppliers**                                                         | Missing                       | Supplier entity + purchasing/receiving linkage. _Decision: supplier workflow depth (directory only vs full PO)._                                     |
+| **Vouchers / promotions / discounts**                                 | Missing                       | Where the pricing/order model permits. _Decision: exact voucher/discount semantics; affects immutable order pricing snapshot — integrity-sensitive._ |
+| **Staff management / administration**                                 | Missing (backend perms exist) | Membership/role admin UI + lifecycle. _Decision: staff-management depth._                                                                            |
+| **Reports / Analytics**                                               | Missing                       | Sales/orders/inventory/channel/period + owner dashboard + exports. _Decision: exact report/export list._                                             |
+| **POS Settings**                                                      | Missing                       | Register/receipt/cash-drawer/session configuration (POS repo).                                                                                       |
+| **Admin/business settings**                                           | Missing                       | Tenant/brand/branch/tax/currency/business configuration.                                                                                             |
+| **Delivery / fulfillment (online)**                                   | Partial                       | Canonical fulfillment exists; online delivery/shipping requirements not modeled.                                                                     |
+| **Multi-brand / multi-branch workflows**                              | Partial                       | Data model + scoping exist; single-brand UX + brand switcher + branch selectors in clients.                                                          |
+| **Org management writes**                                             | Missing                       | Create/edit branch, warehouse, inventory location, register, device.                                                                                 |
 
 ### Explicitly out of this batch
+
 Customers, Suppliers, Staff admin, Vouchers, Returns, Reporting, Storefront checkout/cart/order
 creation, online payment. This batch builds only the catalog-management + publication server + SDK
 that those clients will consume next.
 
 ## Preserved unresolved business decisions (do not silently invent)
+
 - Online payment provider and capture semantics.
 - Customer login vs guest checkout policy.
 - Detailed return-policy rules.

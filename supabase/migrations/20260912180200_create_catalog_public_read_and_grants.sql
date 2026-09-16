@@ -154,6 +154,10 @@ begin
   execute 'revoke all on all functions in schema catalog_public from public';
 
   if exists (select 1 from pg_catalog.pg_roles where rolname = 'service_role') then
+    -- USAGE on catalog_public is required in addition to EXECUTE so the server-side public read
+    -- repository (service-role client) can resolve and call the published-only functions. catalog_private
+    -- USAGE was granted to service_role in Phase 2A.
+    execute 'grant usage on schema catalog_public to service_role';
     execute 'grant execute on all functions in schema catalog_private to service_role';
     execute 'grant execute on all functions in schema catalog_public to service_role';
   end if;

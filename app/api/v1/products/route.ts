@@ -1,8 +1,13 @@
-import { ProductListResponseSchema } from "../../../../src/contracts";
+import {
+  CreateProductRequestSchema,
+  ProductListResponseSchema,
+  ProductWriteResponseSchema,
+} from "../../../../src/contracts";
 import {
   managementOptionsResponse,
   parseRequest,
   runTenantManagementRoute,
+  runTenantManagementWriteRoute,
 } from "../../../../src/http/management-route";
 import { ProductListQuerySchema, queryRecord } from "../../../../src/management/request";
 import { getManagementApiBoundary } from "../../../../src/management/server-management-boundary";
@@ -26,6 +31,24 @@ export async function GET(request: Request) {
         cursor: query.cursor ?? null,
       });
     },
+  });
+}
+
+export async function POST(request: Request) {
+  const boundary = getManagementApiBoundary();
+  return runTenantManagementWriteRoute({
+    request,
+    contextResolver: boundary.contextResolver,
+    requestSchema: CreateProductRequestSchema,
+    responseSchema: ProductWriteResponseSchema,
+    handler: ({ context, body, idempotencyKey }) =>
+      boundary.catalogManagementService.createProduct(context, idempotencyKey, {
+        brandId: body.brandId,
+        name: body.name,
+        slug: body.slug,
+        ...(body.styleCode !== undefined ? { styleCode: body.styleCode } : {}),
+        ...(body.description !== undefined ? { description: body.description } : {}),
+      }),
   });
 }
 

@@ -61,7 +61,7 @@ describe("Commerce SDK", () => {
   });
 
   it("exposes semantic SDK version metadata", () => {
-    expect(SDK_VERSION).toBe("0.5.0");
+    expect(SDK_VERSION).toBe("0.6.0");
   });
 });
 
