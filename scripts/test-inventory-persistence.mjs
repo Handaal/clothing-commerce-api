@@ -189,6 +189,7 @@ try {
           "drop schema if exists commerce_locks cascade;",
           "drop schema if exists orders_private cascade;",
           "drop schema if exists inventory_private cascade;",
+          "drop schema if exists catalog_public cascade;",
           "drop schema if exists catalog_private cascade;",
           "drop schema if exists commerce_context cascade;",
           "drop schema public cascade;",
