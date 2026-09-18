@@ -16,6 +16,30 @@ import {
   IngestOfflineSaleResponseSchema,
   ReceiveInventoryResponseSchema,
   TransferInventoryResponseSchema,
+  ProductWriteResponseSchema,
+  ProductUpdatedResponseSchema,
+  PublishProductResponseSchema,
+  UnpublishProductResponseSchema,
+  CreateVariantResponseSchema,
+  SetVariantPriceResponseSchema,
+  MediaUploadIntentResponseSchema,
+  RegisterProductMediaResponseSchema,
+  ArchiveProductMediaResponseSchema,
+  PublicProductListResponseSchema,
+  PublicProductDetailResponseSchema,
+  type ProductWriteResponse,
+  type ProductUpdatedResponse,
+  type PublishProductResponse,
+  type UnpublishProductResponse,
+  type CreateVariantResponse,
+  type SetVariantPriceResponse,
+  type MediaUploadIntentResponse,
+  type RegisterProductMediaResponse,
+  type ArchiveProductMediaResponse,
+  type PublicProduct,
+  type PublicProductListResponse,
+  type PublicProductDetailResponse,
+  type StorefrontStatus,
   type AdjustInventoryResponse,
   type HealthResponse,
   type InventoryListResponse,
@@ -139,12 +163,87 @@ export interface RevokePosDeviceInput extends IdempotentWrite {
 export interface OfflineBootstrapInput extends OfflineBootstrapRequest, IdempotentWrite {}
 export interface IngestOfflineSaleInput extends IngestOfflineSaleRequest, IdempotentWrite {}
 
+// ---- Phase 2J catalog management inputs ----
+export interface CreateProductInput extends IdempotentWrite {
+  brandId: string;
+  name: string;
+  slug: string;
+  styleCode?: string;
+  description?: string;
+}
+export interface UpdateProductInput extends IdempotentWrite {
+  productId: string;
+  name: string;
+  slug: string;
+  styleCode?: string;
+  description?: string;
+}
+export interface SetProductStatusInput extends IdempotentWrite {
+  productId: string;
+  status: ProductStatus;
+  archiveReason?: string;
+}
+export interface PublishProductInput extends IdempotentWrite {
+  productId: string;
+}
+export interface CreateVariantInput extends IdempotentWrite {
+  productId: string;
+  sku: string;
+  displayName?: string;
+}
+export interface SetVariantPriceInput extends IdempotentWrite {
+  variantId: string;
+  currency: string;
+  amountMinor: number;
+}
+export interface CreateProductMediaUploadIntentInput {
+  productId: string;
+  variantId?: string;
+  contentType: "image/jpeg" | "image/png" | "image/webp" | "image/avif";
+  fileName?: string;
+}
+export interface RegisterProductMediaInput extends IdempotentWrite {
+  productId: string;
+  variantId?: string;
+  bucket: string;
+  path: string;
+  altText?: string;
+  position?: number;
+  isPrimary?: boolean;
+}
+export interface ArchiveProductMediaInput extends IdempotentWrite {
+  productId: string;
+  mediaId: string;
+}
+
+export interface PublicCatalogListQuery {
+  tenantId: string;
+  brandId?: string;
+  limit?: number;
+}
+export interface PublicProductQuery {
+  tenantId: string;
+  slug: string;
+}
+
 /** Tenant-scoped management surface, obtained via `client.withTenant(tenantId)`. */
 export interface TenantCommerceClient {
   readonly tenantId: string;
   getContext(): Promise<MeContextResponse>;
   listProducts(query?: ProductListQuery): Promise<ProductListResponse>;
   getProduct(productId: string): Promise<ProductDetailResponse>;
+  createProduct(input: CreateProductInput): Promise<ProductWriteResponse>;
+  updateProduct(input: UpdateProductInput): Promise<ProductUpdatedResponse>;
+  setProductStatus(input: SetProductStatusInput): Promise<ProductWriteResponse>;
+  publishProduct(input: PublishProductInput): Promise<PublishProductResponse>;
+  unpublishProduct(input: PublishProductInput): Promise<UnpublishProductResponse>;
+  createVariant(input: CreateVariantInput): Promise<CreateVariantResponse>;
+  setVariantPrice(input: SetVariantPriceInput): Promise<SetVariantPriceResponse>;
+  createProductMediaUploadIntent(
+    input: CreateProductMediaUploadIntentInput,
+  ): Promise<MediaUploadIntentResponse>;
+  registerProductMedia(input: RegisterProductMediaInput): Promise<RegisterProductMediaResponse>;
+  archiveProductMedia(input: ArchiveProductMediaInput): Promise<ArchiveProductMediaResponse>;
   listInventory(query?: InventoryListQuery): Promise<InventoryListResponse>;
   receiveInventory(input: ReceiveInventoryInput): Promise<ReceiveInventoryResponse>;
   adjustInventory(input: AdjustInventoryInput): Promise<AdjustInventoryResponse>;
@@ -166,6 +265,13 @@ export interface CommerceClient {
   getMyTenants(): Promise<MeTenantsResponse>;
   /** Returns an immutable client bound to a tenant; the original is unchanged. */
   withTenant(tenantId: string): TenantCommerceClient;
+  /**
+   * Public Storefront catalog reads. Unauthenticated: no session and no tenant context header. The
+   * tenant the storefront serves is an explicit query parameter and only published products are
+   * returned.
+   */
+  listPublishedProducts(query: PublicCatalogListQuery): Promise<PublicProductListResponse>;
+  getPublishedProduct(query: PublicProductQuery): Promise<PublicProductDetailResponse>;
 }
 
 export class CommerceSdkError extends Error {}
@@ -264,7 +370,7 @@ export function createCommerceClient({
     schema: z.ZodType<T>,
     options: {
       tenantId?: string;
-      method?: "GET" | "POST";
+      method?: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
       body?: unknown;
       idempotencyKey?: string;
     } = {},
@@ -320,6 +426,71 @@ export function createCommerceClient({
         request(`/api/v1/products/${encodeURIComponent(productId)}`, ProductDetailResponseSchema, {
           tenantId,
         }),
+      createProduct: ({ idempotencyKey, ...body }: CreateProductInput) =>
+        request("/api/v1/products", ProductWriteResponseSchema, {
+          tenantId,
+          method: "POST",
+          body,
+          idempotencyKey,
+        }),
+      updateProduct: ({ idempotencyKey, productId, ...body }: UpdateProductInput) =>
+        request(`/api/v1/products/${encodeURIComponent(productId)}`, ProductUpdatedResponseSchema, {
+          tenantId,
+          method: "PATCH",
+          body,
+          idempotencyKey,
+        }),
+      setProductStatus: ({ idempotencyKey, productId, ...body }: SetProductStatusInput) =>
+        request(
+          `/api/v1/products/${encodeURIComponent(productId)}/status`,
+          ProductWriteResponseSchema,
+          { tenantId, method: "POST", body, idempotencyKey },
+        ),
+      publishProduct: ({ idempotencyKey, productId }: PublishProductInput) =>
+        request(
+          `/api/v1/products/${encodeURIComponent(productId)}/publication`,
+          PublishProductResponseSchema,
+          { tenantId, method: "POST", body: {}, idempotencyKey },
+        ),
+      unpublishProduct: ({ idempotencyKey, productId }: PublishProductInput) =>
+        request(
+          `/api/v1/products/${encodeURIComponent(productId)}/publication`,
+          UnpublishProductResponseSchema,
+          { tenantId, method: "DELETE", body: {}, idempotencyKey },
+        ),
+      createVariant: ({ idempotencyKey, productId, ...body }: CreateVariantInput) =>
+        request(
+          `/api/v1/products/${encodeURIComponent(productId)}/variants`,
+          CreateVariantResponseSchema,
+          { tenantId, method: "POST", body, idempotencyKey },
+        ),
+      setVariantPrice: ({ idempotencyKey, variantId, ...body }: SetVariantPriceInput) =>
+        request(
+          `/api/v1/variants/${encodeURIComponent(variantId)}/price`,
+          SetVariantPriceResponseSchema,
+          { tenantId, method: "PUT", body, idempotencyKey },
+        ),
+      createProductMediaUploadIntent: ({
+        productId,
+        ...body
+      }: CreateProductMediaUploadIntentInput) =>
+        request(
+          `/api/v1/products/${encodeURIComponent(productId)}/media/upload-intent`,
+          MediaUploadIntentResponseSchema,
+          { tenantId, method: "POST", body },
+        ),
+      registerProductMedia: ({ idempotencyKey, productId, ...body }: RegisterProductMediaInput) =>
+        request(
+          `/api/v1/products/${encodeURIComponent(productId)}/media`,
+          RegisterProductMediaResponseSchema,
+          { tenantId, method: "POST", body, idempotencyKey },
+        ),
+      archiveProductMedia: ({ idempotencyKey, productId, mediaId }: ArchiveProductMediaInput) =>
+        request(
+          `/api/v1/products/${encodeURIComponent(productId)}/media/${encodeURIComponent(mediaId)}`,
+          ArchiveProductMediaResponseSchema,
+          { tenantId, method: "DELETE", body: {}, idempotencyKey },
+        ),
       listInventory: (query = {}) =>
         request(
           `/api/v1/inventory${buildQuery({
@@ -421,6 +592,22 @@ export function createCommerceClient({
     getHealth: () => request("/api/v1/health", HealthResponseSchema),
     getMyTenants: () => request("/api/v1/me/tenants", MeTenantsResponseSchema),
     withTenant,
+    listPublishedProducts: (query: PublicCatalogListQuery) =>
+      request(
+        `/api/v1/storefront/products${buildQuery({
+          tenantId: query.tenantId,
+          brandId: query.brandId,
+          limit: query.limit,
+        })}`,
+        PublicProductListResponseSchema,
+      ),
+    getPublishedProduct: (query: PublicProductQuery) =>
+      request(
+        `/api/v1/storefront/products/${encodeURIComponent(query.slug)}${buildQuery({
+          tenantId: query.tenantId,
+        })}`,
+        PublicProductDetailResponseSchema,
+      ),
   };
 }
 
@@ -442,4 +629,17 @@ export type {
   OfflineBootstrapResponse,
   OfflineSaleCommand,
   IngestOfflineSaleResponse,
+  ProductWriteResponse,
+  ProductUpdatedResponse,
+  PublishProductResponse,
+  UnpublishProductResponse,
+  CreateVariantResponse,
+  SetVariantPriceResponse,
+  MediaUploadIntentResponse,
+  RegisterProductMediaResponse,
+  ArchiveProductMediaResponse,
+  PublicProduct,
+  PublicProductListResponse,
+  PublicProductDetailResponse,
+  StorefrontStatus,
 };

@@ -2,6 +2,10 @@ import { createClerkRequestVerifier } from "../authentication/clerk-request-veri
 import { createServerAuthorizationBoundary } from "../authentication/server-authorization-boundary";
 import { CatalogReadService } from "../catalog/catalog-read-service";
 import { createSupabaseCatalogReadRepository } from "../catalog/supabase-catalog-read-repository";
+import { CatalogManagementService } from "../catalog/catalog-management-service";
+import { createSupabaseCatalogWriteRepository } from "../catalog/supabase-catalog-write-repository";
+import { StorefrontCatalogService } from "../catalog/storefront-catalog-service";
+import { createSupabaseStorefrontCatalogRepository } from "../catalog/storefront-catalog-repository";
 import {
   readClerkVerifierConfiguration,
   readSupabasePrivilegedConfiguration,
@@ -54,6 +58,18 @@ export function createManagementApiBoundary(
     createSupabaseCatalogReadRepository(supabaseConfiguration),
   );
 
+  // The Phase 2J catalog WRITE surface. It authorizes catalog.author / catalog.publish against the
+  // target product's brand before any privileged database access.
+  const catalogManagementService = new CatalogManagementService(
+    authorizationService,
+    createSupabaseCatalogWriteRepository(supabaseConfiguration),
+  );
+
+  // The public Storefront read surface over the DB-enforced published-only boundary.
+  const storefrontCatalogService = new StorefrontCatalogService(
+    createSupabaseStorefrontCatalogRepository(supabaseConfiguration),
+  );
+
   const inventoryReadService = new InventoryReadService(
     createSupabaseInventoryReadRepository(supabaseConfiguration),
   );
@@ -94,6 +110,8 @@ export function createManagementApiBoundary(
     identityMembershipResolver,
     contextService,
     catalogReadService,
+    catalogManagementService,
+    storefrontCatalogService,
     inventoryReadService,
     inventoryService,
     ordersReadService,

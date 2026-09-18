@@ -9,8 +9,11 @@ function operationOf(pathKey: string): { parameters?: unknown[]; security?: unkn
   const item = paths[pathKey] as {
     get?: { parameters?: unknown[]; security?: unknown[] };
     post?: { parameters?: unknown[]; security?: unknown[] };
+    patch?: { parameters?: unknown[]; security?: unknown[] };
+    put?: { parameters?: unknown[]; security?: unknown[] };
+    delete?: { parameters?: unknown[]; security?: unknown[] };
   };
-  return item.get ?? item.post ?? {};
+  return item.get ?? item.post ?? item.patch ?? item.put ?? item.delete ?? {};
 }
 
 function parametersOf(pathKey: string): Array<{ $ref?: string; name?: string; in?: string }> {
@@ -61,8 +64,45 @@ describe("OpenAPI management surface", () => {
         "/api/v1/pos/offline-sales",
         "/api/v1/products",
         "/api/v1/products/{productId}",
+        "/api/v1/products/{productId}/status",
+        "/api/v1/products/{productId}/publication",
+        "/api/v1/products/{productId}/variants",
+        "/api/v1/products/{productId}/media",
+        "/api/v1/products/{productId}/media/upload-intent",
+        "/api/v1/products/{productId}/media/{mediaId}",
+        "/api/v1/variants/{variantId}/price",
+        "/api/v1/storefront/products",
+        "/api/v1/storefront/products/{slug}",
       ].sort(),
     );
+  });
+
+  it("exposes the public storefront reads without a session or tenant header", () => {
+    for (const publicPath of [
+      "/api/v1/storefront/products",
+      "/api/v1/storefront/products/{slug}",
+    ]) {
+      expect(operationOf(publicPath).security).toBeUndefined();
+      expect(hasTenantHeader(publicPath)).toBe(false);
+      expect(hasIdempotencyHeader(publicPath)).toBe(false);
+    }
+  });
+
+  it("requires idempotency on catalog writes but not on the media upload intent", () => {
+    // Note: /api/v1/products resolves to its GET here (list); its POST idempotency is covered by the
+    // committed OpenAPI drift snapshot.
+    for (const writePath of [
+      "/api/v1/products/{productId}/status",
+      "/api/v1/products/{productId}/publication",
+      "/api/v1/products/{productId}/variants",
+      "/api/v1/products/{productId}/media",
+      "/api/v1/variants/{variantId}/price",
+    ]) {
+      expect(hasIdempotencyHeader(writePath)).toBe(true);
+      expect(hasTenantHeader(writePath)).toBe(true);
+    }
+    expect(hasIdempotencyHeader("/api/v1/products/{productId}/media/upload-intent")).toBe(false);
+    expect(hasTenantHeader("/api/v1/products/{productId}/media/upload-intent")).toBe(true);
   });
 
   it("exposes the inventory writes as POST operations with typed request bodies", () => {

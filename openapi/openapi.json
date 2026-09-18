@@ -5,6 +5,14 @@
     { "name": "me", "description": "Identity bootstrap and permission context." },
     { "name": "catalog", "description": "Read-only product catalog." },
     {
+      "name": "catalog-management",
+      "description": "Authenticated catalog authoring and Storefront publication: products, variants, prices, media, and publish/unpublish."
+    },
+    {
+      "name": "storefront",
+      "description": "Public, unauthenticated Storefront catalog: published products only."
+    },
+    {
       "name": "inventory",
       "description": "Inventory balances (read) and management write operations: receive, adjust, transfer."
     },
@@ -118,6 +126,43 @@
           "404": { "$ref": "#/components/responses/Error404" },
           "500": { "$ref": "#/components/responses/Error500" }
         }
+      },
+      "post": {
+        "operationId": "createProduct",
+        "tags": ["catalog-management"],
+        "summary": "Create a product in a brand.",
+        "description": "Creates a draft product in the target brand. Requires catalog.author over the brand and a required Idempotency-Key header; a replay with the same key and body returns the original product, and the same key with a different body is a 409.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          { "$ref": "#/components/parameters/IdempotencyKeyHeader" }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "The product to create.",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateProductRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The created product identity and lifecycle state.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ProductWriteResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "409": { "$ref": "#/components/responses/Error409" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
       }
     },
     "/api/v1/products/{productId}": {
@@ -147,6 +192,478 @@
           "400": { "$ref": "#/components/responses/Error400" },
           "401": { "$ref": "#/components/responses/Error401" },
           "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      },
+      "patch": {
+        "operationId": "updateProduct",
+        "tags": ["catalog-management"],
+        "summary": "Update a product's editable fields.",
+        "description": "Replaces the product's name, slug, style code, and description. Requires catalog.author over the product's brand and a required Idempotency-Key header.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          { "$ref": "#/components/parameters/IdempotencyKeyHeader" },
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "The updated product fields.",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateProductRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated product identity.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ProductUpdatedResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "409": { "$ref": "#/components/responses/Error409" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/v1/products/{productId}/status": {
+      "post": {
+        "operationId": "setProductStatus",
+        "tags": ["catalog-management"],
+        "summary": "Change a product's internal lifecycle status.",
+        "description": "Activates, deactivates (active to draft), or archives a product. A published product cannot be deactivated (unpublish first); archiving force-unpublishes. Requires catalog.author over the product's brand and a required Idempotency-Key header.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          { "$ref": "#/components/parameters/IdempotencyKeyHeader" },
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "The target lifecycle status.",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SetProductStatusRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The product's new lifecycle and publication state.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ProductWriteResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "409": { "$ref": "#/components/responses/Error409" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/v1/products/{productId}/publication": {
+      "post": {
+        "operationId": "publishProduct",
+        "tags": ["catalog-management"],
+        "summary": "Publish a product to the Storefront.",
+        "description": "Publishes an active product that has at least one active, priced variant. Requires the distinct catalog.publish permission over the product's brand and a required Idempotency-Key header. A structurally unsellable product is a 422.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          { "$ref": "#/components/parameters/IdempotencyKeyHeader" },
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "An empty object.",
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/EmptyRequest" } }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The product's published state.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PublishProductResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "409": { "$ref": "#/components/responses/Error409" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      },
+      "delete": {
+        "operationId": "unpublishProduct",
+        "tags": ["catalog-management"],
+        "summary": "Unpublish a product from the Storefront.",
+        "description": "Removes a product from the public Storefront while leaving its canonical catalog state intact. Requires catalog.publish over the product's brand and a required Idempotency-Key header.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          { "$ref": "#/components/parameters/IdempotencyKeyHeader" },
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "An empty object.",
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/EmptyRequest" } }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The product's unpublished state.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/UnpublishProductResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "409": { "$ref": "#/components/responses/Error409" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/v1/products/{productId}/variants": {
+      "post": {
+        "operationId": "createVariant",
+        "tags": ["catalog-management"],
+        "summary": "Create a variant under a product.",
+        "description": "Creates an active variant with a unique SKU. Requires catalog.author over the product's brand and a required Idempotency-Key header; a duplicate SKU is a 409.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          { "$ref": "#/components/parameters/IdempotencyKeyHeader" },
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "The variant to create.",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateVariantRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The created variant identity.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/CreateVariantResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "409": { "$ref": "#/components/responses/Error409" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/v1/variants/{variantId}/price": {
+      "put": {
+        "operationId": "setVariantPrice",
+        "tags": ["catalog-management"],
+        "summary": "Set a variant's active base price for a currency.",
+        "description": "Writes a new active price in minor units and archives the prior active price for that currency (history retained). Requires catalog.author over the variant's brand and a required Idempotency-Key header.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          { "$ref": "#/components/parameters/IdempotencyKeyHeader" },
+          {
+            "name": "variantId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "The currency and minor-unit amount.",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SetVariantPriceRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The new active price.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SetVariantPriceResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "409": { "$ref": "#/components/responses/Error409" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/v1/products/{productId}/media/upload-intent": {
+      "post": {
+        "operationId": "createProductMediaUploadIntent",
+        "tags": ["catalog-management"],
+        "summary": "Authorize a product media upload and get a server-controlled destination.",
+        "description": "Returns a tenant/product-scoped storage bucket and path (and a signed upload URL when object storage is reachable). The client can never choose an arbitrary destination. Requires catalog.author over the product's brand. This is not a durable mutation and requires no Idempotency-Key.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "The intended content type and optional variant/file name.",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateMediaUploadIntentRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The authorized upload destination.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/MediaUploadIntentResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/v1/products/{productId}/media": {
+      "post": {
+        "operationId": "registerProductMedia",
+        "tags": ["catalog-management"],
+        "summary": "Register a product media reference.",
+        "description": "Records an object-storage reference (never a binary) for a product, optionally scoped to a variant, optionally marked primary. Requires catalog.author over the product's brand and a required Idempotency-Key header.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          { "$ref": "#/components/parameters/IdempotencyKeyHeader" },
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "The media reference to register.",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/RegisterProductMediaRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The registered media identity.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/RegisterProductMediaResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "409": { "$ref": "#/components/responses/Error409" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/v1/products/{productId}/media/{mediaId}": {
+      "delete": {
+        "operationId": "archiveProductMedia",
+        "tags": ["catalog-management"],
+        "summary": "Archive a product media reference.",
+        "description": "Soft-archives a media reference (never a hard delete). Requires catalog.author over the media's brand and a required Idempotency-Key header.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          { "$ref": "#/components/parameters/IdempotencyKeyHeader" },
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          },
+          {
+            "name": "mediaId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "An empty object.",
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/EmptyRequest" } }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The archived media identity.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ArchiveProductMediaResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "409": { "$ref": "#/components/responses/Error409" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/v1/storefront/products": {
+      "get": {
+        "operationId": "listPublishedProducts",
+        "tags": ["storefront"],
+        "summary": "List published products for a storefront tenant.",
+        "description": "Public, unauthenticated. Returns only published, publicly sellable products for the given tenant (optionally narrowed to a brand). No internal lifecycle, cost, exact stock, or unpublished data is ever returned.",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "query",
+            "required": true,
+            "description": "The tenant the storefront serves.",
+            "schema": { "type": "string", "format": "uuid" }
+          },
+          {
+            "name": "brandId",
+            "in": "query",
+            "required": false,
+            "description": "Restrict to a single in-tenant brand.",
+            "schema": { "type": "string", "format": "uuid" }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum products (1-200, default 50).",
+            "schema": { "type": "integer", "minimum": 1, "maximum": 200, "default": 50 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A list of published products.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PublicProductListResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/v1/storefront/products/{slug}": {
+      "get": {
+        "operationId": "getPublishedProduct",
+        "tags": ["storefront"],
+        "summary": "Read a single published product by slug.",
+        "description": "Public, unauthenticated. Returns the published product for the given tenant and slug, or 404 if it is missing or unpublished.",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "query",
+            "required": true,
+            "description": "The tenant the storefront serves.",
+            "schema": { "type": "string", "format": "uuid" }
+          },
+          { "name": "slug", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "The published product detail.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PublicProductDetailResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
           "404": { "$ref": "#/components/responses/Error404" },
           "500": { "$ref": "#/components/responses/Error500" }
         }
@@ -1408,6 +1925,494 @@
           }
         },
         "required": ["operationId", "variantId", "source", "destination"],
+        "additionalProperties": false
+      },
+      "EmptyRequest": { "type": "object", "additionalProperties": false },
+      "CreateProductRequest": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "brandId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "name": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "slug": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "pattern": "^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$"
+          },
+          "styleCode": { "type": "string", "minLength": 1, "maxLength": 100 },
+          "description": { "type": "string", "minLength": 1, "maxLength": 5000 }
+        },
+        "required": ["brandId", "name", "slug"],
+        "additionalProperties": false
+      },
+      "UpdateProductRequest": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "slug": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "pattern": "^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$"
+          },
+          "styleCode": { "type": "string", "minLength": 1, "maxLength": 100 },
+          "description": { "type": "string", "minLength": 1, "maxLength": 5000 }
+        },
+        "required": ["name", "slug"],
+        "additionalProperties": false
+      },
+      "SetProductStatusRequest": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "status": { "type": "string", "enum": ["draft", "active", "archived"] },
+          "archiveReason": { "type": "string", "minLength": 1, "maxLength": 500 }
+        },
+        "required": ["status"],
+        "additionalProperties": false
+      },
+      "ProductWriteResponse": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "productId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "status": { "type": "string", "enum": ["draft", "active", "archived"] },
+          "storefrontStatus": { "type": "string", "enum": ["unpublished", "published"] }
+        },
+        "required": ["productId", "status", "storefrontStatus"],
+        "additionalProperties": false
+      },
+      "ProductUpdatedResponse": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "productId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          }
+        },
+        "required": ["productId"],
+        "additionalProperties": false
+      },
+      "PublishProductResponse": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "productId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "storefrontStatus": { "type": "string", "enum": ["unpublished", "published"] },
+          "publishedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+              },
+              { "type": "null" }
+            ]
+          }
+        },
+        "required": ["productId", "storefrontStatus", "publishedAt"],
+        "additionalProperties": false
+      },
+      "UnpublishProductResponse": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "productId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "storefrontStatus": { "type": "string", "enum": ["unpublished", "published"] }
+        },
+        "required": ["productId", "storefrontStatus"],
+        "additionalProperties": false
+      },
+      "CreateVariantRequest": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "sku": { "type": "string", "minLength": 1, "maxLength": 100 },
+          "displayName": { "type": "string", "minLength": 1, "maxLength": 200 }
+        },
+        "required": ["sku"],
+        "additionalProperties": false
+      },
+      "CreateVariantResponse": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "variantId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "status": { "type": "string", "enum": ["draft", "active", "archived"] }
+        },
+        "required": ["variantId", "status"],
+        "additionalProperties": false
+      },
+      "SetVariantPriceRequest": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "currency": { "type": "string", "pattern": "^[A-Z]{3}$" },
+          "amountMinor": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+        },
+        "required": ["currency", "amountMinor"],
+        "additionalProperties": false
+      },
+      "SetVariantPriceResponse": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "priceId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "currency": { "type": "string", "pattern": "^[A-Z]{3}$" },
+          "amountMinor": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+        },
+        "required": ["priceId", "currency", "amountMinor"],
+        "additionalProperties": false
+      },
+      "CreateMediaUploadIntentRequest": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "variantId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "contentType": {
+            "type": "string",
+            "enum": ["image/jpeg", "image/png", "image/webp", "image/avif"]
+          },
+          "fileName": { "type": "string", "minLength": 1, "maxLength": 200 }
+        },
+        "required": ["contentType"],
+        "additionalProperties": false
+      },
+      "MediaUploadIntentResponse": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "bucket": { "type": "string" },
+          "path": { "type": "string" },
+          "contentType": {
+            "type": "string",
+            "enum": ["image/jpeg", "image/png", "image/webp", "image/avif"]
+          },
+          "uploadUrl": { "anyOf": [{ "type": "string", "format": "uri" }, { "type": "null" }] },
+          "expiresAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+              },
+              { "type": "null" }
+            ]
+          }
+        },
+        "required": ["bucket", "path", "contentType", "uploadUrl", "expiresAt"],
+        "additionalProperties": false
+      },
+      "RegisterProductMediaRequest": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "variantId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "bucket": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "path": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "altText": { "type": "string", "minLength": 1, "maxLength": 300 },
+          "position": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+          "isPrimary": { "type": "boolean" }
+        },
+        "required": ["bucket", "path"],
+        "additionalProperties": false
+      },
+      "RegisterProductMediaResponse": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "mediaId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "isPrimary": { "type": "boolean" }
+        },
+        "required": ["mediaId", "isPrimary"],
+        "additionalProperties": false
+      },
+      "ArchiveProductMediaResponse": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "mediaId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          }
+        },
+        "required": ["mediaId"],
+        "additionalProperties": false
+      },
+      "PublicProductListResponse": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "products": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "brandId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "slug": { "type": "string" },
+                "name": { "type": "string" },
+                "description": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                "publishedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "media": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      },
+                      "variantId": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          { "type": "null" }
+                        ]
+                      },
+                      "bucket": { "type": "string" },
+                      "path": { "type": "string" },
+                      "altText": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                      "position": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+                      "isPrimary": { "type": "boolean" }
+                    },
+                    "required": [
+                      "id",
+                      "variantId",
+                      "bucket",
+                      "path",
+                      "altText",
+                      "position",
+                      "isPrimary"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "variants": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      },
+                      "sku": { "type": "string" },
+                      "displayName": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                      "optionSignature": { "type": "string" },
+                      "prices": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "currency": { "type": "string", "pattern": "^[A-Z]{3}$" },
+                            "amountMinor": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": ["currency", "amountMinor"],
+                          "additionalProperties": false
+                        }
+                      },
+                      "inStock": { "type": "boolean" }
+                    },
+                    "required": [
+                      "id",
+                      "sku",
+                      "displayName",
+                      "optionSignature",
+                      "prices",
+                      "inStock"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "id",
+                "brandId",
+                "slug",
+                "name",
+                "description",
+                "publishedAt",
+                "media",
+                "variants"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["products"],
+        "additionalProperties": false
+      },
+      "PublicProductDetailResponse": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "brandId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "slug": { "type": "string" },
+          "name": { "type": "string" },
+          "description": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+          "publishedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+              },
+              { "type": "null" }
+            ]
+          },
+          "media": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "variantId": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "bucket": { "type": "string" },
+                "path": { "type": "string" },
+                "altText": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                "position": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+                "isPrimary": { "type": "boolean" }
+              },
+              "required": ["id", "variantId", "bucket", "path", "altText", "position", "isPrimary"],
+              "additionalProperties": false
+            }
+          },
+          "variants": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "sku": { "type": "string" },
+                "displayName": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                "optionSignature": { "type": "string" },
+                "prices": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "currency": { "type": "string", "pattern": "^[A-Z]{3}$" },
+                      "amountMinor": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "required": ["currency", "amountMinor"],
+                    "additionalProperties": false
+                  }
+                },
+                "inStock": { "type": "boolean" }
+              },
+              "required": ["id", "sku", "displayName", "optionSignature", "prices", "inStock"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "id",
+          "brandId",
+          "slug",
+          "name",
+          "description",
+          "publishedAt",
+          "media",
+          "variants"
+        ],
         "additionalProperties": false
       },
       "OrderSummary": {

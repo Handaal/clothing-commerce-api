@@ -32,6 +32,24 @@ import {
   ReceiveInventoryResponseSchema,
   TransferInventoryRequestSchema,
   TransferInventoryResponseSchema,
+  CreateProductRequestSchema,
+  UpdateProductRequestSchema,
+  SetProductStatusRequestSchema,
+  ProductWriteResponseSchema,
+  ProductUpdatedResponseSchema,
+  PublishProductResponseSchema,
+  UnpublishProductResponseSchema,
+  CreateVariantRequestSchema,
+  CreateVariantResponseSchema,
+  SetVariantPriceRequestSchema,
+  SetVariantPriceResponseSchema,
+  CreateMediaUploadIntentRequestSchema,
+  MediaUploadIntentResponseSchema,
+  RegisterProductMediaRequestSchema,
+  RegisterProductMediaResponseSchema,
+  ArchiveProductMediaResponseSchema,
+  PublicProductListResponseSchema,
+  PublicProductDetailResponseSchema,
 } from "../contracts";
 
 function jsonSchema(schema: z.ZodTypeAny) {
@@ -107,6 +125,16 @@ export function generateOpenApiDocument() {
     tags: [
       { name: "me", description: "Identity bootstrap and permission context." },
       { name: "catalog", description: "Read-only product catalog." },
+      {
+        name: "catalog-management",
+        description:
+          "Authenticated catalog authoring and Storefront publication: products, variants, prices, " +
+          "media, and publish/unpublish.",
+      },
+      {
+        name: "storefront",
+        description: "Public, unauthenticated Storefront catalog: published products only.",
+      },
       {
         name: "inventory",
         description:
@@ -192,6 +220,28 @@ export function generateOpenApiDocument() {
             ...errorResponses(400, 401, 403, 404, 500),
           },
         },
+        post: {
+          operationId: "createProduct",
+          tags: ["catalog-management"],
+          summary: "Create a product in a brand.",
+          description:
+            "Creates a draft product in the target brand. Requires catalog.author over the brand and a " +
+            "required Idempotency-Key header; a replay with the same key and body returns the original " +
+            "product, and the same key with a different body is a 409.",
+          security: clerkSecurity,
+          parameters: [tenantHeaderParameter, idempotencyKeyHeaderParameter],
+          requestBody: jsonRequestBody(
+            "The product to create.",
+            "#/components/schemas/CreateProductRequest",
+          ),
+          responses: {
+            "200": jsonResponse(
+              "The created product identity and lifecycle state.",
+              "#/components/schemas/ProductWriteResponse",
+            ),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
       },
       "/api/v1/products/{productId}": {
         get: {
@@ -214,6 +264,355 @@ export function generateOpenApiDocument() {
               "#/components/schemas/ProductDetailResponse",
             ),
             ...errorResponses(400, 401, 403, 404, 500),
+          },
+        },
+        patch: {
+          operationId: "updateProduct",
+          tags: ["catalog-management"],
+          summary: "Update a product's editable fields.",
+          description:
+            "Replaces the product's name, slug, style code, and description. Requires catalog.author " +
+            "over the product's brand and a required Idempotency-Key header.",
+          security: clerkSecurity,
+          parameters: [
+            tenantHeaderParameter,
+            idempotencyKeyHeaderParameter,
+            {
+              name: "productId",
+              in: "path",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+          ],
+          requestBody: jsonRequestBody(
+            "The updated product fields.",
+            "#/components/schemas/UpdateProductRequest",
+          ),
+          responses: {
+            "200": jsonResponse(
+              "The updated product identity.",
+              "#/components/schemas/ProductUpdatedResponse",
+            ),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
+      "/api/v1/products/{productId}/status": {
+        post: {
+          operationId: "setProductStatus",
+          tags: ["catalog-management"],
+          summary: "Change a product's internal lifecycle status.",
+          description:
+            "Activates, deactivates (active to draft), or archives a product. A published product " +
+            "cannot be deactivated (unpublish first); archiving force-unpublishes. Requires " +
+            "catalog.author over the product's brand and a required Idempotency-Key header.",
+          security: clerkSecurity,
+          parameters: [
+            tenantHeaderParameter,
+            idempotencyKeyHeaderParameter,
+            {
+              name: "productId",
+              in: "path",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+          ],
+          requestBody: jsonRequestBody(
+            "The target lifecycle status.",
+            "#/components/schemas/SetProductStatusRequest",
+          ),
+          responses: {
+            "200": jsonResponse(
+              "The product's new lifecycle and publication state.",
+              "#/components/schemas/ProductWriteResponse",
+            ),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
+      "/api/v1/products/{productId}/publication": {
+        post: {
+          operationId: "publishProduct",
+          tags: ["catalog-management"],
+          summary: "Publish a product to the Storefront.",
+          description:
+            "Publishes an active product that has at least one active, priced variant. Requires the " +
+            "distinct catalog.publish permission over the product's brand and a required " +
+            "Idempotency-Key header. A structurally unsellable product is a 422.",
+          security: clerkSecurity,
+          parameters: [
+            tenantHeaderParameter,
+            idempotencyKeyHeaderParameter,
+            {
+              name: "productId",
+              in: "path",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+          ],
+          requestBody: jsonRequestBody("An empty object.", "#/components/schemas/EmptyRequest"),
+          responses: {
+            "200": jsonResponse(
+              "The product's published state.",
+              "#/components/schemas/PublishProductResponse",
+            ),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+        delete: {
+          operationId: "unpublishProduct",
+          tags: ["catalog-management"],
+          summary: "Unpublish a product from the Storefront.",
+          description:
+            "Removes a product from the public Storefront while leaving its canonical catalog state " +
+            "intact. Requires catalog.publish over the product's brand and a required Idempotency-Key " +
+            "header.",
+          security: clerkSecurity,
+          parameters: [
+            tenantHeaderParameter,
+            idempotencyKeyHeaderParameter,
+            {
+              name: "productId",
+              in: "path",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+          ],
+          requestBody: jsonRequestBody("An empty object.", "#/components/schemas/EmptyRequest"),
+          responses: {
+            "200": jsonResponse(
+              "The product's unpublished state.",
+              "#/components/schemas/UnpublishProductResponse",
+            ),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
+      "/api/v1/products/{productId}/variants": {
+        post: {
+          operationId: "createVariant",
+          tags: ["catalog-management"],
+          summary: "Create a variant under a product.",
+          description:
+            "Creates an active variant with a unique SKU. Requires catalog.author over the product's " +
+            "brand and a required Idempotency-Key header; a duplicate SKU is a 409.",
+          security: clerkSecurity,
+          parameters: [
+            tenantHeaderParameter,
+            idempotencyKeyHeaderParameter,
+            {
+              name: "productId",
+              in: "path",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+          ],
+          requestBody: jsonRequestBody(
+            "The variant to create.",
+            "#/components/schemas/CreateVariantRequest",
+          ),
+          responses: {
+            "200": jsonResponse(
+              "The created variant identity.",
+              "#/components/schemas/CreateVariantResponse",
+            ),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
+      "/api/v1/variants/{variantId}/price": {
+        put: {
+          operationId: "setVariantPrice",
+          tags: ["catalog-management"],
+          summary: "Set a variant's active base price for a currency.",
+          description:
+            "Writes a new active price in minor units and archives the prior active price for that " +
+            "currency (history retained). Requires catalog.author over the variant's brand and a " +
+            "required Idempotency-Key header.",
+          security: clerkSecurity,
+          parameters: [
+            tenantHeaderParameter,
+            idempotencyKeyHeaderParameter,
+            {
+              name: "variantId",
+              in: "path",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+          ],
+          requestBody: jsonRequestBody(
+            "The currency and minor-unit amount.",
+            "#/components/schemas/SetVariantPriceRequest",
+          ),
+          responses: {
+            "200": jsonResponse(
+              "The new active price.",
+              "#/components/schemas/SetVariantPriceResponse",
+            ),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
+      "/api/v1/products/{productId}/media/upload-intent": {
+        post: {
+          operationId: "createProductMediaUploadIntent",
+          tags: ["catalog-management"],
+          summary: "Authorize a product media upload and get a server-controlled destination.",
+          description:
+            "Returns a tenant/product-scoped storage bucket and path (and a signed upload URL when " +
+            "object storage is reachable). The client can never choose an arbitrary destination. " +
+            "Requires catalog.author over the product's brand. This is not a durable mutation and " +
+            "requires no Idempotency-Key.",
+          security: clerkSecurity,
+          parameters: [
+            tenantHeaderParameter,
+            {
+              name: "productId",
+              in: "path",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+          ],
+          requestBody: jsonRequestBody(
+            "The intended content type and optional variant/file name.",
+            "#/components/schemas/CreateMediaUploadIntentRequest",
+          ),
+          responses: {
+            "200": jsonResponse(
+              "The authorized upload destination.",
+              "#/components/schemas/MediaUploadIntentResponse",
+            ),
+            ...errorResponses(400, 401, 403, 404, 500),
+          },
+        },
+      },
+      "/api/v1/products/{productId}/media": {
+        post: {
+          operationId: "registerProductMedia",
+          tags: ["catalog-management"],
+          summary: "Register a product media reference.",
+          description:
+            "Records an object-storage reference (never a binary) for a product, optionally scoped to " +
+            "a variant, optionally marked primary. Requires catalog.author over the product's brand " +
+            "and a required Idempotency-Key header.",
+          security: clerkSecurity,
+          parameters: [
+            tenantHeaderParameter,
+            idempotencyKeyHeaderParameter,
+            {
+              name: "productId",
+              in: "path",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+          ],
+          requestBody: jsonRequestBody(
+            "The media reference to register.",
+            "#/components/schemas/RegisterProductMediaRequest",
+          ),
+          responses: {
+            "200": jsonResponse(
+              "The registered media identity.",
+              "#/components/schemas/RegisterProductMediaResponse",
+            ),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
+      "/api/v1/products/{productId}/media/{mediaId}": {
+        delete: {
+          operationId: "archiveProductMedia",
+          tags: ["catalog-management"],
+          summary: "Archive a product media reference.",
+          description:
+            "Soft-archives a media reference (never a hard delete). Requires catalog.author over the " +
+            "media's brand and a required Idempotency-Key header.",
+          security: clerkSecurity,
+          parameters: [
+            tenantHeaderParameter,
+            idempotencyKeyHeaderParameter,
+            {
+              name: "productId",
+              in: "path",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+            {
+              name: "mediaId",
+              in: "path",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+          ],
+          requestBody: jsonRequestBody("An empty object.", "#/components/schemas/EmptyRequest"),
+          responses: {
+            "200": jsonResponse(
+              "The archived media identity.",
+              "#/components/schemas/ArchiveProductMediaResponse",
+            ),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
+      "/api/v1/storefront/products": {
+        get: {
+          operationId: "listPublishedProducts",
+          tags: ["storefront"],
+          summary: "List published products for a storefront tenant.",
+          description:
+            "Public, unauthenticated. Returns only published, publicly sellable products for the " +
+            "given tenant (optionally narrowed to a brand). No internal lifecycle, cost, exact stock, " +
+            "or unpublished data is ever returned.",
+          parameters: [
+            {
+              name: "tenantId",
+              in: "query",
+              required: true,
+              description: "The tenant the storefront serves.",
+              schema: { type: "string", format: "uuid" },
+            },
+            uuidQueryParameter("brandId", "Restrict to a single in-tenant brand."),
+            {
+              name: "limit",
+              in: "query",
+              required: false,
+              description: "Maximum products (1-200, default 50).",
+              schema: { type: "integer", minimum: 1, maximum: 200, default: 50 },
+            },
+          ],
+          responses: {
+            "200": jsonResponse(
+              "A list of published products.",
+              "#/components/schemas/PublicProductListResponse",
+            ),
+            ...errorResponses(400, 500),
+          },
+        },
+      },
+      "/api/v1/storefront/products/{slug}": {
+        get: {
+          operationId: "getPublishedProduct",
+          tags: ["storefront"],
+          summary: "Read a single published product by slug.",
+          description:
+            "Public, unauthenticated. Returns the published product for the given tenant and slug, or " +
+            "404 if it is missing or unpublished.",
+          parameters: [
+            {
+              name: "tenantId",
+              in: "query",
+              required: true,
+              description: "The tenant the storefront serves.",
+              schema: { type: "string", format: "uuid" },
+            },
+            { name: "slug", in: "path", required: true, schema: { type: "string" } },
+          ],
+          responses: {
+            "200": jsonResponse(
+              "The published product detail.",
+              "#/components/schemas/PublicProductDetailResponse",
+            ),
+            ...errorResponses(400, 404, 500),
           },
         },
       },
@@ -599,6 +998,25 @@ export function generateOpenApiDocument() {
         AdjustInventoryResponse: jsonSchema(AdjustInventoryResponseSchema),
         TransferInventoryRequest: jsonSchema(TransferInventoryRequestSchema),
         TransferInventoryResponse: jsonSchema(TransferInventoryResponseSchema),
+        EmptyRequest: { type: "object", additionalProperties: false },
+        CreateProductRequest: jsonSchema(CreateProductRequestSchema),
+        UpdateProductRequest: jsonSchema(UpdateProductRequestSchema),
+        SetProductStatusRequest: jsonSchema(SetProductStatusRequestSchema),
+        ProductWriteResponse: jsonSchema(ProductWriteResponseSchema),
+        ProductUpdatedResponse: jsonSchema(ProductUpdatedResponseSchema),
+        PublishProductResponse: jsonSchema(PublishProductResponseSchema),
+        UnpublishProductResponse: jsonSchema(UnpublishProductResponseSchema),
+        CreateVariantRequest: jsonSchema(CreateVariantRequestSchema),
+        CreateVariantResponse: jsonSchema(CreateVariantResponseSchema),
+        SetVariantPriceRequest: jsonSchema(SetVariantPriceRequestSchema),
+        SetVariantPriceResponse: jsonSchema(SetVariantPriceResponseSchema),
+        CreateMediaUploadIntentRequest: jsonSchema(CreateMediaUploadIntentRequestSchema),
+        MediaUploadIntentResponse: jsonSchema(MediaUploadIntentResponseSchema),
+        RegisterProductMediaRequest: jsonSchema(RegisterProductMediaRequestSchema),
+        RegisterProductMediaResponse: jsonSchema(RegisterProductMediaResponseSchema),
+        ArchiveProductMediaResponse: jsonSchema(ArchiveProductMediaResponseSchema),
+        PublicProductListResponse: jsonSchema(PublicProductListResponseSchema),
+        PublicProductDetailResponse: jsonSchema(PublicProductDetailResponseSchema),
         OrderSummary: jsonSchema(OrderSummarySchema),
         OrderListResponse: jsonSchema(OrderListResponseSchema),
         OrderDetailResponse: jsonSchema(OrderDetailResponseSchema),

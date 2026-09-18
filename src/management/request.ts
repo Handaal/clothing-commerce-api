@@ -36,6 +36,20 @@ export const OrderListQuerySchema = z.object({
 
 export const ProductPathSchema = z.object({ productId: z.string().uuid() });
 export const OrderPathSchema = z.object({ orderId: z.string().uuid() });
+export const VariantPathSchema = z.object({ variantId: z.string().uuid() });
+export const MediaPathSchema = z.object({ mediaId: z.string().uuid() });
+export const StorefrontProductSlugPathSchema = z.object({ slug: z.string().min(1).max(200) });
+
+// Public Storefront read query. The tenant the storefront serves is an explicit parameter (published
+// catalog is public data); brand is an optional narrowing. limit is bounded to [1, 200].
+export const StorefrontListQuerySchema = z.object({
+  tenantId: z.string().uuid(),
+  brandId: z.string().uuid().optional(),
+  limit: z.coerce.number().int().min(1).max(200).optional().default(50),
+});
+export const StorefrontContextQuerySchema = z.object({
+  tenantId: z.string().uuid(),
+});
 
 /**
  * Reads exactly the known keys from a URL query string, mapping absent or empty values to undefined so

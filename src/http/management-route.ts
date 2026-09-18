@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { AuthorizationContext } from "../authorization";
 import { AuthorizationError } from "../authorization/errors";
 import type { AuthorizationContextResolver } from "../authorization/context-resolver";
+import { CatalogError } from "../catalog/catalog-errors";
 import type { ApiError, ApiErrorDetail } from "../contracts";
 import { FulfillmentError } from "../fulfillments/errors";
 import { InventoryError } from "../inventory/errors";
@@ -173,7 +174,8 @@ function mapError(error: unknown, requestId: string, request?: Request): Respons
     error instanceof FulfillmentError ||
     error instanceof InventoryError ||
     error instanceof PosSaleError ||
-    error instanceof OfflinePosError
+    error instanceof OfflinePosError ||
+    error instanceof CatalogError
   ) {
     const details =
       error instanceof PosSaleError &&
@@ -276,6 +278,43 @@ export async function runTenantManagementWriteRoute<TBody, TResult>(options: {
     });
     const body = await parseJsonBody(options.request, options.requestSchema);
     const value = await options.handler({ context, body, idempotencyKey, requestId });
+    return jsonResponse(
+      200,
+      validateResponse(options.responseSchema, value),
+      requestId,
+      options.request,
+    );
+  } catch (error) {
+    return mapError(error, requestId, options.request);
+  }
+}
+
+/**
+ * Runs a tenant-scoped management route that parses a JSON body but is NOT an idempotent mutation (for
+ * example minting an upload intent): it requires and validates X-Tenant-Id, resolves the full
+ * AuthorizationContext, parses/validates the body, and validates the response. No Idempotency-Key is
+ * required because the operation performs no durable state change of its own.
+ */
+export async function runTenantManagementBodyRoute<TBody, TResult>(options: {
+  readonly request: Request;
+  readonly contextResolver: AuthorizationContextResolver;
+  readonly requestSchema: z.ZodType<TBody>;
+  readonly responseSchema: z.ZodType<TResult>;
+  readonly handler: (input: {
+    readonly context: AuthorizationContext;
+    readonly body: TBody;
+    readonly requestId: string;
+  }) => Promise<TResult>;
+}): Promise<Response> {
+  const requestId = crypto.randomUUID();
+  try {
+    const requestedTenantId = requireTenantId(options.request);
+    const context = await options.contextResolver.resolve({
+      request: options.request,
+      requestedTenantId,
+    });
+    const body = await parseJsonBody(options.request, options.requestSchema);
+    const value = await options.handler({ context, body, requestId });
     return jsonResponse(
       200,
       validateResponse(options.responseSchema, value),
