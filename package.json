@@ -24,7 +24,7 @@
     "supabase:start": "supabase start --exclude gotrue,realtime,storage-api,imgproxy,kong,mailpit,postgrest,postgres-meta,studio,edge-runtime,logflare,vector,supavisor",
     "supabase:status": "supabase status",
     "supabase:stop": "supabase stop --no-backup",
-    "test": "vitest run --exclude tests/authorization/** --exclude tests/authorization-integration/** --exclude tests/inventory-integration/** --exclude tests/inventory-write-integration/** --exclude tests/orders-integration/** --exclude tests/fulfillments-integration/** --exclude tests/api-integration/** --exclude tests/pos-sale-integration/** --exclude tests/offline-pos-integration/** --exclude tests/catalog-management-integration/** --exclude tests/dev-provisioning-integration/** --exclude tests/dev-commerce-fixture-integration/**",
+    "test": "vitest run --exclude tests/authorization/** --exclude tests/authorization-integration/** --exclude tests/inventory-integration/** --exclude tests/inventory-write-integration/** --exclude tests/orders-integration/** --exclude tests/fulfillments-integration/** --exclude tests/api-integration/** --exclude tests/pos-sale-integration/** --exclude tests/offline-pos-integration/** --exclude tests/catalog-management-integration/** --exclude tests/dev-provisioning-integration/** --exclude tests/dev-commerce-fixture-integration/** --exclude tests/online-commerce-integration/**",
     "test:api:contracts": "vitest run --dir tests/contracts",
     "test:api:integration": "node scripts/test-api-integration.mjs",
     "test:inventory:write:integration": "node scripts/test-inventory-write-integration.mjs",
@@ -61,7 +61,10 @@
     "test:pos:offline:rls": "node scripts/test-offline-pos-rls.mjs",
     "test:persistence": "node scripts/test-persistence.mjs",
     "test:rls": "node scripts/test-rls.mjs",
-    "typecheck": "tsc --noEmit && pnpm --filter @shifted/clothing-commerce-sdk typecheck"
+    "typecheck": "tsc --noEmit && pnpm --filter @shifted/clothing-commerce-sdk typecheck",
+    "test:online:integration": "node scripts/test-online-commerce.mjs",
+    "test:online:persistence": "node scripts/test-online-persistence.mjs",
+    "test:online:rls": "node scripts/test-online-rls.mjs"
   },
   "dependencies": {
     "@clerk/backend": "3.16.8",

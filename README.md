@@ -24,6 +24,10 @@ customer surface. See [Management API](docs/api/management-api.md),
 [ADR-034](docs/decisions/ADR-034-management-api-external-boundary.md)–
 [ADR-036](docs/decisions/ADR-036-sdk-distribution-and-consumption.md).
 
+Phase 2L adds [online commerce checkout](docs/orders/online-commerce-core.md): guest Customer/address,
+canonical online Orders, transactional stock reservations, pending COD Payment behind explicit server
+enablement, management detail and SDK `0.7.0`. Electronic providers remain unselected.
+
 ## Boundaries and ownership
 
 This repository is the future owner of authentication integration, authorization, tenancy,

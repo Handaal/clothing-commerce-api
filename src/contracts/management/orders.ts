@@ -1,3 +1,4 @@
+import { OrderCommerceDetailsSchema } from "../storefront/checkout";
 import { z } from "zod";
 
 import {
@@ -75,6 +76,7 @@ export const FulfillmentProgressSchema = z.object({
 });
 
 export const OrderDetailResponseSchema = z.object({
+  commerce: OrderCommerceDetailsSchema.optional(),
   header: OrderSummarySchema,
   lines: z.array(OrderDetailLineSchema),
   cancellation: OrderCancellationSchema.nullable(),

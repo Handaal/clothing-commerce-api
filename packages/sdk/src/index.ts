@@ -1,4 +1,14 @@
 import {
+  CheckoutResultSchema,
+  type CheckoutRequest,
+  type CheckoutResult,
+} from "../../../src/contracts/storefront/checkout";
+export type {
+  CheckoutRequest,
+  CheckoutResult,
+  OrderCommerceDetails,
+} from "../../../src/contracts/storefront/checkout";
+import {
   AdjustInventoryResponseSchema,
   ApiErrorSchema,
   HealthResponseSchema,
@@ -260,6 +270,7 @@ export interface TenantCommerceClient {
 }
 
 export interface CommerceClient {
+  checkout(input: CheckoutRequest & { idempotencyKey: string }): Promise<CheckoutResult>;
   getHealth(): Promise<HealthResponse>;
   /** Identity bootstrap: the caller's own selectable tenants (no tenant context required). */
   getMyTenants(): Promise<MeTenantsResponse>;
@@ -589,6 +600,12 @@ export function createCommerceClient({
   }
 
   return {
+    checkout: ({ idempotencyKey, ...intent }) =>
+      request("/api/v1/storefront/checkout", CheckoutResultSchema, {
+        method: "POST",
+        body: intent,
+        idempotencyKey,
+      }),
     getHealth: () => request("/api/v1/health", HealthResponseSchema),
     getMyTenants: () => request("/api/v1/me/tenants", MeTenantsResponseSchema),
     withTenant,

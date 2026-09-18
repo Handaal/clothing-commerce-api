@@ -1,3 +1,4 @@
+import { CheckoutError } from "../checkout/checkout-service";
 import { z } from "zod";
 
 import { CatalogError } from "../catalog/catalog-errors";
@@ -6,10 +7,10 @@ import { corsHeaders } from "./cors";
 import { RequestValidationError } from "./management-route";
 
 /**
- * The public Storefront read boundary runner. Unlike the management runners it requires NO session and
+ * The public Storefront boundary runner (catalog reads and transactional checkout). Unlike the management runners it requires NO session and
  * NO X-Tenant-Id header: the Storefront is an unauthenticated public consumer. The tenant/brand it
- * serves is supplied as explicit request parameters, and the underlying `catalog_public` functions are
- * published-only by construction, so no unpublished or internal data can be returned. Handlers contain
+ * serves is supplied as explicit request context. Catalog and checkout repositories enforce their
+ * respective published-data and configured commercial boundaries in the database. Handlers contain
  * no try/catch and no header wiring.
  */
 function jsonResponse(
@@ -49,6 +50,31 @@ function mapError(error: unknown, requestId: string, request: Request): Response
       request,
     );
   }
+  if (error instanceof CheckoutError) {
+    return jsonResponse(
+      error.httpStatus,
+      {
+        error: {
+          code: error.code,
+          message: error.message,
+          requestId,
+          ...(error.totalMinor !== undefined
+            ? {
+                details: [
+                  {
+                    path: ["expectedTotalMinor"],
+                    message: "Current authoritative total",
+                    value: error.totalMinor,
+                  },
+                ],
+              }
+            : {}),
+        },
+      },
+      requestId,
+      request,
+    );
+  }
   if (error instanceof CatalogError) {
     return jsonResponse(
       error.httpStatus,
@@ -69,7 +95,7 @@ export function publicOptionsResponse(request: Request): Response {
   return new Response(null, { status: 204, headers: corsHeaders(request) });
 }
 
-export async function runPublicReadRoute<T>(options: {
+export async function runPublicRoute<T>(options: {
   readonly request: Request;
   readonly responseSchema: z.ZodType<T>;
   readonly handler: (request: Request, requestId: string) => Promise<T>;
@@ -91,3 +117,6 @@ export async function runPublicReadRoute<T>(options: {
     return mapError(error, requestId, options.request);
   }
 }
+
+// Compatibility alias for existing catalog routes.
+export const runPublicReadRoute = runPublicRoute;

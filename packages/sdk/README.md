@@ -19,3 +19,12 @@ It additionally exposes `enrollPosDevice`, `rotatePosDeviceCredential`, `revokeP
 the exact UTF-8 canonical string and send the standard-base64 signature; the SDK never receives a
 private key. See `docs/pos/offline-pos-v1.md` for grant, expiry, replay, historical-price, revocation,
 and reconciliation semantics.
+
+## Online checkout (0.7.0)
+
+`client.checkout({ ...intent, idempotencyKey })` accepts typed `CheckoutRequest` guest cart/contact/
+delivery intent and returns `CheckoutResult`. Preserve the key and exact intent across retries.
+`ApiHttpError.code === "PRICE_CHANGED"` exposes the current total in `details[0].value`; obtain customer
+acceptance before changing intent. The result is an immutable placement receipt, not live status.
+COD payment stays pending. Management order detail adds optional `commerce` snapshots/payment/holds.
+See the API repository `docs/orders/online-commerce-core.md` for deployment/payment boundaries.

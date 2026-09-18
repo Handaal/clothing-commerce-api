@@ -31,5 +31,9 @@ export interface OrderListRow {
 export interface OrdersReadRepository {
   brandExistsInTenant(tenantId: string, brandId: string): Promise<boolean>;
   branchExistsInTenant(tenantId: string, branchId: string): Promise<boolean>;
+  getCommerceDetails(
+    tenantId: string,
+    orderId: string,
+  ): Promise<import("../contracts").OrderCommerceDetails>;
   listOrders(query: OrderListQuery): Promise<OrderListRow[]>;
 }

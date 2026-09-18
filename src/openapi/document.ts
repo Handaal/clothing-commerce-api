@@ -1,3 +1,4 @@
+import { CheckoutRequestSchema, CheckoutResultSchema } from "../contracts/storefront/checkout";
 import { z } from "zod";
 
 import packageMetadata from "../../package.json";
@@ -144,6 +145,28 @@ export function generateOpenApiDocument() {
       { name: "pos", description: "Authorized register context and atomic POS checkout." },
     ],
     paths: {
+      "/api/v1/storefront/checkout": {
+        post: {
+          operationId: "checkout",
+          summary: "Place a guest online order with authoritative pricing and stock reservations.",
+          description:
+            "Public configured tenant/brand context. Requires a stable Idempotency-Key. COD is enabled only by server-owned routing configuration; payment stays pending. PRICE_CHANGED returns the current total in error.details[0].value before business mutation. Exact replay returns the original placement result, not live order status.",
+          tags: ["Storefront"],
+          security: [],
+          parameters: [idempotencyKeyHeaderParameter],
+          requestBody: jsonRequestBody(
+            "Customer purchase intent",
+            "#/components/schemas/CheckoutRequest",
+          ),
+          responses: {
+            "200": jsonResponse(
+              "Canonical online order placement result",
+              "#/components/schemas/CheckoutResult",
+            ),
+            ...errorResponses(400, 409, 422, 500),
+          },
+        },
+      },
       "/api/v1/health": {
         get: {
           operationId: "getHealth",
@@ -982,6 +1005,8 @@ export function generateOpenApiDocument() {
         Error500: jsonResponse("An unexpected error occurred.", "#/components/schemas/ApiError"),
       },
       schemas: {
+        CheckoutRequest: jsonSchema(CheckoutRequestSchema),
+        CheckoutResult: jsonSchema(CheckoutResultSchema),
         HealthResponse: jsonSchema(HealthResponseSchema),
         ApiError: jsonSchema(ApiErrorSchema),
         PageInfo: jsonSchema(PageInfoSchema),

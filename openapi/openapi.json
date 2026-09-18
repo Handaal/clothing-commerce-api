@@ -20,6 +20,35 @@
     { "name": "pos", "description": "Authorized register context and atomic POS checkout." }
   ],
   "paths": {
+    "/api/v1/storefront/checkout": {
+      "post": {
+        "operationId": "checkout",
+        "summary": "Place a guest online order with authoritative pricing and stock reservations.",
+        "description": "Public configured tenant/brand context. Requires a stable Idempotency-Key. COD is enabled only by server-owned routing configuration; payment stays pending. PRICE_CHANGED returns the current total in error.details[0].value before business mutation. Exact replay returns the original placement result, not live order status.",
+        "tags": ["Storefront"],
+        "security": [],
+        "parameters": [{ "$ref": "#/components/parameters/IdempotencyKeyHeader" }],
+        "requestBody": {
+          "required": true,
+          "description": "Customer purchase intent",
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/CheckoutRequest" } }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Canonical online order placement result",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/CheckoutResult" } }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "409": { "$ref": "#/components/responses/Error409" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
     "/api/v1/health": {
       "get": {
         "operationId": "getHealth",
@@ -1256,6 +1285,147 @@
       }
     },
     "schemas": {
+      "CheckoutRequest": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "tenantId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "brandId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "lines": {
+            "minItems": 1,
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "variantId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "quantity": { "type": "integer", "minimum": 1, "maximum": 10000 }
+              },
+              "required": ["variantId", "quantity"],
+              "additionalProperties": false
+            }
+          },
+          "customer": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string", "minLength": 1, "maxLength": 200 },
+              "email": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 254,
+                    "format": "email",
+                    "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                  },
+                  { "type": "null" }
+                ]
+              },
+              "phone": {
+                "type": "string",
+                "maxLength": 25,
+                "pattern": "^\\+[1-9](?:[ ()-]*[0-9]){6,14}$"
+              }
+            },
+            "required": ["name", "email", "phone"],
+            "additionalProperties": false
+          },
+          "delivery": {
+            "type": "object",
+            "properties": {
+              "recipientName": { "type": "string", "minLength": 1, "maxLength": 200 },
+              "phone": {
+                "type": "string",
+                "maxLength": 25,
+                "pattern": "^\\+[1-9](?:[ ()-]*[0-9]){6,14}$"
+              },
+              "line1": { "type": "string", "minLength": 1, "maxLength": 200 },
+              "line2": { "anyOf": [{ "type": "string", "maxLength": 200 }, { "type": "null" }] },
+              "city": { "type": "string", "minLength": 1, "maxLength": 100 },
+              "region": { "anyOf": [{ "type": "string", "maxLength": 100 }, { "type": "null" }] },
+              "postalCode": {
+                "anyOf": [{ "type": "string", "maxLength": 30 }, { "type": "null" }]
+              },
+              "countryCode": { "type": "string", "pattern": "^[A-Z]{2}$" },
+              "notes": { "anyOf": [{ "type": "string", "maxLength": 500 }, { "type": "null" }] }
+            },
+            "required": [
+              "recipientName",
+              "phone",
+              "line1",
+              "line2",
+              "city",
+              "region",
+              "postalCode",
+              "countryCode",
+              "notes"
+            ],
+            "additionalProperties": false
+          },
+          "paymentMethod": { "type": "string", "const": "cash_on_delivery" },
+          "expectedTotalMinor": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+          "expectedCurrency": { "type": "string", "pattern": "^[A-Z]{3}$" }
+        },
+        "required": [
+          "tenantId",
+          "brandId",
+          "lines",
+          "customer",
+          "delivery",
+          "paymentMethod",
+          "expectedTotalMinor",
+          "expectedCurrency"
+        ],
+        "additionalProperties": false
+      },
+      "CheckoutResult": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "orderReference": { "type": "string", "minLength": 1 },
+          "channel": { "type": "string", "const": "online" },
+          "status": { "type": "string", "const": "placed" },
+          "totalMinor": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+          "currency": { "type": "string", "pattern": "^[A-Z]{3}$" },
+          "payment": {
+            "type": "object",
+            "properties": {
+              "method": { "type": "string", "enum": ["cash", "cash_on_delivery", "electronic"] },
+              "provider": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+              "status": {
+                "type": "string",
+                "enum": ["pending", "authorized", "captured", "failed", "cancelled", "refunded"]
+              },
+              "amountMinor": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+              "currency": { "type": "string", "pattern": "^[A-Z]{3}$" }
+            },
+            "required": ["method", "provider", "status", "amountMinor", "currency"],
+            "additionalProperties": false
+          },
+          "fulfillmentStatus": { "type": "string", "const": "unfulfilled" }
+        },
+        "required": [
+          "orderReference",
+          "channel",
+          "status",
+          "totalMinor",
+          "currency",
+          "payment",
+          "fulfillmentStatus"
+        ],
+        "additionalProperties": false
+      },
       "HealthResponse": {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "type": "object",
@@ -2534,6 +2704,167 @@
         "$schema": "http://json-schema.org/draft-07/schema#",
         "type": "object",
         "properties": {
+          "commerce": {
+            "type": "object",
+            "properties": {
+              "customerId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  { "type": "null" }
+                ]
+              },
+              "customer": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "name": { "type": "string", "minLength": 1, "maxLength": 200 },
+                      "email": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 254,
+                            "format": "email",
+                            "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                          },
+                          { "type": "null" }
+                        ]
+                      },
+                      "phone": {
+                        "type": "string",
+                        "maxLength": 25,
+                        "pattern": "^\\+[1-9](?:[ ()-]*[0-9]){6,14}$"
+                      }
+                    },
+                    "required": ["name", "email", "phone"],
+                    "additionalProperties": false
+                  },
+                  { "type": "null" }
+                ]
+              },
+              "delivery": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "recipientName": { "type": "string", "minLength": 1, "maxLength": 200 },
+                      "phone": {
+                        "type": "string",
+                        "maxLength": 25,
+                        "pattern": "^\\+[1-9](?:[ ()-]*[0-9]){6,14}$"
+                      },
+                      "line1": { "type": "string", "minLength": 1, "maxLength": 200 },
+                      "line2": {
+                        "anyOf": [{ "type": "string", "maxLength": 200 }, { "type": "null" }]
+                      },
+                      "city": { "type": "string", "minLength": 1, "maxLength": 100 },
+                      "region": {
+                        "anyOf": [{ "type": "string", "maxLength": 100 }, { "type": "null" }]
+                      },
+                      "postalCode": {
+                        "anyOf": [{ "type": "string", "maxLength": 30 }, { "type": "null" }]
+                      },
+                      "countryCode": { "type": "string", "pattern": "^[A-Z]{2}$" },
+                      "notes": {
+                        "anyOf": [{ "type": "string", "maxLength": 500 }, { "type": "null" }]
+                      }
+                    },
+                    "required": [
+                      "recipientName",
+                      "phone",
+                      "line1",
+                      "line2",
+                      "city",
+                      "region",
+                      "postalCode",
+                      "countryCode",
+                      "notes"
+                    ],
+                    "additionalProperties": false
+                  },
+                  { "type": "null" }
+                ]
+              },
+              "payment": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "method": {
+                        "type": "string",
+                        "enum": ["cash", "cash_on_delivery", "electronic"]
+                      },
+                      "provider": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "pending",
+                          "authorized",
+                          "captured",
+                          "failed",
+                          "cancelled",
+                          "refunded"
+                        ]
+                      },
+                      "amountMinor": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "currency": { "type": "string", "pattern": "^[A-Z]{3}$" }
+                    },
+                    "required": ["method", "provider", "status", "amountMinor", "currency"],
+                    "additionalProperties": false
+                  },
+                  { "type": "null" }
+                ]
+              },
+              "reservations": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "variantId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "inventoryLocationId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "quantity": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+                    "consumedQuantity": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": ["active", "consumed", "released", "expired"]
+                    },
+                    "expiresAt": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
+                  },
+                  "required": [
+                    "variantId",
+                    "inventoryLocationId",
+                    "quantity",
+                    "consumedQuantity",
+                    "status",
+                    "expiresAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": ["customerId", "customer", "delivery", "payment", "reservations"],
+            "additionalProperties": false
+          },
           "header": {
             "type": "object",
             "properties": {

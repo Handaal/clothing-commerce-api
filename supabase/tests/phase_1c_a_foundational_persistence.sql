@@ -129,8 +129,8 @@ select pg_temp.assert_true(
 -- The generic Payment entity arrived in Phase 2H; the customer domain remains deferred.
 select pg_temp.assert_true(
   to_regclass('public.payments') is not null
-  and to_regclass('public.customers') is null,
-  'the payment table exists and the deferred customer table remains absent'
+  and to_regclass('public.customers') is not null,
+  'canonical payment and customer tables exist'
 );
 
 insert into public.tenants (
