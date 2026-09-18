@@ -116,6 +116,14 @@ select is(
   'catalog exposes no authenticated mutation policy'
 );
 
+-- catalog_private holds the 3 Phase 2A integrity helpers (expected_variant_option_signature,
+-- enforce_variant_option_signature, prevent_category_cycle) plus the 12 Phase 2J sanctioned write
+-- functions (claim_write, complete_write, raise_catalog_unique_conflict, create_product, update_product,
+-- set_product_status, create_variant, set_variant_price, publish_product, unpublish_product,
+-- add_product_media, archive_product_media). All 15 are SECURITY INVOKER with a fixed empty search_path:
+-- the writers deliberately run as the BYPASSRLS service_role that already holds catalog DML, so they
+-- never escalate through SECURITY DEFINER. Because catalog_private contains exactly 15 functions, a
+-- match count of 15 also proves none of them is SECURITY DEFINER or missing the fixed empty search_path.
 select is(
   (
     select count(*)
@@ -125,8 +133,8 @@ select is(
       and not procedure.prosecdef
       and procedure.proconfig @> array['search_path=""']
   ),
-  3::bigint,
-  'all catalog integrity helpers are SECURITY INVOKER with an empty fixed search_path'
+  15::bigint,
+  'all 15 catalog_private functions are SECURITY INVOKER with an empty fixed search_path'
 );
 
 select ok(
