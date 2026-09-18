@@ -26,7 +26,7 @@ export interface OrderListParams {
  * Orders read application service for the management API. The list derives channel-split order
  * visibility and enforces the 404-then-403 containment sequence for explicit brand/branch filters. The
  * detail composes exactly one Order (OrderService.getOrder, which performs its own routing +
- * authorization) with its FulfillmentService progress summary — never exposing inventory-operation ids,
+ * authorization) with its FulfillmentService progress summary â€” never exposing inventory-operation ids,
  * idempotency, fingerprints, or routing internals.
  */
 export class OrdersReadService {
@@ -109,7 +109,8 @@ export class OrdersReadService {
     // order surfaces as AuthorizationError (403).
     const order = await this.orderService.getOrder(context, { orderId });
     const summary = await this.fulfillmentService.getOrderFulfillmentSummary(context, { orderId });
-    return this.mapDetail(order, summary);
+    const commerce = await this.repository.getCommerceDetails(context.tenant.id, orderId);
+    return { ...this.mapDetail(order, summary), commerce };
   }
 
   private mapDetail(order: OrderResult, summary: OrderFulfillmentSummary): OrderDetailResponse {

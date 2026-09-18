@@ -170,6 +170,10 @@ and is intentionally **not** built here; nothing about this contract precludes a
 
 ## Inventory semantics & public availability
 
+Phase 2L extends the availability calculation to subtract reservations and honor configured checkout
+routing. The implementation and current semantics are in [online commerce core](../orders/online-commerce-core.md).
+The paragraphs below describe the original Phase 2J physical-stock baseline.
+
 No Storefront-specific stock. The DB projection derives `availableQuantity` by summing
 `inventory_balances.on_hand_quantity` across the tenant's locations for the variant — the single
 `InventoryLocation` truth, no second stock model. The **public API contract is conservative**: it

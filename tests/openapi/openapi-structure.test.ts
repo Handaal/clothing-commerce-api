@@ -71,6 +71,7 @@ describe("OpenAPI management surface", () => {
         "/api/v1/products/{productId}/media/upload-intent",
         "/api/v1/products/{productId}/media/{mediaId}",
         "/api/v1/variants/{variantId}/price",
+        "/api/v1/storefront/checkout",
         "/api/v1/storefront/products",
         "/api/v1/storefront/products/{slug}",
       ].sort(),
@@ -86,6 +87,13 @@ describe("OpenAPI management surface", () => {
       expect(hasTenantHeader(publicPath)).toBe(false);
       expect(hasIdempotencyHeader(publicPath)).toBe(false);
     }
+  });
+
+  it("publishes a strict public checkout command with idempotency and no workforce headers", () => {
+    const route = "/api/v1/storefront/checkout";
+    expect(operationOf(route).security).toEqual([]);
+    expect(hasTenantHeader(route)).toBe(false);
+    expect(hasIdempotencyHeader(route)).toBe(true);
   });
 
   it("requires idempotency on catalog writes but not on the media upload intent", () => {

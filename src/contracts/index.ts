@@ -177,3 +177,5 @@ export {
   type IngestOfflineSaleResponse,
 } from "./pos";
 export { canonicalizeOfflineSaleCommand } from "./offline-signing";
+
+export * from "./storefront/checkout";

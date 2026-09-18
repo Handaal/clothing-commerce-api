@@ -89,15 +89,16 @@ select is(
 );
 
 -- Exact internal allowlist: Fulfillment reads Order and lines, Payment reads Order total/currency,
--- connected POS composition reads newly created lines, and offline POS reads its created lines.
+-- connected/offline POS read created lines; online composition reads orders and lines.
 select ok(
   (
     select bool_and(cmd = 'SELECT')
-      and count(*) = 5
+      and count(*) = 7
       and count(*) filter (where roles = array['fulfillments_writer']::name[]) = 2
       and count(*) filter (where roles = array['payments_writer']::name[]) = 1
       and count(*) filter (where roles = array['pos_sales_writer']::name[]) = 1
       and count(*) filter (where roles = array['offline_pos_writer']::name[]) = 1
+      and count(*) filter (where roles = array['online_writer']::name[]) = 2
     from pg_catalog.pg_policies
     where schemaname = 'public'
       and tablename in ('orders', 'order_lines', 'order_number_sequences')

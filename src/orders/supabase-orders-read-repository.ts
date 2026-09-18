@@ -1,3 +1,8 @@
+import {
+  OrderCommerceDetailsSchema,
+  PaymentSummarySchema,
+  type OrderCommerceDetails,
+} from "../contracts/storefront/checkout";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 
@@ -41,6 +46,84 @@ function keysetExpression(cursor: OrderListQuery["cursor"]): string | null {
 
 export class SupabaseOrdersReadRepository implements OrdersReadRepository {
   constructor(private readonly client: SupabaseClient) {}
+
+  async getCommerceDetails(tenantId: string, orderId: string): Promise<OrderCommerceDetails> {
+    const [order, payment, reservations] = await Promise.all([
+      this.client
+        .from("orders")
+        .select("customer_id,customer_snapshot,delivery_snapshot")
+        .eq("tenant_id", tenantId)
+        .eq("id", orderId)
+        .single(),
+      this.client
+        .from("payments")
+        .select("method,provider,status,amount_minor,currency")
+        .eq("tenant_id", tenantId)
+        .eq("order_id", orderId)
+        .maybeSingle(),
+      this.client
+        .from("stock_reservations")
+        .select("variant_id,inventory_location_id,quantity,consumed_quantity,status,expires_at")
+        .eq("tenant_id", tenantId)
+        .eq("order_id", orderId)
+        .order("variant_id"),
+    ]);
+    for (const result of [order, payment, reservations]) requireNoQueryError(result.error);
+    const o = z
+      .object({
+        customer_id: z.string().nullable(),
+        customer_snapshot: z.unknown(),
+        delivery_snapshot: z.unknown(),
+      })
+      .parse(order.data);
+    const p =
+      payment.data === null
+        ? null
+        : z
+            .object({
+              method: z.string(),
+              provider: z.string().nullable(),
+              status: z.string(),
+              amount_minor: z.union([z.number(), z.string()]),
+              currency: z.string(),
+            })
+            .parse(payment.data);
+    const rows = z
+      .array(
+        z.object({
+          variant_id: z.string(),
+          inventory_location_id: z.string(),
+          quantity: z.union([z.number(), z.string()]),
+          consumed_quantity: z.union([z.number(), z.string()]),
+          status: z.string(),
+          expires_at: z.string().nullable(),
+        }),
+      )
+      .parse(reservations.data);
+    return OrderCommerceDetailsSchema.parse({
+      customerId: o.customer_id,
+      customer: o.customer_snapshot,
+      delivery: o.delivery_snapshot,
+      payment:
+        p === null
+          ? null
+          : PaymentSummarySchema.parse({
+              method: p.method,
+              provider: p.provider,
+              status: p.status,
+              amountMinor: toSafeInteger(p.amount_minor),
+              currency: p.currency,
+            }),
+      reservations: rows.map((r) => ({
+        variantId: r.variant_id,
+        inventoryLocationId: r.inventory_location_id,
+        quantity: toSafeInteger(r.quantity),
+        consumedQuantity: toSafeInteger(r.consumed_quantity),
+        status: r.status,
+        expiresAt: r.expires_at === null ? null : normalizeTimestampUtc(r.expires_at),
+      })),
+    });
+  }
 
   async brandExistsInTenant(tenantId: string, brandId: string): Promise<boolean> {
     const { data, error } = await this.client

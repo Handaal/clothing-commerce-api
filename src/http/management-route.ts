@@ -77,7 +77,7 @@ function requireTenantId(request: Request): string {
   return parsed.data;
 }
 
-function requireIdempotencyKey(request: Request): string {
+export function requireIdempotencyKey(request: Request): string {
   const header = request.headers.get("Idempotency-Key");
   if (header === null || header.trim() === "") {
     throw new RequestValidationError([
@@ -97,7 +97,7 @@ function requireIdempotencyKey(request: Request): string {
 }
 
 /** Reads and validates a JSON request body. A missing/malformed body or a schema failure maps to 400. */
-async function parseJsonBody<T>(request: Request, schema: z.ZodType<T>): Promise<T> {
+export async function parseJsonBody<T>(request: Request, schema: z.ZodType<T>): Promise<T> {
   let raw: unknown;
   try {
     raw = await request.json();

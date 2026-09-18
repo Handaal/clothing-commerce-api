@@ -50,12 +50,11 @@ select pg_temp.assert_true(
   'all three Phase 2B inventory tables exist'
 );
 
--- Orders arrived in Phase 2D; customer and reservation domains remain deferred. Order creation still
--- has no inventory side effect (there is no inventory_reservations table and no stock-affecting link).
+-- Phase 2L adds customers and reservations without replacing physical inventory truth.
 select pg_temp.assert_true(
-  to_regclass('public.customers') is null
-  and to_regclass('public.inventory_reservations') is null,
-  'deferred customer and reservation domains remain absent'
+  to_regclass('public.customers') is not null
+  and to_regclass('public.stock_reservations') is not null,
+  'customer and stock reservation domains are now implemented'
 );
 
 select pg_temp.assert_true(
