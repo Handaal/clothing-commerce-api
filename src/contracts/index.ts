@@ -179,3 +179,4 @@ export {
 export { canonicalizeOfflineSaleCommand } from "./offline-signing";
 
 export * from "./storefront/checkout";
+export * from "./management/returns";

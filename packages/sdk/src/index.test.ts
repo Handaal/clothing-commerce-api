@@ -9,6 +9,88 @@ import {
 } from "./index";
 
 describe("Commerce SDK", () => {
+  it("sends return intent through scoped, idempotent commands without embedding keys in bodies", async () => {
+    const id = "11111111-1111-4111-8111-111111111111";
+    const result = {
+      id,
+      orderId: id,
+      channel: "pos",
+      source: "management",
+      actorMembershipId: id,
+      status: "accepted",
+      currency: "USD",
+      amountMinor: 2500,
+      inventoryLocationId: null,
+      inventoryOperationId: null,
+      createdAt: "2026-09-19T00:00:00.000Z",
+      lines: [
+        {
+          orderLineId: id,
+          lineNumber: 1,
+          variantId: id,
+          quantity: 1,
+          reason: "size",
+          disposition: "non_restock",
+          amountMinor: 2500,
+        },
+      ],
+      refund: {
+        id,
+        paymentId: id,
+        returnId: id,
+        method: "cash",
+        status: "pending",
+        amountMinor: 2500,
+        currency: "USD",
+        settlementReference: null,
+        settledAt: null,
+      },
+    };
+    const fetchImplementation = vi.fn<typeof globalThis.fetch>(
+      async () => new Response(JSON.stringify(result)),
+    );
+    const client = createCommerceClient({
+      baseUrl: "https://api.example.test",
+      getToken: () => "session",
+      fetch: fetchImplementation,
+    }).withTenant(id);
+    const lines = [
+      { orderLineId: id, quantity: 1, reason: "size", disposition: "non_restock" as const },
+    ];
+    await expect(
+      client.createReturn({ orderId: id, idempotencyKey: "stable-return", lines }),
+    ).resolves.toEqual(result);
+    expect(fetchImplementation).toHaveBeenLastCalledWith(
+      `https://api.example.test/api/v1/orders/${id}/returns`,
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          "Idempotency-Key": "stable-return",
+          "X-Tenant-Id": id,
+          Authorization: "Bearer session",
+        }),
+        body: JSON.stringify({ lines }),
+      }),
+    );
+    await client.settleRefund({
+      returnId: id,
+      idempotencyKey: "stable-settlement",
+      settlementReference: "cash evidence",
+    });
+    expect(fetchImplementation).toHaveBeenLastCalledWith(
+      `https://api.example.test/api/v1/returns/${id}/refund`,
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ settlementReference: "cash evidence" }),
+        headers: expect.objectContaining({ "Idempotency-Key": "stable-settlement" }),
+      }),
+    );
+    await client.getReturn(id);
+    expect(fetchImplementation).toHaveBeenLastCalledWith(
+      `https://api.example.test/api/v1/returns/${id}`,
+      expect.objectContaining({ headers: expect.objectContaining({ "X-Tenant-Id": id }) }),
+    );
+  });
   it("returns a validated health response and sends client metadata", async () => {
     const fetchImplementation = vi.fn<typeof globalThis.fetch>(async () =>
       Promise.resolve(new Response(JSON.stringify({ status: "ok", version: "0.1.0" }))),
@@ -61,7 +143,7 @@ describe("Commerce SDK", () => {
   });
 
   it("exposes semantic SDK version metadata", () => {
-    expect(SDK_VERSION).toBe("0.7.0");
+    expect(SDK_VERSION).toBe("0.8.0");
   });
 });
 

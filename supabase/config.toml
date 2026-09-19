@@ -19,5 +19,5 @@ enabled = false
 # directly. public remains the default client surface.
 # catalog_private holds the sanctioned catalog write functions (EXECUTE granted to service_role only);
 # catalog_public holds the published-only Storefront read functions (EXECUTE granted to anon too).
-schemas = ["public", "inventory_private", "orders_private", "fulfillments_private", "pos_sales_private", "offline_pos_private", "catalog_private", "catalog_public", "online_private"]
+schemas = ["public", "inventory_private", "orders_private", "fulfillments_private", "pos_sales_private", "offline_pos_private", "catalog_private", "catalog_public", "online_private", "returns_private"]
 extra_search_path = ["public", "extensions"]

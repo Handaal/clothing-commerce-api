@@ -1,4 +1,4 @@
-# @shifted/clothing-commerce-sdk 0.5.0
+# @shifted/clothing-commerce-sdk 0.8.0
 
 TypeScript-first, fetch-based SDK for browsers, Electron renderers, and Expo/React Native. Create a
 client with a configurable API base URL and optional `type`/`version` metadata, then call
@@ -28,3 +28,21 @@ delivery intent and returns `CheckoutResult`. Preserve the key and exact intent 
 acceptance before changing intent. The result is an immutable placement receipt, not live status.
 COD payment stays pending. Management order detail adds optional `commerce` snapshots/payment/holds.
 See the API repository `docs/orders/online-commerce-core.md` for deployment/payment boundaries.
+
+## Returns and refunds (0.8.0)
+
+The tenant client exposes `getReturnEligibility(orderId)`, `createReturn({ orderId, lines,
+inventoryLocationId?, refundMode?, settlementReference?, idempotencyKey })`, `getReturn(returnId)`,
+`listReturns(orderId, { limit?, cursor? })`, and `settleRefund({ returnId, settlementReference,
+idempotencyKey })`. The SDK exports their input/response types plus `Refund` and `OrderReturnSummary`.
+Order detail has an optional `returns` summary, present only with authorized return-read access.
+
+Use original `orderLineId` values from eligibility. Supply quantities, reasons and explicit
+`restock` / `non_restock` dispositions; the API derives every monetary amount. Preserve the exact
+intent and key across retries. Default `refundMode` is `pending`; `manual_confirmed` records an
+authorized attestation that cash was actually paid and requires a settlement reference. It never
+settles an electronic payment. Both refund initiation and manual settlement require API permission.
+
+Returns require fulfilled merchandise and captured payment; unpaid COD is rejected. For policy,
+atomicity, staged electronic integration and error codes, see `docs/returns/returns-refunds-core.md`
+in the API repository. No server secret, provider SDK or database client is bundled.

@@ -19,6 +19,8 @@ import { createSupabaseInventoryRepository } from "../inventory/supabase-invento
 import { OrderService } from "../orders";
 import { createSupabaseOrdersRepository } from "../orders";
 import { OrdersReadService } from "../orders/orders-read-service";
+import { ReturnsService } from "../returns/service";
+import { createReturnsRepository } from "../returns/repository";
 import { createSupabaseOrdersReadRepository } from "../orders/supabase-orders-read-repository";
 import {
   OfflinePosService,
@@ -89,10 +91,15 @@ export function createManagementApiBoundary(
     authorizationService,
     createSupabaseFulfillmentRepository(supabaseConfiguration),
   );
+  const returnsService = new ReturnsService(
+    authorizationService,
+    createReturnsRepository(supabaseConfiguration),
+  );
   const ordersReadService = new OrdersReadService(
     createSupabaseOrdersReadRepository(supabaseConfiguration),
     orderService,
     fulfillmentService,
+    returnsService,
   );
   const posSaleService = new PosSaleService(
     authorizationService,
@@ -115,6 +122,7 @@ export function createManagementApiBoundary(
     inventoryReadService,
     inventoryService,
     ordersReadService,
+    returnsService,
     posSaleService,
     offlinePosService,
   } as const;

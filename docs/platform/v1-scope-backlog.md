@@ -64,26 +64,27 @@ and offline/sync are completed client work; this phase does not modify those rep
 
 ### Required for V1, not yet built (future batches â€” DO NOT LOSE)
 
-| Domain                                                                | State                         | Notes / unresolved decisions to freeze later                                                                                                           |
-| --------------------------------------------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Customers**                                                         | Core implemented              | Guest checkout core implemented; verified accounts, customer management, order history and POS attach remain.                                          |
-| **Storefront online sales** (cart/checkout/order/confirmation/status) | Core implemented              | API checkout core implemented; Storefront checkout UI, payment integration and safe public tracking remain.                                            |
-| **Online payment**                                                    | Adapter boundary              | _Decision: provider + capture semantics (auth-then-capture vs capture-on-order). Not yet chosen â€” do not assume one._                                |
-| **Returns / Refunds**                                                 | Missing                       | Eligibility, return lines, refund lifecycle, inventory restock disposition, POS + admin UI. _Decision: return-policy rules._                           |
-| **Suppliers**                                                         | Missing                       | Supplier entity + purchasing/receiving linkage. _Decision: supplier workflow depth (directory only vs full PO)._                                       |
-| **Vouchers / promotions / discounts**                                 | Missing                       | Where the pricing/order model permits. _Decision: exact voucher/discount semantics; affects immutable order pricing snapshot â€” integrity-sensitive._ |
-| **Staff management / administration**                                 | Missing (backend perms exist) | Membership/role admin UI + lifecycle. _Decision: staff-management depth._                                                                              |
-| **Reports / Analytics**                                               | Missing                       | Sales/orders/inventory/channel/period + owner dashboard + exports. _Decision: exact report/export list._                                               |
-| **POS Settings**                                                      | Missing                       | Register/receipt/cash-drawer/session configuration (POS repo).                                                                                         |
-| **Admin/business settings**                                           | Missing                       | Tenant/brand/branch/tax/currency/business configuration.                                                                                               |
-| **Delivery / fulfillment (online)**                                   | Partial                       | Delivery snapshots and reservation consumption implemented; shipping/carrier workflow remains.                                                         |
-| **Multi-brand / multi-branch workflows**                              | Partial                       | Data model + scoping exist; single-brand UX + brand switcher + branch selectors in clients.                                                            |
-| **Org management writes**                                             | Missing                       | Create/edit branch, warehouse, inventory location, register, device.                                                                                   |
+| Domain                                                                | State                         | Notes / unresolved decisions to freeze later                                                                                                                          |
+| --------------------------------------------------------------------- | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Customers**                                                         | Core implemented              | Guest checkout core implemented; verified accounts, customer management, order history and POS attach remain.                                                         |
+| **Storefront online sales** (cart/checkout/order/confirmation/status) | Core implemented              | API checkout core implemented; Storefront checkout UI, payment integration and safe public tracking remain.                                                           |
+| **Online payment**                                                    | Adapter boundary              | _Decision: provider + capture semantics (auth-then-capture vs capture-on-order). Not yet chosen â€” do not assume one._                                               |
+| **Returns / Refunds**                                                 | API core implemented          | Shared eligibility, returns, restock/non-restock, cash settlement and pending electronic refunds in Phase 2M; client UI and final policy/provider integration remain. |
+| **Suppliers**                                                         | Missing                       | Supplier entity + purchasing/receiving linkage. _Decision: supplier workflow depth (directory only vs full PO)._                                                      |
+| **Vouchers / promotions / discounts**                                 | Missing                       | Where the pricing/order model permits. _Decision: exact voucher/discount semantics; affects immutable order pricing snapshot â€” integrity-sensitive._                |
+| **Staff management / administration**                                 | Missing (backend perms exist) | Membership/role admin UI + lifecycle. _Decision: staff-management depth._                                                                                             |
+| **Reports / Analytics**                                               | Missing                       | Sales/orders/inventory/channel/period + owner dashboard + exports. _Decision: exact report/export list._                                                              |
+| **POS Settings**                                                      | Missing                       | Register/receipt/cash-drawer/session configuration (POS repo).                                                                                                        |
+| **Admin/business settings**                                           | Missing                       | Tenant/brand/branch/tax/currency/business configuration.                                                                                                              |
+| **Delivery / fulfillment (online)**                                   | Partial                       | Delivery snapshots and reservation consumption implemented; shipping/carrier workflow remains.                                                                        |
+| **Multi-brand / multi-branch workflows**                              | Partial                       | Data model + scoping exist; single-brand UX + brand switcher + branch selectors in clients.                                                                           |
+| **Org management writes**                                             | Missing                       | Create/edit branch, warehouse, inventory location, register, device.                                                                                                  |
 
 ### Explicitly out of this batch
 
-Storefront UI, Returns/Refunds, Suppliers, Staff management, Vouchers, Reporting and Settings remain
-required complete-V1 backlog items. No new domain begins in Phase 2L.
+Returns/refunds client UI, Suppliers, Staff management, Vouchers, Reporting and Settings remain
+required complete-V1 backlog items. Phase 2M implements the returns/refunds API core only; see
+[returns and refunds](../returns/returns-refunds-core.md) for the remaining policy/provider decisions.
 
 ## Preserved unresolved business decisions (do not silently invent)
 

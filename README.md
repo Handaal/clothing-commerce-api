@@ -28,6 +28,16 @@ Phase 2L adds [online commerce checkout](docs/orders/online-commerce-core.md): g
 canonical online Orders, transactional stock reservations, pending COD Payment behind explicit server
 enablement, management detail and SDK `0.7.0`. Electronic providers remain unselected.
 
+Phase 2M adds [canonical returns and refunds](docs/returns/returns-refunds-core.md) shared by POS and
+ONLINE orders: fulfilled/paid eligibility, immutable return history, explicit restock disposition,
+atomic inventory receipts and provider-neutral refunds. SDK **0.8.0** exposes typed eligibility,
+create/read/history and manual refund settlement. Tenant policy defaults to disabled; electronic
+refunds remain pending until a future provider integration supplies verified settlement.
+
+Run `pnpm test:returns:persistence` and `pnpm test:returns:integration` for real database and HTTP
+proof. The latter includes seven RLS suites and concurrency acceptance using an isolated temporary
+Supabase project. See [validation](docs/development/phase-2m-validation.md).
+
 ## Boundaries and ownership
 
 This repository is the future owner of authentication integration, authorization, tenancy,

@@ -93,12 +93,13 @@ select is(
 select ok(
   (
     select bool_and(cmd = 'SELECT')
-      and count(*) = 7
+      and count(*) = 9
       and count(*) filter (where roles = array['fulfillments_writer']::name[]) = 2
       and count(*) filter (where roles = array['payments_writer']::name[]) = 1
       and count(*) filter (where roles = array['pos_sales_writer']::name[]) = 1
       and count(*) filter (where roles = array['offline_pos_writer']::name[]) = 1
       and count(*) filter (where roles = array['online_writer']::name[]) = 2
+      and count(*) filter (where roles = array['returns_writer']::name[]) = 2
     from pg_catalog.pg_policies
     where schemaname = 'public'
       and tablename in ('orders', 'order_lines', 'order_number_sequences')

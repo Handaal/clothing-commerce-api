@@ -12,6 +12,7 @@ import type { OrderResult } from "./model";
 import type { OrderService } from "./order-service";
 import type { OrdersReadRepository } from "./orders-read-repository";
 import type { OrderChannel, OrderStatus } from "../contracts";
+import type { ReturnsService } from "../returns/service";
 
 export interface OrderListParams {
   readonly channel?: OrderChannel;
@@ -34,6 +35,7 @@ export class OrdersReadService {
     private readonly repository: OrdersReadRepository,
     private readonly orderService: OrderService,
     private readonly fulfillmentService: FulfillmentService,
+    private readonly returnsService?: ReturnsService,
   ) {}
 
   async listOrders(
@@ -110,7 +112,8 @@ export class OrdersReadService {
     const order = await this.orderService.getOrder(context, { orderId });
     const summary = await this.fulfillmentService.getOrderFulfillmentSummary(context, { orderId });
     const commerce = await this.repository.getCommerceDetails(context.tenant.id, orderId);
-    return { ...this.mapDetail(order, summary), commerce };
+    const returns = await this.returnsService?.summaryIfAuthorized(context, orderId);
+    return { ...this.mapDetail(order, summary), commerce, ...(returns ? { returns } : {}) };
   }
 
   private mapDetail(order: OrderResult, summary: OrderFulfillmentSummary): OrderDetailResponse {

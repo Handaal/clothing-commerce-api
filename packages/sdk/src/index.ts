@@ -260,6 +260,14 @@ export interface TenantCommerceClient {
   transferInventory(input: TransferInventoryInput): Promise<TransferInventoryResponse>;
   listOrders(query?: OrderListQuery): Promise<OrderListResponse>;
   getOrder(orderId: string): Promise<OrderDetailResponse>;
+  getReturnEligibility(orderId: string): Promise<ReturnEligibilityResponse>;
+  listReturns(
+    orderId: string,
+    query?: { limit?: number; cursor?: string },
+  ): Promise<ReturnHistoryResponse>;
+  getReturn(returnId: string): Promise<ReturnDetailResponse>;
+  createReturn(input: CreateReturnInput): Promise<ReturnDetailResponse>;
+  settleRefund(input: SettleRefundInput): Promise<ReturnDetailResponse>;
   getPosContext(): Promise<PosContextResponse>;
   createPosSale(input: CreatePosSaleInput): Promise<CreatePosSaleResponse>;
   enrollPosDevice(input: EnrollPosDeviceInput): Promise<PosDeviceResponse>;
@@ -552,6 +560,34 @@ export function createCommerceClient({
           tenantId,
         }),
       getPosContext: () => request("/api/v1/pos/context", PosContextResponseSchema, { tenantId }),
+      getReturnEligibility: (orderId: string) =>
+        request(
+          `/api/v1/orders/${encodeURIComponent(orderId)}/return-eligibility`,
+          ReturnEligibilityResponseSchema,
+          { tenantId },
+        ),
+      listReturns: (orderId: string, query = {}) =>
+        request(
+          `/api/v1/orders/${encodeURIComponent(orderId)}/returns${buildQuery(query)}`,
+          ReturnHistoryResponseSchema,
+          { tenantId },
+        ),
+      getReturn: (returnId: string) =>
+        request(`/api/v1/returns/${encodeURIComponent(returnId)}`, ReturnDetailResponseSchema, {
+          tenantId,
+        }),
+      createReturn: ({ orderId, idempotencyKey, ...body }: CreateReturnInput) =>
+        request(
+          `/api/v1/orders/${encodeURIComponent(orderId)}/returns`,
+          ReturnDetailResponseSchema,
+          { tenantId, method: "POST", body, idempotencyKey },
+        ),
+      settleRefund: ({ returnId, idempotencyKey, ...body }: SettleRefundInput) =>
+        request(
+          `/api/v1/returns/${encodeURIComponent(returnId)}/refund`,
+          ReturnDetailResponseSchema,
+          { tenantId, method: "POST", body, idempotencyKey },
+        ),
       createPosSale: ({ idempotencyKey, ...body }: CreatePosSaleInput) =>
         request("/api/v1/pos/sales", CreatePosSaleResponseSchema, {
           tenantId,
@@ -660,3 +696,24 @@ export type {
   PublicProductDetailResponse,
   StorefrontStatus,
 };
+import {
+  ReturnDetailResponseSchema,
+  ReturnEligibilityResponseSchema,
+  ReturnHistoryResponseSchema,
+  type CreateReturnRequest,
+  type SettleRefundRequest,
+  type ReturnDetailResponse,
+  type ReturnEligibilityResponse,
+  type ReturnHistoryResponse,
+} from "../../../src/contracts/management/returns";
+export type {
+  CreateReturnRequest,
+  SettleRefundRequest,
+  ReturnDetailResponse,
+  ReturnEligibilityResponse,
+  ReturnHistoryResponse,
+  Refund,
+  OrderReturnSummary,
+} from "../../../src/contracts/management/returns";
+export type CreateReturnInput = CreateReturnRequest & { orderId: string; idempotencyKey: string };
+export type SettleRefundInput = SettleRefundRequest & { returnId: string; idempotencyKey: string };
