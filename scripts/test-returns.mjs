@@ -1,25 +1,30 @@
 import { spawn, spawnSync } from "node:child_process";
 import { generateKeyPairSync, sign } from "node:crypto";
-import {
-  readFileSync,
-  cpSync,
-  mkdirSync,
-  mkdtempSync,
-  writeFileSync,
-  symlinkSync,
-  unlinkSync,
-  rmSync,
-  existsSync,
-} from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, cpSync, mkdirSync, writeFileSync, symlinkSync } from "node:fs";
+import { createServer } from "node:net";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createResources, handleInterrupts } from "./returns-test-resources.mjs";
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const supabase = join(root, "node_modules/supabase/dist/supabase.js");
-const isolated = mkdtempSync(join(tmpdir(), "commerce-returns-"));
-const projectId = "commerce-returns-" + process.pid;
+const resources = createResources();
+const isolated = resources.workdir;
+const projectId = resources.projectId;
 const dbContainer = "supabase_db_" + projectId;
+async function freePort() {
+  const socket = createServer();
+  await new Promise((resolve, reject) => {
+    socket.once("error", reject);
+    socket.listen(0, "127.0.0.1", resolve);
+  });
+  const port = socket.address().port;
+  await new Promise((resolve) => socket.close(resolve));
+  return port;
+}
+const ports = new Set();
+while (ports.size < 3) ports.add(await freePort());
+const [apiPort, dbPort, nextPort] = [...ports];
 mkdirSync(join(isolated, "supabase"));
 cpSync(join(root, "supabase/migrations"), join(isolated, "supabase/migrations"), {
   recursive: true,
@@ -27,9 +32,10 @@ cpSync(join(root, "supabase/migrations"), join(isolated, "supabase/migrations"),
 cpSync(join(root, "supabase/tests"), join(isolated, "supabase/tests"), { recursive: true });
 const config = readFileSync(join(root, "supabase/config.toml"), "utf8")
   .replace('project_id = "clothing-commerce-api"', 'project_id = "' + projectId + '"')
-  .replace("port = 54322", "port = 54422")
-  .replace("[api]", "[api]\nport = 54421");
+  .replace("port = 54322", `port = ${dbPort}`)
+  .replace("[api]", `[api]\nport = ${apiPort}`);
 writeFileSync(join(isolated, "supabase/config.toml"), config);
+resources.bindConfig(config);
 for (const name of [
   "app",
   "src",
@@ -79,21 +85,34 @@ function sql(source) {
   );
 }
 let server;
-let started = false;
+function cleanup() {
+  if (server?.pid && server.exitCode === null) {
+    if (process.platform === "win32") {
+      const killed = spawnSync("taskkill", ["/pid", String(server.pid), "/t", "/f"], {
+        windowsHide: true,
+        stdio: "ignore",
+      });
+      if (killed.status !== 0)
+        throw new Error("Could not stop owned Next.js process; cleanup aborted");
+    } else process.kill(-server.pid, "SIGTERM");
+  }
+  resources.cleanup();
+}
+const removeInterruptHandlers = handleInterrupts(cleanup);
 try {
-  started = true;
-  run(process.execPath, [supabase, "start", "--exclude", excluded], {
+  resources.assertOwner();
+  run(process.execPath, [supabase, "start", "--workdir", isolated, "--exclude", excluded], {
     redacted: true,
     cwd: isolated,
   });
-  run(process.execPath, [supabase, "db", "reset", "--local", "--no-seed"], {
-    stdio: "inherit",
-    cwd: isolated,
-  });
+  // Fresh project start applies migrations. Never reset any existing database.
+  resources.plan();
   run(
     process.execPath,
     [
       supabase,
+      "--workdir",
+      isolated,
       "test",
       "db",
       "supabase/tests/phase_2m_returns_rls.test.sql",
@@ -117,10 +136,15 @@ try {
     ])
       sql(readFileSync(join(root, "supabase/tests", file), "utf8"));
     const local = JSON.parse(
-      run(process.execPath, [supabase, "status", "--output", "json"], { redacted: true }).stdout,
+      run(process.execPath, [supabase, "status", "--workdir", isolated, "--output", "json"], {
+        redacted: true,
+      }).stdout,
     );
     const { publicKey, privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
-    const baseUrl = "http://127.0.0.1:3140";
+    const baseUrl = `http://127.0.0.1:${nextPort}`;
+    const apiUrl = new URL(local.API_URL);
+    if (!["127.0.0.1", "localhost"].includes(apiUrl.hostname) || apiUrl.port !== String(apiPort))
+      throw new Error("Isolated Supabase returned unexpected API routing");
     const now = Math.floor(Date.now() / 1000);
     const part = (v) => Buffer.from(JSON.stringify(v)).toString("base64url");
     const payload = `${part({ alg: "RS256", typ: "JWT", kid: "local-acceptance" })}.${part({ sub: "pos-full", sid: "sess_local_acceptance", iss: "https://clerk.local.test", azp: baseUrl, iat: now, nbf: now - 5, exp: now + 3600 })}`;
@@ -166,9 +190,15 @@ try {
         "--hostname",
         "127.0.0.1",
         "--port",
-        "3140",
+        String(nextPort),
       ],
-      { cwd: isolated, env, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] },
+      {
+        cwd: isolated,
+        env,
+        windowsHide: true,
+        detached: process.platform !== "win32",
+        stdio: ["ignore", "pipe", "pipe"],
+      },
     );
     // Do not echo runtime environment or credentials. Capture a bounded diagnostic tail.
     let diagnostic = "";
@@ -209,17 +239,6 @@ try {
     );
   }
 } finally {
-  if (server?.pid) {
-    if (process.platform === "win32")
-      spawnSync("taskkill", ["/pid", String(server.pid), "/t", "/f"], {
-        windowsHide: true,
-        stdio: "ignore",
-      });
-    else server.kill("SIGTERM");
-  }
-  if (started) run(process.execPath, [supabase, "stop", "--no-backup"], { redacted: true });
-  if (existsSync(join(isolated, "node_modules"))) unlinkSync(join(isolated, "node_modules"));
-  if (!isolated.startsWith(join(tmpdir(), "commerce-returns-")))
-    throw new Error("Unexpected cleanup target");
-  rmSync(isolated, { recursive: true, force: true });
+  removeInterruptHandlers();
+  cleanup();
 }

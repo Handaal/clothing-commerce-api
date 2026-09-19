@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createResources, handleInterrupts } from "./returns-test-resources.mjs";
 
 // Disposable PostgreSQL persistence proof; applies all migrations and checks canonical returns placement.
 
@@ -9,7 +10,8 @@ const repositoryRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const migrationDirectory = join(repositoryRoot, "supabase", "migrations");
 const testFile = join(repositoryRoot, "supabase", "tests", "phase_2m_returns_persistence.sql");
 const successMarker = "ALL_RETURNS_PERSISTENCE_ASSERTIONS_PASSED";
-const containerName = `clothing-commerce-returns-${process.pid}`;
+const resources = createResources();
+const containerName = `postgres_${resources.projectId}`;
 const postgresImage = "postgres:17.6-alpine";
 const databaseName = "commerce_test";
 const databasePassword = "local-returns-commerce-test-only";
@@ -129,15 +131,15 @@ function waitForPostgres() {
 const dockerVersion = runDocker(["version", "--format", "{{.Server.Version}}"]).stdout.trim();
 process.stdout.write(`Docker engine ${dockerVersion}\n`);
 
-let containerStarted = false;
+const removeInterruptHandlers = handleInterrupts(() => resources.cleanup());
 
 try {
   const start = runDocker([
     "run",
     "--detach",
-    "--rm",
     "--name",
     containerName,
+    ...resources.labelArgs,
     "--tmpfs",
     "/var/lib/postgresql/data",
     "--env",
@@ -146,7 +148,6 @@ try {
     `POSTGRES_DB=${databaseName}`,
     postgresImage,
   ]);
-  containerStarted = true;
   process.stdout.write(`Started PostgreSQL container ${start.stdout.trim()}\n`);
 
   waitForPostgres();
@@ -176,15 +177,7 @@ try {
 
   process.stdout.write(`${successMarker}\nPhase 2M returns persistence passed.\n`);
 } finally {
-  if (containerStarted) {
-    const cleanup = runDocker(["rm", "--force", containerName], { allowFailure: true });
-
-    if (cleanup.status !== 0) {
-      const details = [cleanup.stdout, cleanup.stderr].filter(Boolean).join("\n");
-      process.stderr.write(`Failed to remove PostgreSQL container ${containerName}\n${details}\n`);
-      process.exitCode = 1;
-    } else {
-      process.stdout.write(`Removed PostgreSQL container ${containerName}\n`);
-    }
-  }
+  removeInterruptHandlers();
+  resources.cleanup();
+  process.stdout.write(`Removed owned PostgreSQL container ${containerName}\n`);
 }

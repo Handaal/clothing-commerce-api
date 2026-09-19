@@ -58,6 +58,10 @@ the repository, and keeps Next.js and database resources separate from the regul
 Subsequent full runs passed and left the restarted development database container running. Cleanup
 removes the temporary node_modules link before deleting only the validated temporary directory.
 
+The subsequent [test infrastructure safety closeout](phase-2m-test-isolation.md) records the exact
+destructive path, adds fail-closed ownership guards, and proves live development resources remain
+unchanged across the corrected runners. The incident history above is retained.
+
 ## Remaining business and operational decisions
 
 Live tenant returns and manual refunds remain disabled by default. Production return windows, reason

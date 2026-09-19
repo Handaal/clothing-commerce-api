@@ -157,9 +157,10 @@ pnpm build
 ```
 
 The integration runner copies the current API/migrations into a temporary workspace, creates a unique
-Supabase project on API/DB ports 54421/54422, and serves Next.js on 3140. It passes a locally signed
+Supabase project with a fresh UUID and free API/DB/Next.js ports. It passes a locally signed
 test session through the real Clerk verifier. It owns only those temporary processes/containers and
-removes them after testing. Keep those test ports free; the regular local stack uses different ports.
+removes them after proving run ownership. Cleanup cannot select the regular development project;
+see the [safety closeout](../development/phase-2m-test-isolation.md) for guards and regression proof.
 Persistence uses a separate disposable PostgreSQL 17 container. No cloud identity is required.
 
 When changing this domain, preserve original-order locking and add real database tests for ceilings,

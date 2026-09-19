@@ -67,7 +67,8 @@
     "test:online:rls": "node scripts/test-online-rls.mjs",
     "test:returns:integration": "node scripts/test-returns.mjs",
     "test:returns:persistence": "node scripts/test-returns-persistence.mjs",
-    "test:returns:rls": "node scripts/test-returns.mjs --rls-only"
+    "test:returns:rls": "node scripts/test-returns.mjs --rls-only",
+    "test:returns:safety": "node scripts/test-returns-safety.mjs"
   },
   "dependencies": {
     "@clerk/backend": "3.16.8",
