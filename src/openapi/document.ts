@@ -1,3 +1,10 @@
+import {
+  CreateReturnRequestSchema,
+  SettleRefundRequestSchema,
+  ReturnDetailResponseSchema,
+  ReturnEligibilityResponseSchema,
+  ReturnHistoryResponseSchema,
+} from "../contracts/management/returns";
 import { CheckoutRequestSchema, CheckoutResultSchema } from "../contracts/storefront/checkout";
 import { z } from "zod";
 
@@ -145,6 +152,343 @@ export function generateOpenApiDocument() {
       { name: "pos", description: "Authorized register context and atomic POS checkout." },
     ],
     paths: {
+      "/api/v1/orders/{orderId}/return-eligibility": {
+        get: {
+          operationId: "getReturnEligibility",
+          tags: ["returns"],
+          summary: "getReturnEligibility",
+          security: [
+            {
+              clerkSessionToken: [],
+            },
+          ],
+          parameters: [
+            {
+              $ref: "#/components/parameters/TenantIdHeader",
+            },
+            {
+              name: "orderId",
+              in: "path",
+              required: true,
+              schema: {
+                type: "string",
+                format: "uuid",
+              },
+            },
+          ],
+          responses: {
+            "200": {
+              description: "Canonical return state.",
+              content: {
+                "application/json": {
+                  schema: {
+                    $ref: "#/components/schemas/ReturnEligibilityResponse",
+                  },
+                },
+              },
+            },
+            "400": {
+              $ref: "#/components/responses/Error400",
+            },
+            "401": {
+              $ref: "#/components/responses/Error401",
+            },
+            "403": {
+              $ref: "#/components/responses/Error403",
+            },
+            "404": {
+              $ref: "#/components/responses/Error404",
+            },
+            "409": {
+              $ref: "#/components/responses/Error409",
+            },
+            "422": {
+              $ref: "#/components/responses/Error422",
+            },
+            "500": {
+              $ref: "#/components/responses/Error500",
+            },
+          },
+        },
+      },
+      "/api/v1/orders/{orderId}/returns": {
+        get: {
+          operationId: "listReturns",
+          tags: ["returns"],
+          summary: "listReturns",
+          security: [
+            {
+              clerkSessionToken: [],
+            },
+          ],
+          parameters: [
+            {
+              $ref: "#/components/parameters/TenantIdHeader",
+            },
+            {
+              name: "orderId",
+              in: "path",
+              required: true,
+              schema: {
+                type: "string",
+                format: "uuid",
+              },
+            },
+            {
+              name: "limit",
+              in: "query",
+              schema: {
+                type: "integer",
+                minimum: 1,
+                maximum: 100,
+                default: 25,
+              },
+            },
+            {
+              name: "cursor",
+              in: "query",
+              schema: {
+                type: "string",
+                format: "uuid",
+              },
+            },
+          ],
+          responses: {
+            "200": {
+              description: "Canonical return state.",
+              content: {
+                "application/json": {
+                  schema: {
+                    $ref: "#/components/schemas/ReturnHistoryResponse",
+                  },
+                },
+              },
+            },
+            "400": {
+              $ref: "#/components/responses/Error400",
+            },
+            "401": {
+              $ref: "#/components/responses/Error401",
+            },
+            "403": {
+              $ref: "#/components/responses/Error403",
+            },
+            "404": {
+              $ref: "#/components/responses/Error404",
+            },
+            "409": {
+              $ref: "#/components/responses/Error409",
+            },
+            "422": {
+              $ref: "#/components/responses/Error422",
+            },
+            "500": {
+              $ref: "#/components/responses/Error500",
+            },
+          },
+        },
+        post: {
+          operationId: "createReturn",
+          tags: ["returns"],
+          summary: "Accept received merchandise and initiate its server-calculated refund.",
+          security: [
+            {
+              clerkSessionToken: [],
+            },
+          ],
+          parameters: [
+            {
+              $ref: "#/components/parameters/TenantIdHeader",
+            },
+            {
+              name: "orderId",
+              in: "path",
+              required: true,
+              schema: {
+                type: "string",
+                format: "uuid",
+              },
+            },
+            {
+              $ref: "#/components/parameters/IdempotencyKeyHeader",
+            },
+          ],
+          responses: {
+            "200": {
+              description: "Canonical return state.",
+              content: {
+                "application/json": {
+                  schema: {
+                    $ref: "#/components/schemas/ReturnDetailResponse",
+                  },
+                },
+              },
+            },
+            "400": {
+              $ref: "#/components/responses/Error400",
+            },
+            "401": {
+              $ref: "#/components/responses/Error401",
+            },
+            "403": {
+              $ref: "#/components/responses/Error403",
+            },
+            "404": {
+              $ref: "#/components/responses/Error404",
+            },
+            "409": {
+              $ref: "#/components/responses/Error409",
+            },
+            "422": {
+              $ref: "#/components/responses/Error422",
+            },
+            "500": {
+              $ref: "#/components/responses/Error500",
+            },
+          },
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/CreateReturnRequest",
+                },
+              },
+            },
+          },
+        },
+      },
+      "/api/v1/returns/{returnId}": {
+        get: {
+          operationId: "getReturn",
+          tags: ["returns"],
+          summary: "getReturn",
+          security: [
+            {
+              clerkSessionToken: [],
+            },
+          ],
+          parameters: [
+            {
+              $ref: "#/components/parameters/TenantIdHeader",
+            },
+            {
+              name: "returnId",
+              in: "path",
+              required: true,
+              schema: {
+                type: "string",
+                format: "uuid",
+              },
+            },
+          ],
+          responses: {
+            "200": {
+              description: "Canonical return state.",
+              content: {
+                "application/json": {
+                  schema: {
+                    $ref: "#/components/schemas/ReturnDetailResponse",
+                  },
+                },
+              },
+            },
+            "400": {
+              $ref: "#/components/responses/Error400",
+            },
+            "401": {
+              $ref: "#/components/responses/Error401",
+            },
+            "403": {
+              $ref: "#/components/responses/Error403",
+            },
+            "404": {
+              $ref: "#/components/responses/Error404",
+            },
+            "409": {
+              $ref: "#/components/responses/Error409",
+            },
+            "422": {
+              $ref: "#/components/responses/Error422",
+            },
+            "500": {
+              $ref: "#/components/responses/Error500",
+            },
+          },
+        },
+      },
+      "/api/v1/returns/{returnId}/refund": {
+        post: {
+          operationId: "settleRefund",
+          tags: ["returns"],
+          summary: "Attest an actual manual cash refund. Electronic settlement is not supported.",
+          security: [
+            {
+              clerkSessionToken: [],
+            },
+          ],
+          parameters: [
+            {
+              $ref: "#/components/parameters/TenantIdHeader",
+            },
+            {
+              name: "returnId",
+              in: "path",
+              required: true,
+              schema: {
+                type: "string",
+                format: "uuid",
+              },
+            },
+            {
+              $ref: "#/components/parameters/IdempotencyKeyHeader",
+            },
+          ],
+          responses: {
+            "200": {
+              description: "Canonical return state.",
+              content: {
+                "application/json": {
+                  schema: {
+                    $ref: "#/components/schemas/ReturnDetailResponse",
+                  },
+                },
+              },
+            },
+            "400": {
+              $ref: "#/components/responses/Error400",
+            },
+            "401": {
+              $ref: "#/components/responses/Error401",
+            },
+            "403": {
+              $ref: "#/components/responses/Error403",
+            },
+            "404": {
+              $ref: "#/components/responses/Error404",
+            },
+            "409": {
+              $ref: "#/components/responses/Error409",
+            },
+            "422": {
+              $ref: "#/components/responses/Error422",
+            },
+            "500": {
+              $ref: "#/components/responses/Error500",
+            },
+          },
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/SettleRefundRequest",
+                },
+              },
+            },
+          },
+        },
+      },
       "/api/v1/storefront/checkout": {
         post: {
           operationId: "checkout",
@@ -1005,6 +1349,12 @@ export function generateOpenApiDocument() {
         Error500: jsonResponse("An unexpected error occurred.", "#/components/schemas/ApiError"),
       },
       schemas: {
+        CreateReturnRequest: jsonSchema(CreateReturnRequestSchema),
+        SettleRefundRequest: jsonSchema(SettleRefundRequestSchema),
+        ReturnDetailResponse: jsonSchema(ReturnDetailResponseSchema),
+        ReturnEligibilityResponse: jsonSchema(ReturnEligibilityResponseSchema),
+        ReturnHistoryResponse: jsonSchema(ReturnHistoryResponseSchema),
+
         CheckoutRequest: jsonSchema(CheckoutRequestSchema),
         CheckoutResult: jsonSchema(CheckoutResultSchema),
         HealthResponse: jsonSchema(HealthResponseSchema),

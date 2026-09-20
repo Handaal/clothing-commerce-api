@@ -22,4 +22,14 @@ export interface PaymentProvider {
     currency: string;
   }>;
   void(input: { providerReference: string; idempotencyKey: string }): Promise<void>;
+  /** A durable pending Refund reserves the amount before this call. Commit before calling the
+   * gateway. Retry with the refund ID as provider idempotency key. Success requires verified
+   * provider evidence, never merely an accepted request or a browser redirect. */
+  refund(input: {
+    paymentReference: string;
+    refundId: string;
+    idempotencyKey: string;
+    amountMinor: number;
+    currency: string;
+  }): Promise<{ providerReference: string; status: "pending" | "succeeded" | "failed" }>;
 }

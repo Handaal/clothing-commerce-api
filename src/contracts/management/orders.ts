@@ -1,5 +1,6 @@
 import { OrderCommerceDetailsSchema } from "../storefront/checkout";
 import { z } from "zod";
+import { OrderReturnSummarySchema } from "./returns";
 
 import {
   CurrencySchema,
@@ -76,6 +77,7 @@ export const FulfillmentProgressSchema = z.object({
 });
 
 export const OrderDetailResponseSchema = z.object({
+  returns: OrderReturnSummarySchema.optional(),
   commerce: OrderCommerceDetailsSchema.optional(),
   header: OrderSummarySchema,
   lines: z.array(OrderDetailLineSchema),
