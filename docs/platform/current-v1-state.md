@@ -15,12 +15,12 @@ Read this first. Then read the target repo's `AGENTS.md`, then the immediately p
 Git is the source of truth. Local `main` in every repo was stale at inspection time; the merged
 truth lives on `origin/main`. All feature branches below were confirmed merged into `origin/main`.
 
-| Repo | Path | `origin/main` SHA | Merged head |
-| ---- | ---- | ----------------- | ----------- |
-| API | `C:\Users\ydelk\Desktop\clothing-commerce-api` | `7519af9` | PR #22 — Phase 2N suppliers |
-| POS | `C:\Users\ydelk\Desktop\clothing-commerce-pos` | `4553cc8` | PR #5 — returns crash-durable recovery hotfix |
-| Storefront | `C:\Users\ydelk\Desktop\clothing-commerce-storefront` | `cde64e5` | PR #2 — storefront checkout integration |
-| Admin Mobile | `C:\Users\ydelk\Desktop\clothing-commerce-admin-mobile` | `652280b` | PR #10 — admin suppliers foundation |
+| Repo         | Path                                                    | `origin/main` SHA | Merged head                                   |
+| ------------ | ------------------------------------------------------- | ----------------- | --------------------------------------------- |
+| API          | `C:\Users\ydelk\Desktop\clothing-commerce-api`          | `7519af9`         | PR #22 — Phase 2N suppliers                   |
+| POS          | `C:\Users\ydelk\Desktop\clothing-commerce-pos`          | `4553cc8`         | PR #5 — returns crash-durable recovery hotfix |
+| Storefront   | `C:\Users\ydelk\Desktop\clothing-commerce-storefront`   | `cde64e5`         | PR #2 — storefront checkout integration       |
+| Admin Mobile | `C:\Users\ydelk\Desktop\clothing-commerce-admin-mobile` | `652280b`         | PR #10 — admin suppliers foundation           |
 
 > **Caution for future agents:** the local `main` branch in each repo may lag `origin/main`.
 > Always `git fetch` and inspect `origin/main` before branching. Do not trust local `main`.
@@ -31,11 +31,11 @@ artifact `artifacts/shifted-clothing-commerce-sdk-0.9.0.tgz`).
 
 **SDK consumed by clients (staggered — not all on latest):**
 
-| Client | Vendored SDK |
-| ------ | ------------ |
+| Client       | Vendored SDK      |
+| ------------ | ----------------- |
 | Admin Mobile | `0.9.0` (current) |
-| POS | `0.8.0` |
-| Storefront | `0.7.0` |
+| POS          | `0.8.0`           |
+| Storefront   | `0.7.0`           |
 
 Clients pin the SDK as a vendored `file:vendor/*.tgz` tarball. A client upgrades deliberately when it
 adopts new API surface; lag is expected and not a defect.
@@ -58,12 +58,12 @@ A multi-brand / multi-branch clothing commerce platform built around **one share
 
 ## B. Repository map
 
-| Repo | Path | Owns | Must NOT own |
-| ---- | ---- | ---- | ------------ |
-| **API** | `clothing-commerce-api` | Canonical domain rules, PostgreSQL schema + migrations, authorization, OpenAPI, the packed SDK, integrations | UI presentation; client-side business logic |
-| **POS** | `clothing-commerce-pos` | Electron cashier app; connected + offline sales UI; local durable operational state | Global truth; server secrets; direct DB table access; API source |
-| **Storefront** | `clothing-commerce-storefront` | Public commerce frontend (Next.js); presentation, SEO, Core Web Vitals | Any business API, business DB, migrations, inventory truth; privileged management surfaces |
-| **Admin Mobile** | `clothing-commerce-admin-mobile` | Owner/manager management (Expo); catalog content management | Cashier/POS/selling functionality; schema/migrations; authorization decisions |
+| Repo             | Path                             | Owns                                                                                                         | Must NOT own                                                                               |
+| ---------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| **API**          | `clothing-commerce-api`          | Canonical domain rules, PostgreSQL schema + migrations, authorization, OpenAPI, the packed SDK, integrations | UI presentation; client-side business logic                                                |
+| **POS**          | `clothing-commerce-pos`          | Electron cashier app; connected + offline sales UI; local durable operational state                          | Global truth; server secrets; direct DB table access; API source                           |
+| **Storefront**   | `clothing-commerce-storefront`   | Public commerce frontend (Next.js); presentation, SEO, Core Web Vitals                                       | Any business API, business DB, migrations, inventory truth; privileged management surfaces |
+| **Admin Mobile** | `clothing-commerce-admin-mobile` | Owner/manager management (Expo); catalog content management                                                  | Cashier/POS/selling functionality; schema/migrations; authorization decisions              |
 
 **Key distinctions to preserve:**
 
@@ -106,17 +106,17 @@ Reference ADRs live in `docs/decisions/ADR-001` … `ADR-036` and the `docs/arch
 Concise summaries only; each phase has its own detailed doc. SDK versions shown where a phase
 advanced the contract.
 
-| Phase | Delivered | Repos affected | Frozen contract | SDK |
-| ----- | --------- | -------------- | --------------- | --- |
-| **2F — Management Reads** | Auth + tenant context; read-only management slice (Products, Inventory, Orders) | API, Admin | Read-only management boundary; `/me/context` access guidance | ~0.2.0 |
-| **2G — Inventory Management** | Append-only movement ledger; receive/adjust/transfer/issue writes; row-version reads | API, Admin | Clients never overwrite authoritative quantities; ledger + balance projection; idempotent ops | 0.3.x |
-| **2H — Connected POS** | `GET /pos/context`, `POST /pos/sales` atomic cash sale (Order+Payment+Fulfillment+issue in one tx) | API, POS | Server resolves Register→Branch→location + currency; client cannot submit price/location/currency | ~0.5.0 |
-| **2I — Offline POS + Sync** | Ed25519 device enrollment; signed offline outbox; `ingestOfflineSale`; reconciliation | API, POS | Locally generated private key never leaves device; exact-replay ingestion; historical-price semantics | ~0.5.0 |
-| **2J — Catalog Management** | Catalog write (product/variant/option/SKU/price lifecycle); publication boundary; public read surface | API | One catalog model, no parallel ecommerce catalog; publication ≠ internal state | 0.6.0 |
-| **2K — Storefront Catalog / PDP / Cart** | Public catalog browsing, product detail, variant selection, persistent cart | Storefront | Public contract only; canonical variant IDs | 0.6.0 |
-| **2L — Online Commerce** | `POST /storefront/checkout` → canonical `online` Order + Customer + address + ATS reservation + pending Payment; management order visibility | API, Storefront | Immutable delivery snapshots; shared ATS reservations; COD stays pending; client cannot pick location/price | 0.7.0 |
-| **2M — Returns & Refunds** | One Return domain (POS + ONLINE); restock/non-restock; cash settlement; pending electronic refunds; cumulative caps | API, POS, Admin | Immutable economics from OrderLine snapshots; cumulative quantity + payment ceilings; adapter seam for electronic refund | 0.8.0 |
-| **2N — Supplier Management** | Tenant-owned suppliers + lifecycle; optional supplier attribution on canonical receiving; supplier receipt history | API, Admin | Suppliers shared across brands/branches; no second receiving domain; no unit-cost/procurement; immutable name/code snapshots on history | 0.9.0 |
+| Phase                                    | Delivered                                                                                                                                    | Repos affected  | Frozen contract                                                                                                                         | SDK    |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | --------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| **2F — Management Reads**                | Auth + tenant context; read-only management slice (Products, Inventory, Orders)                                                              | API, Admin      | Read-only management boundary; `/me/context` access guidance                                                                            | ~0.2.0 |
+| **2G — Inventory Management**            | Append-only movement ledger; receive/adjust/transfer/issue writes; row-version reads                                                         | API, Admin      | Clients never overwrite authoritative quantities; ledger + balance projection; idempotent ops                                           | 0.3.x  |
+| **2H — Connected POS**                   | `GET /pos/context`, `POST /pos/sales` atomic cash sale (Order+Payment+Fulfillment+issue in one tx)                                           | API, POS        | Server resolves Register→Branch→location + currency; client cannot submit price/location/currency                                       | ~0.5.0 |
+| **2I — Offline POS + Sync**              | Ed25519 device enrollment; signed offline outbox; `ingestOfflineSale`; reconciliation                                                        | API, POS        | Locally generated private key never leaves device; exact-replay ingestion; historical-price semantics                                   | ~0.5.0 |
+| **2J — Catalog Management**              | Catalog write (product/variant/option/SKU/price lifecycle); publication boundary; public read surface                                        | API             | One catalog model, no parallel ecommerce catalog; publication ≠ internal state                                                          | 0.6.0  |
+| **2K — Storefront Catalog / PDP / Cart** | Public catalog browsing, product detail, variant selection, persistent cart                                                                  | Storefront      | Public contract only; canonical variant IDs                                                                                             | 0.6.0  |
+| **2L — Online Commerce**                 | `POST /storefront/checkout` → canonical `online` Order + Customer + address + ATS reservation + pending Payment; management order visibility | API, Storefront | Immutable delivery snapshots; shared ATS reservations; COD stays pending; client cannot pick location/price                             | 0.7.0  |
+| **2M — Returns & Refunds**               | One Return domain (POS + ONLINE); restock/non-restock; cash settlement; pending electronic refunds; cumulative caps                          | API, POS, Admin | Immutable economics from OrderLine snapshots; cumulative quantity + payment ceilings; adapter seam for electronic refund                | 0.8.0  |
+| **2N — Supplier Management**             | Tenant-owned suppliers + lifecycle; optional supplier attribution on canonical receiving; supplier receipt history                           | API, Admin      | Suppliers shared across brands/branches; no second receiving domain; no unit-cost/procurement; immutable name/code snapshots on history | 0.9.0  |
 
 Detailed docs: `docs/pos/connected-pos-sale-v1.md`, `docs/pos/offline-pos-v1.md`,
 `docs/catalog/catalog-management.md`, `docs/orders/online-commerce-core.md`,
@@ -132,22 +132,22 @@ plus `docs/development/phase-2l-validation.md` and `docs/development/phase-2m-va
 
 `Implemented` = works end-to-end at the stated layer. `Deferred` = agreed but not built.
 
-| Domain | Implemented | Deferred |
-| ------ | ----------- | -------- |
-| **Catalog** | Product/variant/option/SKU/price lifecycle write; publication boundary; public read; Admin management UI; Storefront browsing/PDP | — |
-| **Inventory** | Append-only ledger; receive/adjust/transfer/issue; balance projection; row-version reads; Admin visibility + management | Unsellable/damaged subledger |
-| **POS** | Connected atomic cash sale; register/currency resolution; cashier UI | Card tender; POS settings (register/receipt/cash-drawer/session) |
-| **Offline POS** | Device enrollment; signed durable outbox; ingestion + reconciliation; crash-durable local recovery | Card tender offline; general replication framework |
-| **Storefront** | Public catalog, PDP, variant selection, persistent cart, checkout UI | Verified customer accounts; safe public order tracking polish |
-| **Checkout (online)** | Guest checkout → canonical Order + Customer + address + reservation + pending Payment | Payment gateway integration |
-| **Customers** | Guest checkout core (customer + saved address) | Verified accounts; customer management; order history; POS customer attach |
-| **Orders** | Canonical Order (POS + ONLINE); placement, cancellation; immutable pricing snapshots; fulfillment; management visibility | — |
-| **Payments abstraction** | `PaymentProvider` adapter seam; COD/cash captured; pending electronic | Real provider; capture semantics; COD collection endpoint |
-| **Reservations / ATS** | Shared available-to-sell reservations consumed at checkout | — |
-| **Returns / refunds** | Return domain (POS + ONLINE); restock/non-restock; cash settlement; pending electronic refund; cumulative caps; POS + Admin visibility | Electronic refund provider/worker; exchange workflow; final policy |
-| **Suppliers** | Tenant-owned supplier CRUD + lifecycle; receiving attribution; receipt history; Admin foundation | Purchase orders / procurement; supplier invoices / AP; unit-cost model |
-| **Admin Mobile** | Auth; read management (Products/Inventory/Orders); catalog management; online-order + returns visibility; supplier foundation | Staff admin; settings; reporting |
-| **Authorization / scopes** | Permission catalog; tenant-wide + scoped grants; deny-by-default; idempotency; RLS | Staff-management UI/lifecycle |
+| Domain                     | Implemented                                                                                                                            | Deferred                                                                   |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| **Catalog**                | Product/variant/option/SKU/price lifecycle write; publication boundary; public read; Admin management UI; Storefront browsing/PDP      | —                                                                          |
+| **Inventory**              | Append-only ledger; receive/adjust/transfer/issue; balance projection; row-version reads; Admin visibility + management                | Unsellable/damaged subledger                                               |
+| **POS**                    | Connected atomic cash sale; register/currency resolution; cashier UI                                                                   | Card tender; POS settings (register/receipt/cash-drawer/session)           |
+| **Offline POS**            | Device enrollment; signed durable outbox; ingestion + reconciliation; crash-durable local recovery                                     | Card tender offline; general replication framework                         |
+| **Storefront**             | Public catalog, PDP, variant selection, persistent cart, checkout UI                                                                   | Verified customer accounts; safe public order tracking polish              |
+| **Checkout (online)**      | Guest checkout → canonical Order + Customer + address + reservation + pending Payment                                                  | Payment gateway integration                                                |
+| **Customers**              | Guest checkout core (customer + saved address)                                                                                         | Verified accounts; customer management; order history; POS customer attach |
+| **Orders**                 | Canonical Order (POS + ONLINE); placement, cancellation; immutable pricing snapshots; fulfillment; management visibility               | —                                                                          |
+| **Payments abstraction**   | `PaymentProvider` adapter seam; COD/cash captured; pending electronic                                                                  | Real provider; capture semantics; COD collection endpoint                  |
+| **Reservations / ATS**     | Shared available-to-sell reservations consumed at checkout                                                                             | —                                                                          |
+| **Returns / refunds**      | Return domain (POS + ONLINE); restock/non-restock; cash settlement; pending electronic refund; cumulative caps; POS + Admin visibility | Electronic refund provider/worker; exchange workflow; final policy         |
+| **Suppliers**              | Tenant-owned supplier CRUD + lifecycle; receiving attribution; receipt history; Admin foundation                                       | Purchase orders / procurement; supplier invoices / AP; unit-cost model     |
+| **Admin Mobile**           | Auth; read management (Products/Inventory/Orders); catalog management; online-order + returns visibility; supplier foundation          | Staff admin; settings; reporting                                           |
+| **Authorization / scopes** | Permission catalog; tenant-wide + scoped grants; deny-by-default; idempotency; RLS                                                     | Staff-management UI/lifecycle                                              |
 
 ---
 
@@ -252,13 +252,13 @@ its phase arrives.
 
 ## J. V1 remaining roadmap
 
-| Phase | Scope |
-| ----- | ----- |
-| **2O — Staff Management** | Membership/role admin UI + lifecycle (backend permissions already exist). Decision: staff-management depth. |
-| **2P — Vouchers / Discounts / Promotions** | Discount semantics where the pricing/order model permits; must extend immutable pricing allocation safely. |
-| **2Q — Reporting & Analytics** | Sales/orders/inventory/channel/period reporting; owner dashboard; exports. |
-| **2R — Business & Operational Settings** | Tenant/brand/branch/tax/currency config; POS operational settings. |
-| **2S — Whole-System Acceptance / Stabilization** | End-to-end acceptance, hardening. |
+| Phase                                            | Scope                                                                                                       |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| **2O — Staff Management**                        | Membership/role admin UI + lifecycle (backend permissions already exist). Decision: staff-management depth. |
+| **2P — Vouchers / Discounts / Promotions**       | Discount semantics where the pricing/order model permits; must extend immutable pricing allocation safely.  |
+| **2Q — Reporting & Analytics**                   | Sales/orders/inventory/channel/period reporting; owner dashboard; exports.                                  |
+| **2R — Business & Operational Settings**         | Tenant/brand/branch/tax/currency config; POS operational settings.                                          |
+| **2S — Whole-System Acceptance / Stabilization** | End-to-end acceptance, hardening.                                                                           |
 
 **Optional before client-ready V1:** payment-gateway implementation if electronic payments are
 required for launch (adapter seam already exists; provider undecided).
@@ -294,4 +294,5 @@ After the phase sequence: client validation → feedback iterations → producti
 9. Implement **only** the requested phase scope.
 10. Stop before the next phase.
 </content>
+
 </invoke>
