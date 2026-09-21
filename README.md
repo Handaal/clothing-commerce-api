@@ -166,6 +166,11 @@ mobile releases remain independent.
 
 ## Documentation index
 
+**New here? Start with the canonical platform state:**
+[`docs/platform/current-v1-state.md`](docs/platform/current-v1-state.md) — verified merged state,
+completed phases, frozen invariants, current SDK, deferred business decisions, and the V1 roadmap.
+It is the single "read first" reference for any engineering agent starting a new phase.
+
 Use this README as the map; detailed design and operational guidance live under `docs/`.
 
 | Topic                      | Start here                                                                                                                                                                                                                                                               | Covers                                                                                                                                      |

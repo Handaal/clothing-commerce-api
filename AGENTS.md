@@ -1,5 +1,19 @@
 # Commerce API Engineering Rules
 
+**Before changing code, read (in order):**
+
+1. This file.
+2. The canonical platform state: [`docs/platform/current-v1-state.md`](docs/platform/current-v1-state.md)
+   (verified merged state, completed phases, invariants, deferred decisions, roadmap).
+3. Relevant architecture docs (`docs/architecture/*`, `docs/decisions/ADR-*`) and the preceding phase doc.
+4. The current SDK contract (`packages/sdk/README.md`).
+
+Repo-specific invariants: **API owns the domain, PostgreSQL schema/migrations, OpenAPI, and the packed
+SDK.** Preserve RLS, scoped authorization, inventory atomicity, and idempotency/exact-replay behavior.
+`service_role` is DB transport only, never application authorization.
+
+---
+
 1. TypeScript strict mode and zero TypeScript errors are mandatory.
 2. This repository owns the commerce core, transport contracts, SDK, database schema, and migrations.
 3. HTTP handlers validate inputs and outputs, coordinate application services, and translate to HTTP; keep them thin.
