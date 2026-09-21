@@ -47,6 +47,9 @@ describe("OpenAPI management surface", () => {
     expect(Object.keys(paths).sort()).toEqual(
       [
         "/api/v1/health",
+        "/api/v1/suppliers",
+        "/api/v1/suppliers/{supplierId}",
+        "/api/v1/suppliers/{supplierId}/receipts",
         "/api/v1/inventory",
         "/api/v1/inventory/receipts",
         "/api/v1/inventory/adjustments",

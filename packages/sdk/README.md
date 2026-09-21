@@ -1,4 +1,12 @@
-# @shifted/clothing-commerce-sdk 0.8.0
+# @shifted/clothing-commerce-sdk 0.9.0
+
+Version 0.9.0 adds tenant-scoped `listSuppliers`, `getSupplier`, `createSupplier`, `updateSupplier`
+and `listSupplierReceipts`. Supplier mutations take `idempotencyKey`; update also takes
+`supplierId`. Use `updateSupplier({ supplierId, status: "inactive", idempotencyKey })` to deactivate
+and `status: "active"` to reactivate. Receipt history also respects `inventory.read` scope.
+`receiveInventory` accepts optional `supplierId` and `supplierReference`, preserving existing callers.
+`getContext().access.suppliers` optionally exposes `{ canRead, canManage }` as UI guidance only.
+The canonical API enforces every permission, scope, lifecycle rule and idempotency decision.
 
 TypeScript-first, fetch-based SDK for browsers, Electron renderers, and Expo/React Native. Create a
 client with a configurable API base URL and optional `type`/`version` metadata, then call

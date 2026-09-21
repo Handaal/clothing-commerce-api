@@ -1,4 +1,13 @@
 import {
+  SupplierSchema,
+  SupplierSummarySchema,
+  CreateSupplierRequestSchema,
+  UpdateSupplierRequestSchema,
+  SupplierListResponseSchema,
+  SupplierReceiptSchema,
+  SupplierReceiptsResponseSchema,
+} from "../contracts/management/suppliers";
+import {
   CreateReturnRequestSchema,
   SettleRefundRequestSchema,
   ReturnDetailResponseSchema,
@@ -148,10 +157,379 @@ export function generateOpenApiDocument() {
         description:
           "Inventory balances (read) and management write operations: receive, adjust, transfer.",
       },
+      {
+        name: "suppliers",
+        description: "Tenant-owned supplier management and canonical receiving history.",
+      },
       { name: "orders", description: "Read-only orders and fulfillment progress." },
       { name: "pos", description: "Authorized register context and atomic POS checkout." },
     ],
     paths: {
+      "/api/v1/suppliers": {
+        get: {
+          operationId: "listSuppliers",
+          tags: ["suppliers"],
+          summary: "listSuppliers",
+          description: "Requires a tenant-wide suppliers.read grant.",
+          security: [
+            {
+              clerkSessionToken: [],
+            },
+          ],
+          parameters: [
+            {
+              $ref: "#/components/parameters/TenantIdHeader",
+            },
+            {
+              name: "limit",
+              in: "query",
+              schema: {
+                type: "integer",
+                minimum: 1,
+                maximum: 100,
+                default: 25,
+              },
+            },
+            {
+              name: "cursor",
+              in: "query",
+              schema: {
+                type: "string",
+                maxLength: 1000,
+              },
+              description:
+                "Opaque forward cursor; invalid cursors fail closed. Stable UUID ascending order.",
+            },
+            {
+              name: "search",
+              in: "query",
+              schema: {
+                type: "string",
+                minLength: 1,
+                maxLength: 200,
+              },
+              description: "Case-insensitive literal substring in name or code.",
+            },
+            {
+              name: "status",
+              in: "query",
+              schema: {
+                type: "string",
+                enum: ["active", "inactive"],
+              },
+            },
+          ],
+          responses: {
+            "200": {
+              description: "Success",
+              content: {
+                "application/json": {
+                  schema: {
+                    $ref: "#/components/schemas/SupplierListResponse",
+                  },
+                },
+              },
+            },
+            "400": {
+              $ref: "#/components/responses/Error400",
+            },
+            "401": {
+              $ref: "#/components/responses/Error401",
+            },
+            "403": {
+              $ref: "#/components/responses/Error403",
+            },
+            "404": {
+              $ref: "#/components/responses/Error404",
+            },
+            "409": {
+              $ref: "#/components/responses/Error409",
+            },
+            "422": {
+              $ref: "#/components/responses/Error422",
+            },
+            "500": {
+              $ref: "#/components/responses/Error500",
+            },
+          },
+        },
+        post: {
+          operationId: "createSupplier",
+          tags: ["suppliers"],
+          summary: "createSupplier",
+          description:
+            "Requires a tenant-wide suppliers.manage grant and Idempotency-Key. Exact replay returns the original response; changed intent conflicts.",
+          security: [
+            {
+              clerkSessionToken: [],
+            },
+          ],
+          parameters: [
+            {
+              $ref: "#/components/parameters/TenantIdHeader",
+            },
+            {
+              $ref: "#/components/parameters/IdempotencyKeyHeader",
+            },
+          ],
+          responses: {
+            "200": {
+              description: "Success",
+              content: {
+                "application/json": {
+                  schema: {
+                    $ref: "#/components/schemas/Supplier",
+                  },
+                },
+              },
+            },
+            "400": {
+              $ref: "#/components/responses/Error400",
+            },
+            "401": {
+              $ref: "#/components/responses/Error401",
+            },
+            "403": {
+              $ref: "#/components/responses/Error403",
+            },
+            "404": {
+              $ref: "#/components/responses/Error404",
+            },
+            "409": {
+              $ref: "#/components/responses/Error409",
+            },
+            "422": {
+              $ref: "#/components/responses/Error422",
+            },
+            "500": {
+              $ref: "#/components/responses/Error500",
+            },
+          },
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/CreateSupplierRequest",
+                },
+              },
+            },
+          },
+        },
+      },
+      "/api/v1/suppliers/{supplierId}": {
+        get: {
+          operationId: "getSupplier",
+          tags: ["suppliers"],
+          summary: "getSupplier",
+          description: "Requires a tenant-wide suppliers.read grant.",
+          security: [
+            {
+              clerkSessionToken: [],
+            },
+          ],
+          parameters: [
+            {
+              $ref: "#/components/parameters/TenantIdHeader",
+            },
+            {
+              name: "supplierId",
+              in: "path",
+              required: true,
+              schema: {
+                type: "string",
+                format: "uuid",
+              },
+            },
+          ],
+          responses: {
+            "200": {
+              description: "Success",
+              content: {
+                "application/json": {
+                  schema: {
+                    $ref: "#/components/schemas/Supplier",
+                  },
+                },
+              },
+            },
+            "400": {
+              $ref: "#/components/responses/Error400",
+            },
+            "401": {
+              $ref: "#/components/responses/Error401",
+            },
+            "403": {
+              $ref: "#/components/responses/Error403",
+            },
+            "404": {
+              $ref: "#/components/responses/Error404",
+            },
+            "409": {
+              $ref: "#/components/responses/Error409",
+            },
+            "422": {
+              $ref: "#/components/responses/Error422",
+            },
+            "500": {
+              $ref: "#/components/responses/Error500",
+            },
+          },
+        },
+        patch: {
+          operationId: "updateSupplier",
+          tags: ["suppliers"],
+          summary: "updateSupplier",
+          description:
+            "Requires a tenant-wide suppliers.manage grant and Idempotency-Key. Exact replay returns the original response; changed intent conflicts. PATCH status active/inactive implements activation/deactivation. Nullable optional fields may be cleared with null. No DELETE exists.",
+          security: [
+            {
+              clerkSessionToken: [],
+            },
+          ],
+          parameters: [
+            {
+              $ref: "#/components/parameters/TenantIdHeader",
+            },
+            {
+              name: "supplierId",
+              in: "path",
+              required: true,
+              schema: {
+                type: "string",
+                format: "uuid",
+              },
+            },
+            {
+              $ref: "#/components/parameters/IdempotencyKeyHeader",
+            },
+          ],
+          responses: {
+            "200": {
+              description: "Success",
+              content: {
+                "application/json": {
+                  schema: {
+                    $ref: "#/components/schemas/Supplier",
+                  },
+                },
+              },
+            },
+            "400": {
+              $ref: "#/components/responses/Error400",
+            },
+            "401": {
+              $ref: "#/components/responses/Error401",
+            },
+            "403": {
+              $ref: "#/components/responses/Error403",
+            },
+            "404": {
+              $ref: "#/components/responses/Error404",
+            },
+            "409": {
+              $ref: "#/components/responses/Error409",
+            },
+            "422": {
+              $ref: "#/components/responses/Error422",
+            },
+            "500": {
+              $ref: "#/components/responses/Error500",
+            },
+          },
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  $ref: "#/components/schemas/UpdateSupplierRequest",
+                },
+              },
+            },
+          },
+        },
+      },
+      "/api/v1/suppliers/{supplierId}/receipts": {
+        get: {
+          operationId: "listSupplierReceipts",
+          tags: ["suppliers"],
+          summary: "listSupplierReceipts",
+          description:
+            "Requires a tenant-wide suppliers.read grant. Also requires inventory.read; results include only operations entirely within the caller's inventory location visibility. Supplier name/code are immutable receipt snapshots; product/location display names are current.",
+          security: [
+            {
+              clerkSessionToken: [],
+            },
+          ],
+          parameters: [
+            {
+              $ref: "#/components/parameters/TenantIdHeader",
+            },
+            {
+              name: "supplierId",
+              in: "path",
+              required: true,
+              schema: {
+                type: "string",
+                format: "uuid",
+              },
+            },
+            {
+              name: "limit",
+              in: "query",
+              schema: {
+                type: "integer",
+                minimum: 1,
+                maximum: 100,
+                default: 25,
+              },
+            },
+            {
+              name: "cursor",
+              in: "query",
+              schema: {
+                type: "string",
+                maxLength: 1000,
+              },
+              description:
+                "Opaque forward cursor; invalid cursors fail closed. Stable UUID ascending order.",
+            },
+          ],
+          responses: {
+            "200": {
+              description: "Success",
+              content: {
+                "application/json": {
+                  schema: {
+                    $ref: "#/components/schemas/SupplierReceiptsResponse",
+                  },
+                },
+              },
+            },
+            "400": {
+              $ref: "#/components/responses/Error400",
+            },
+            "401": {
+              $ref: "#/components/responses/Error401",
+            },
+            "403": {
+              $ref: "#/components/responses/Error403",
+            },
+            "404": {
+              $ref: "#/components/responses/Error404",
+            },
+            "409": {
+              $ref: "#/components/responses/Error409",
+            },
+            "422": {
+              $ref: "#/components/responses/Error422",
+            },
+            "500": {
+              $ref: "#/components/responses/Error500",
+            },
+          },
+        },
+      },
       "/api/v1/orders/{orderId}/return-eligibility": {
         get: {
           operationId: "getReturnEligibility",
@@ -1349,6 +1727,14 @@ export function generateOpenApiDocument() {
         Error500: jsonResponse("An unexpected error occurred.", "#/components/schemas/ApiError"),
       },
       schemas: {
+        Supplier: jsonSchema(SupplierSchema),
+        SupplierSummary: jsonSchema(SupplierSummarySchema),
+        CreateSupplierRequest: jsonSchema(CreateSupplierRequestSchema),
+        UpdateSupplierRequest: jsonSchema(UpdateSupplierRequestSchema),
+        SupplierListResponse: jsonSchema(SupplierListResponseSchema),
+        SupplierReceipt: jsonSchema(SupplierReceiptSchema),
+        SupplierReceiptsResponse: jsonSchema(SupplierReceiptsResponseSchema),
+
         CreateReturnRequest: jsonSchema(CreateReturnRequestSchema),
         SettleRefundRequest: jsonSchema(SettleRefundRequestSchema),
         ReturnDetailResponse: jsonSchema(ReturnDetailResponseSchema),

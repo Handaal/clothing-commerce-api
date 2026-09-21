@@ -73,9 +73,9 @@ select pg_temp.assert_true(
 -- The sole mutation path is a hardened SECURITY DEFINER function owned by a dedicated writer role.
 select pg_temp.assert_true(
   (
-    select procedure.prosecdef
+    select bool_and(procedure.prosecdef
       and procedure.proconfig @> array['search_path=""']
-      and owner.rolname = 'inventory_writer'
+      and owner.rolname = 'inventory_writer')
     from pg_catalog.pg_proc as procedure
     join pg_catalog.pg_namespace as namespace on namespace.oid = procedure.pronamespace
     join pg_catalog.pg_roles as owner on owner.oid = procedure.proowner

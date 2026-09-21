@@ -1,3 +1,4 @@
+import { supplierCapabilities } from "../suppliers/service";
 import type { AuthorizationContext } from "../authorization";
 import type { MeContextResponse } from "../contracts";
 import type { IdSelector, OrganizationReadRepository } from "./organization-read-repository";
@@ -121,6 +122,7 @@ export class ManagementContextService {
       tenant: { id: tenant.id, name: tenant.name, status: tenant.status },
       membership: { id: context.membership.id },
       access: {
+        suppliers: supplierCapabilities(context),
         catalog: {
           canRead: catalog.canRead,
           tenantWide: catalog.tenantWide,

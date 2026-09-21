@@ -209,7 +209,7 @@ select pg_temp.assert_true(
 
 -- fulfillments_writer may NOT execute the generic record_operation.
 select pg_temp.assert_true(
-  (select not has_function_privilege('fulfillments_writer', procedure.oid, 'EXECUTE')
+  (select bool_and(not has_function_privilege('fulfillments_writer', procedure.oid, 'EXECUTE'))
    from pg_catalog.pg_proc procedure
    join pg_catalog.pg_namespace ns on ns.oid = procedure.pronamespace
    where ns.nspname = 'inventory_private' and procedure.proname = 'record_operation'),

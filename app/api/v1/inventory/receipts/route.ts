@@ -20,11 +20,17 @@ export async function POST(request: Request) {
         variantId: body.variantId,
         inventoryLocationId: body.inventoryLocationId,
         quantity: body.quantity,
+        supplierId: body.supplierId,
+        supplierReference: body.supplierReference,
         idempotencyKey,
         ...(body.note !== undefined ? { note: body.note } : {}),
       });
       return {
         operationId: result.operationId,
+        ...(body.supplierId !== undefined ? { supplierId: body.supplierId } : {}),
+        ...(body.supplierReference !== undefined
+          ? { supplierReference: body.supplierReference }
+          : {}),
         variantId: result.variantId,
         inventoryLocationId: result.inventoryLocationId,
         observedOnHand: result.observedOnHand,

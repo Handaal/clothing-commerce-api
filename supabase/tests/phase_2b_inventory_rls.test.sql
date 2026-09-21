@@ -117,9 +117,9 @@ select is(
 -- The mutation path is a hardened SECURITY DEFINER function owned by the dedicated writer role.
 select ok(
   (
-    select procedure.prosecdef
+    select bool_and(procedure.prosecdef
       and procedure.proconfig @> array['search_path=""']
-      and owner.rolname = 'inventory_writer'
+      and owner.rolname = 'inventory_writer')
     from pg_catalog.pg_proc as procedure
     join pg_catalog.pg_namespace as namespace on namespace.oid = procedure.pronamespace
     join pg_catalog.pg_roles as owner on owner.oid = procedure.proowner
@@ -205,10 +205,10 @@ select is(
 -- Only service_role may execute the mutation path; clients and PUBLIC cannot.
 select ok(
   (
-    select has_function_privilege('service_role', procedure.oid, 'EXECUTE')
+    select bool_and(has_function_privilege('service_role', procedure.oid, 'EXECUTE')
       and not has_function_privilege('public', procedure.oid, 'EXECUTE')
       and not has_function_privilege('anon', procedure.oid, 'EXECUTE')
-      and not has_function_privilege('authenticated', procedure.oid, 'EXECUTE')
+      and not has_function_privilege('authenticated', procedure.oid, 'EXECUTE'))
     from pg_catalog.pg_proc as procedure
     join pg_catalog.pg_namespace as namespace on namespace.oid = procedure.pronamespace
     where namespace.nspname = 'inventory_private'

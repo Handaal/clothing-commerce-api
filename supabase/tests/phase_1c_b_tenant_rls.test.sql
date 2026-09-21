@@ -731,7 +731,7 @@ select ok(
 -- migration (1 more, 'orders.fulfill'), the Phase 2F migration (1 more, 'catalog.read'), Phase 2H
 -- (1 more, 'payments.capture'), and Phase 2J (2 more, 'catalog.author' and 'catalog.publish'); this
 -- transaction-local fixture adds 'test.read', for 17 visible rows including returns/refunds.
-select is((select count(*) from public.permissions), 17::bigint, 'active member can read Permission catalog including returns/refunds');
+select is((select count(*) from public.permissions), 19::bigint, 'active member can read Permission catalog including returns/refunds and suppliers');
 
 select is(
   (

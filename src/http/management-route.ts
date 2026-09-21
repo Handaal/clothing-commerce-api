@@ -12,6 +12,7 @@ import { ManagementNotFoundError } from "../management/errors";
 import { OrderError } from "../orders/errors";
 import { PosSaleError } from "../pos/errors";
 import { OfflinePosError } from "../pos/offline-errors";
+import { SupplierError } from "../suppliers/errors";
 import { ReturnError } from "../returns/errors";
 import { corsHeaders } from "./cors";
 
@@ -177,7 +178,8 @@ function mapError(error: unknown, requestId: string, request?: Request): Respons
     error instanceof PosSaleError ||
     error instanceof OfflinePosError ||
     error instanceof CatalogError ||
-    error instanceof ReturnError
+    error instanceof ReturnError ||
+    error instanceof SupplierError
   ) {
     const details =
       error instanceof PosSaleError &&
