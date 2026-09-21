@@ -175,6 +175,23 @@ try {
     throw new Error(`Returns persistence did not reach ${successMarker}.\n${output}`);
   }
 
+  if (process.argv.includes("--suppliers")) {
+    runPsql(
+      readFileSync(join(repositoryRoot, "supabase/tests/phase_2n_suppliers.setup.sql"), "utf8"),
+      "[fixture] suppliers",
+    );
+    const supplierResult = runPsql(
+      readFileSync(
+        join(repositoryRoot, "supabase/tests/phase_2n_suppliers_persistence.sql"),
+        "utf8",
+      ),
+      "[acceptance] suppliers",
+      { capture: true },
+    );
+    if (!supplierResult.stdout.includes("ALL_SUPPLIERS_PERSISTENCE_ASSERTIONS_PASSED"))
+      throw new Error("Supplier persistence did not complete");
+    process.stdout.write(supplierResult.stdout);
+  }
   process.stdout.write(`${successMarker}\nPhase 2M returns persistence passed.\n`);
 } finally {
   removeInterruptHandlers();

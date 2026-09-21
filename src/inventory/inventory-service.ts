@@ -174,6 +174,8 @@ export class InventoryService {
         }
 
         return this.repository.recordReceipt(proof, {
+          supplierId: command.supplierId,
+          supplierReference: command.supplierReference,
           tenantId: context.tenant.id,
           variantId: command.variantId,
           inventoryLocationId: command.inventoryLocationId,

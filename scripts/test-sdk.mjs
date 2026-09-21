@@ -46,7 +46,7 @@ function assert(condition, message) {
 // 1. Types, build (banner-stripped), and unit tests (methods, token, headers, errors, pagination).
 run("pnpm", ["--filter", "@shifted/clothing-commerce-sdk", "typecheck"]);
 run("pnpm", ["--filter", "@shifted/clothing-commerce-sdk", "build"]);
-run("pnpm", ["exec", "vitest", "run", "packages/sdk/src/index.test.ts"]);
+run("pnpm", ["exec", "vitest", "run", "packages/sdk/src"]);
 
 // 2. Pack the versioned tarball.
 run("pnpm", ["sdk:pack"]);
@@ -117,6 +117,7 @@ try {
       `const client = createCommerceClient({ baseUrl: "https://example.test" });`,
       `if (typeof client.checkout !== "function") throw new Error("checkout missing");`,
       `if (typeof client.withTenant !== "function") throw new Error("withTenant missing");`,
+      `if (typeof client.withTenant("t").listSupplierReceipts !== "function") throw new Error("supplier history missing");`,
       `if (typeof canonicalizeOfflineSaleCommand !== "function") throw new Error("canonical signer missing");`,
       `process.stdout.write("ESM_OK " + SDK_VERSION + "\\n");`,
     ].join("\n"),
@@ -128,6 +129,7 @@ try {
     [
       `const { createCommerceClient } = require("@shifted/clothing-commerce-sdk");`,
       `if (typeof createCommerceClient !== "function") throw new Error("cjs export missing");`,
+      `if (typeof createCommerceClient({ baseUrl: "https://example.test" }).withTenant("t").createSupplier !== "function") throw new Error("supplier create missing");`,
       `process.stdout.write("CJS_OK\\n");`,
     ].join("\n"),
   );
@@ -142,12 +144,18 @@ try {
       `  type ProductListResponse,`,
       `  type OrderDetailResponse,`,
       `  type CheckoutRequest, type CheckoutResult, type CreateReturnInput, type ReturnDetailResponse,`,
+      `  type Supplier, type CreateSupplierInput, type UpdateSupplierInput, type SupplierReceiptsResponse,`,
       `} from "@shifted/clothing-commerce-sdk";`,
       ``,
       `async function main(client = createCommerceClient({ baseUrl: "https://example.test" })) {`,
       `  const checkout: (input: CheckoutRequest & { idempotencyKey: string }) => Promise<CheckoutResult> = client.checkout;`,
       `  void checkout;`,
       `  const scoped = client.withTenant("t");`,
+      `  const createSupplier: (input: CreateSupplierInput) => Promise<Supplier> = scoped.createSupplier;`,
+      `  const updateSupplier: (input: UpdateSupplierInput) => Promise<Supplier> = scoped.updateSupplier;`,
+      `  const history: SupplierReceiptsResponse = await scoped.listSupplierReceipts("s", { limit: 10 });`,
+      `  void createSupplier; void updateSupplier; void history; void scoped.listSuppliers; void scoped.getSupplier;`,
+      `  void scoped.receiveInventory({ variantId: "v", inventoryLocationId: "l", quantity: 1, supplierId: "s", supplierReference: "DN-1", idempotencyKey: "k" });`,
       `  const createReturn: (input: CreateReturnInput) => Promise<ReturnDetailResponse> = scoped.createReturn;`,
       `  void createReturn; void scoped.getReturnEligibility; void scoped.listReturns; void scoped.getReturn; void scoped.settleRefund;`,
       `  const context: MeContextResponse = await scoped.getContext();`,

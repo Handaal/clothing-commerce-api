@@ -2,6 +2,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 
 import { assertAuthorizedOperationProof, type AuthorizedOperationContext } from "../authorization";
+import { supplierDatabaseError } from "../suppliers/errors";
 import { InventoryError } from "./errors";
 import type {
   InventoryBalanceResult,
@@ -75,6 +76,9 @@ interface DatabaseErrorLike {
  */
 function mapDatabaseError(error: DatabaseErrorLike): Error {
   switch (error.code) {
+    case "SU404":
+    case "SU409":
+      return supplierDatabaseError(error);
     case "23514":
       return new InventoryError("INSUFFICIENT_STOCK");
     case "ID409":
@@ -248,6 +252,8 @@ export class SupabaseInventoryRepository implements InventoryRepository {
     assertAuthorizedOperationProof(proof);
 
     const operationId = await this.callRecordOperation("receipt", command.tenantId, {
+      supplierId: command.supplierId,
+      supplierReference: command.supplierReference,
       actorMembershipId: command.actorMembershipId,
       idempotencyKey: command.idempotencyKey,
       note: command.note,
@@ -381,6 +387,8 @@ export class SupabaseInventoryRepository implements InventoryRepository {
     operationType: "receipt" | "issue" | "transfer",
     tenantId: string,
     input: {
+      readonly supplierId?: string;
+      readonly supplierReference?: string;
       readonly actorMembershipId: string;
       readonly idempotencyKey: string;
       readonly note?: string;
@@ -400,6 +408,13 @@ export class SupabaseInventoryRepository implements InventoryRepository {
         p_actor_membership_id: input.actorMembershipId,
         p_idempotency_key: input.idempotencyKey,
         p_notes: input.note ?? null,
+        ...(input.supplierId !== undefined || input.supplierReference !== undefined
+          ? {
+              p_supplier_id: input.supplierId ?? null,
+              p_supplier_reference: input.supplierReference ?? null,
+              p_occurred_at: null,
+            }
+          : {}),
       });
     if (error) {
       throw mapDatabaseError(error);

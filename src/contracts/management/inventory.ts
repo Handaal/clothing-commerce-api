@@ -44,6 +44,8 @@ export const ReceiveInventoryRequestSchema = z
   .object({
     variantId: UuidSchema,
     inventoryLocationId: UuidSchema,
+    supplierId: z.string().uuid().optional(),
+    supplierReference: z.string().trim().min(1).max(200).optional(),
     quantity: PositiveIntegerSchema,
     note: NoteSchema.optional(),
   })
@@ -79,6 +81,8 @@ export type TransferInventoryRequest = z.infer<typeof TransferInventoryRequestSc
  * observed balance read after commit, not an atomic before/after snapshot of this receipt.
  */
 export const ReceiveInventoryResponseSchema = z.object({
+  supplierId: UuidSchema.optional(),
+  supplierReference: z.string().optional(),
   operationId: UuidSchema,
   variantId: UuidSchema,
   inventoryLocationId: UuidSchema,

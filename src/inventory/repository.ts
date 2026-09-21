@@ -30,6 +30,8 @@ export interface RecordCountAdjustmentCommand extends StockKey {
 }
 
 export interface RecordReceiptCommand extends StockKey {
+  readonly supplierId?: string;
+  readonly supplierReference?: string;
   readonly quantity: number;
   readonly actorMembershipId: string;
   readonly idempotencyKey: string;

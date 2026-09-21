@@ -1,4 +1,37 @@
 import {
+  SupplierSchema,
+  SupplierListResponseSchema,
+  SupplierReceiptsResponseSchema,
+  type Supplier,
+  type SupplierListResponse,
+  type SupplierReceiptsResponse,
+  type SupplierStatus,
+  type CreateSupplierRequest,
+  type UpdateSupplierRequest,
+} from "../../../src/contracts/management/suppliers";
+export type {
+  Supplier,
+  SupplierSummary,
+  SupplierStatus,
+  SupplierListResponse,
+  SupplierReceipt,
+  SupplierReceiptsResponse,
+  CreateSupplierRequest,
+  UpdateSupplierRequest,
+} from "../../../src/contracts/management/suppliers";
+export interface SupplierListQuery {
+  search?: string;
+  status?: SupplierStatus;
+  limit?: number;
+  cursor?: string;
+}
+export interface SupplierReceiptsQuery {
+  limit?: number;
+  cursor?: string;
+}
+export type CreateSupplierInput = CreateSupplierRequest & IdempotentWrite;
+export type UpdateSupplierInput = UpdateSupplierRequest & IdempotentWrite & { supplierId: string };
+import {
   CheckoutResultSchema,
   type CheckoutRequest,
   type CheckoutResult,
@@ -130,6 +163,8 @@ export interface IdempotentWrite {
 }
 
 export interface ReceiveInventoryInput extends IdempotentWrite {
+  supplierId?: string;
+  supplierReference?: string;
   variantId: string;
   inventoryLocationId: string;
   quantity: number;
@@ -255,6 +290,14 @@ export interface TenantCommerceClient {
   registerProductMedia(input: RegisterProductMediaInput): Promise<RegisterProductMediaResponse>;
   archiveProductMedia(input: ArchiveProductMediaInput): Promise<ArchiveProductMediaResponse>;
   listInventory(query?: InventoryListQuery): Promise<InventoryListResponse>;
+  listSuppliers(query?: SupplierListQuery): Promise<SupplierListResponse>;
+  getSupplier(supplierId: string): Promise<Supplier>;
+  createSupplier(input: CreateSupplierInput): Promise<Supplier>;
+  updateSupplier(input: UpdateSupplierInput): Promise<Supplier>;
+  listSupplierReceipts(
+    supplierId: string,
+    query?: SupplierReceiptsQuery,
+  ): Promise<SupplierReceiptsResponse>;
   receiveInventory(input: ReceiveInventoryInput): Promise<ReceiveInventoryResponse>;
   adjustInventory(input: AdjustInventoryInput): Promise<AdjustInventoryResponse>;
   transferInventory(input: TransferInventoryInput): Promise<TransferInventoryResponse>;
@@ -519,6 +562,36 @@ export function createCommerceClient({
             cursor: query.cursor,
           })}`,
           InventoryListResponseSchema,
+          { tenantId },
+        ),
+      listSuppliers: (query: SupplierListQuery = {}) =>
+        request(
+          `/api/v1/suppliers${buildQuery({ search: query.search, status: query.status, limit: query.limit, cursor: query.cursor })}`,
+          SupplierListResponseSchema,
+          { tenantId },
+        ),
+      getSupplier: (supplierId: string) =>
+        request(`/api/v1/suppliers/${encodeURIComponent(supplierId)}`, SupplierSchema, {
+          tenantId,
+        }),
+      createSupplier: ({ idempotencyKey, ...body }: CreateSupplierInput) =>
+        request("/api/v1/suppliers", SupplierSchema, {
+          tenantId,
+          method: "POST",
+          body,
+          idempotencyKey,
+        }),
+      updateSupplier: ({ supplierId, idempotencyKey, ...body }: UpdateSupplierInput) =>
+        request(`/api/v1/suppliers/${encodeURIComponent(supplierId)}`, SupplierSchema, {
+          tenantId,
+          method: "PATCH",
+          body,
+          idempotencyKey,
+        }),
+      listSupplierReceipts: (supplierId: string, query: SupplierReceiptsQuery = {}) =>
+        request(
+          `/api/v1/suppliers/${encodeURIComponent(supplierId)}/receipts${buildQuery({ limit: query.limit, cursor: query.cursor })}`,
+          SupplierReceiptsResponseSchema,
           { tenantId },
         ),
       receiveInventory: ({ idempotencyKey, ...body }: ReceiveInventoryInput) =>

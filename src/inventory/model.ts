@@ -55,6 +55,8 @@ export const ReceiveInventoryInputSchema = z
   .object({
     variantId: UuidSchema,
     inventoryLocationId: UuidSchema,
+    supplierId: z.string().uuid().optional(),
+    supplierReference: z.string().trim().min(1).max(200).optional(),
     quantity: PositiveQuantitySchema,
     idempotencyKey: IdempotencyKeySchema,
     note: NoteSchema.optional(),

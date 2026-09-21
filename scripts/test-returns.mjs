@@ -116,6 +116,12 @@ try {
       "test",
       "db",
       "supabase/tests/phase_2m_returns_rls.test.sql",
+      ...(process.argv.includes("--suppliers")
+        ? [
+            "supabase/tests/phase_2n_suppliers_rls.test.sql",
+            "supabase/tests/phase_2c_inventory_operations_rls.test.sql",
+          ]
+        : []),
       "supabase/tests/phase_1c_b_tenant_rls.test.sql",
       "supabase/tests/phase_2a_catalog_rls.test.sql",
       "supabase/tests/phase_2b_inventory_rls.test.sql",
@@ -133,6 +139,7 @@ try {
       "phase_2h_pos_sale.setup.sql",
       "phase_2l_online.setup.sql",
       "phase_2m_returns.setup.sql",
+      ...(process.argv.includes("--suppliers") ? ["phase_2n_suppliers.setup.sql"] : []),
     ])
       sql(readFileSync(join(root, "supabase/tests", file), "utf8"));
     const local = JSON.parse(
@@ -229,6 +236,9 @@ try {
         join(root, "node_modules/vitest/vitest.mjs"),
         "run",
         "tests/returns-integration",
+        ...(process.argv.includes("--suppliers")
+          ? ["tests/suppliers-integration", "--fileParallelism=false"]
+          : []),
         "--testTimeout=60000",
         "--hookTimeout=60000",
       ],

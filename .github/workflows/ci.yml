@@ -90,8 +90,8 @@ jobs:
         run: pnpm test:pos:offline:rls
       - name: Test offline POS integration
         run: pnpm test:pos:offline:integration
-      - name: Test returns persistence, RLS, concurrency, and runtime
-        run: pnpm test:returns:safety && pnpm test:returns:persistence && pnpm test:returns:integration
+      - name: Test suppliers and returns persistence, RLS, concurrency, and runtime
+        run: pnpm test:returns:safety && pnpm test:suppliers:persistence && pnpm test:suppliers:integration
       - name: Test SDK build, contracts, and self-contained packaging
         run: pnpm test:sdk
       - run: pnpm build

@@ -79,7 +79,7 @@ select ok(
 -- fulfillments_writer may NOT execute the generic record_operation.
 select ok(
   (
-    select not has_function_privilege('fulfillments_writer', procedure.oid, 'EXECUTE')
+    select bool_and(not has_function_privilege('fulfillments_writer', procedure.oid, 'EXECUTE'))
     from pg_catalog.pg_proc as procedure
     join pg_catalog.pg_namespace as namespace on namespace.oid = procedure.pronamespace
     where namespace.nspname = 'inventory_private' and procedure.proname = 'record_operation'

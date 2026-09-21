@@ -192,6 +192,12 @@ Use this README as the map; detailed design and operational guidance live under 
 
 ## Current implementation boundary
 
+Phase 2N adds [Supplier management V1](docs/suppliers/supplier-management-core.md): tenant-owned
+suppliers, active/inactive lifecycle, explicit permissions, optional linkage to canonical receiving,
+and immutable supplier receipt history. Unit cost and procurement workflows remain deferred.
+Run `pnpm test:suppliers:persistence` and `pnpm test:suppliers:integration` using the existing
+ownership-validated disposable infrastructure. The additive SDK release is `0.9.0`.
+
 The repository now owns catalog, append-only inventory, canonical Orders, immutable Fulfillments, the
 management API, Connected POS Sale V1, and the Phase 2I Offline POS server boundary. A connected cash checkout composes its POS Order, captured
 Payment, full Fulfillment, and inventory issue atomically from a server-trusted Register context.
