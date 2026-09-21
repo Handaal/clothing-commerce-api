@@ -5,36 +5,40 @@ import {
   StaffDetailSchema,
   StaffSummarySchema,
   StaffListResponseSchema,
+  EligibleIdentitySchema,
+  EligibleIdentitiesResponseSchema,
   type AssignStaffRoleRequest,
   type CreateStaffRequest,
   type UpdateStaffStatusRequest,
 } from "../contracts/management/staff";
 import { InvalidCursorError } from "../management/cursor";
 import { StaffError, staffDatabaseError } from "./errors";
-import type { StaffListQuery } from "./request";
+import type { EligibleIdentityQuery, StaffListQuery } from "./request";
 
 const SORT = "staff_id_asc";
+const ELIGIBLE_SORT = "eligible_identities_id_asc";
 
-const CursorSchema = z.object({ v: z.literal(1), sort: z.literal(SORT), id: z.uuid() }).strict();
+const CursorSchema = z
+  .object({ v: z.literal(1), sort: z.enum([SORT, ELIGIBLE_SORT]), id: z.uuid() })
+  .strict();
 
-function cursorId(cursor: string | undefined) {
+function cursorId(cursor: string | undefined, sort: string) {
   if (cursor === undefined) return null;
   try {
     const value = CursorSchema.parse(JSON.parse(Buffer.from(cursor, "base64url").toString("utf8")));
+    if (value.sort !== sort) throw new Error();
     return value.id;
   } catch {
     throw new InvalidCursorError();
   }
 }
 
-function pageInfo(ids: string[], limit: number) {
+function pageInfo(ids: string[], limit: number, sort: string) {
   return {
     hasMore: ids.length > limit,
     nextCursor:
       ids.length > limit
-        ? Buffer.from(JSON.stringify({ v: 1, sort: SORT, id: ids[limit - 1] })).toString(
-            "base64url",
-          )
+        ? Buffer.from(JSON.stringify({ v: 1, sort, id: ids[limit - 1] })).toString("base64url")
         : null,
   };
 }
@@ -57,7 +61,7 @@ export class StaffRepository {
       p_search: query.search ?? null,
       p_status: query.status ?? null,
       p_role: query.roleId ?? null,
-      p_after: cursorId(query.cursor),
+      p_after: cursorId(query.cursor, SORT),
       p_limit: query.limit + 1,
     });
     if (error) throw staffDatabaseError(error);
@@ -67,6 +71,28 @@ export class StaffRepository {
       pageInfo: pageInfo(
         rows.map((r) => r.membershipId),
         query.limit,
+        SORT,
+      ),
+    });
+  }
+
+  async listEligibleIdentities(proof: AuthorizedOperationContext, query: EligibleIdentityQuery) {
+    const { data, error } = await this.client
+      .schema("staff_private")
+      .rpc("list_eligible_identities", {
+        p_tenant: this.tenant(proof),
+        p_search: query.search ?? null,
+        p_after: cursorId(query.cursor, ELIGIBLE_SORT),
+        p_limit: query.limit + 1,
+      });
+    if (error) throw staffDatabaseError(error);
+    const rows = z.array(EligibleIdentitySchema).parse(data);
+    return EligibleIdentitiesResponseSchema.parse({
+      items: rows.slice(0, query.limit),
+      pageInfo: pageInfo(
+        rows.map((r) => r.identityId),
+        query.limit,
+        ELIGIBLE_SORT,
       ),
     });
   }

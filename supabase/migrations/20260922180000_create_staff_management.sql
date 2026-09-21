@@ -298,12 +298,35 @@ begin
  return staff_private.finish_command(p_tenant,p_key,v_intent,v_response);
 end $f$;
 
+-- Eligible identities for linking: already-provisioned, ACTIVE UserIdentity records that do NOT already
+-- hold a membership in this tenant (any membership status blocks re-linking via the (tenant,identity)
+-- unique constraint). The projection is deliberately minimal (id, display name, email, status) and never
+-- reveals another tenant's membership relationships. The caller must already hold tenant-wide staff.manage
+-- (enforced above the transport). Search is a literal, case-insensitive substring on display name/email
+-- (position(), never interpolated LIKE); results are keyset-paginated in stable id order.
+create function staff_private.list_eligible_identities(p_tenant uuid,p_search text,p_after uuid,p_limit integer)
+returns jsonb language plpgsql security definer set search_path='' as $f$
+begin
+ if p_limit is null or p_limit not between 1 and 101 or length(p_search)>200 then
+   raise exception using errcode='22023',message='Invalid identity query'; end if;
+ return (select coalesce(jsonb_agg(jsonb_build_object(
+    'identityId',u.id,'displayName',u.display_name,'primaryEmail',u.primary_email,'status',u.status) order by u.id),'[]'::jsonb)
+  from (select ui.* from public.user_identities ui
+   where ui.status='active'
+     and (p_after is null or ui.id>p_after)
+     and (p_search is null or position(lower(p_search) in lower(coalesce(ui.display_name,'')))>0
+        or position(lower(p_search) in lower(coalesce(ui.primary_email,'')))>0)
+     and not exists(select 1 from public.memberships m where m.tenant_id=p_tenant and m.user_identity_id=ui.id)
+   order by ui.id limit p_limit) u);
+end $f$;
+
 -- ---- Ownership + execution grants ----------------------------------------------------------------
 grant create on schema staff_private to staff_writer;
 alter function staff_private.tenant_permission_keys(uuid,uuid) owner to staff_writer;
 alter function staff_private.staff_admin_count(uuid) owner to staff_writer;
 alter function staff_private.staff_detail_json(uuid,uuid) owner to staff_writer;
 alter function staff_private.list_staff(uuid,text,text,uuid,uuid,integer) owner to staff_writer;
+alter function staff_private.list_eligible_identities(uuid,text,uuid,integer) owner to staff_writer;
 alter function staff_private.begin_command(uuid,text,jsonb) owner to staff_writer;
 alter function staff_private.finish_command(uuid,text,jsonb,jsonb) owner to staff_writer;
 alter function staff_private.create_staff(uuid,uuid,text,uuid) owner to staff_writer;
@@ -317,6 +340,7 @@ grant usage on schema staff_private to service_role;
 -- Only the two list/detail readers and the four mutation entry points are callable by the transport;
 -- the internal helpers (begin/finish/permission/admin-count) are not granted to service_role.
 grant execute on function staff_private.list_staff(uuid,text,text,uuid,uuid,integer),
+ staff_private.list_eligible_identities(uuid,text,uuid,integer),
  staff_private.staff_detail_json(uuid,uuid),
  staff_private.create_staff(uuid,uuid,text,uuid),
  staff_private.set_staff_status(uuid,uuid,text,uuid,text,text),

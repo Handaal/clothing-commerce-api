@@ -11,6 +11,8 @@ import {
   StaffSummarySchema,
   StaffDetailSchema,
   StaffListResponseSchema,
+  EligibleIdentitySchema,
+  EligibleIdentitiesResponseSchema,
   CreateStaffRequestSchema,
   UpdateStaffStatusRequestSchema,
   AssignStaffRoleRequestSchema,
@@ -595,6 +597,35 @@ export function generateOpenApiDocument() {
           ),
           responses: {
             "200": jsonResponse("Success", "#/components/schemas/StaffDetail"),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
+      "/api/v1/staff/eligible-identities": {
+        get: {
+          operationId: "listEligibleStaffIdentities",
+          tags: ["staff"],
+          summary: "listEligibleStaffIdentities",
+          description:
+            "Requires a tenant-wide staff.manage grant. Returns already-provisioned, active identities " +
+            "that do not yet hold a membership in this tenant, so a manager can pick one to add. Minimal " +
+            "projection; never reveals other tenants' membership relationships. Does not create identities " +
+            "or send invitations.",
+          security: clerkSecurity,
+          parameters: [
+            tenantHeaderParameter,
+            limitParameter(),
+            cursorParameter(),
+            {
+              name: "search",
+              in: "query",
+              required: false,
+              description: "Case-insensitive literal substring in identity display name or email.",
+              schema: { type: "string", minLength: 1, maxLength: 200 },
+            },
+          ],
+          responses: {
+            "200": jsonResponse("Success", "#/components/schemas/EligibleIdentitiesResponse"),
             ...errorResponses(400, 401, 403, 404, 409, 422, 500),
           },
         },
@@ -1923,6 +1954,8 @@ export function generateOpenApiDocument() {
         StaffSummary: jsonSchema(StaffSummarySchema),
         StaffDetail: jsonSchema(StaffDetailSchema),
         StaffListResponse: jsonSchema(StaffListResponseSchema),
+        EligibleIdentity: jsonSchema(EligibleIdentitySchema),
+        EligibleIdentitiesResponse: jsonSchema(EligibleIdentitiesResponseSchema),
         CreateStaffRequest: jsonSchema(CreateStaffRequestSchema),
         UpdateStaffStatusRequest: jsonSchema(UpdateStaffStatusRequestSchema),
         AssignStaffRoleRequest: jsonSchema(AssignStaffRoleRequestSchema),

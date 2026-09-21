@@ -65,6 +65,20 @@ export const StaffDetailSchema = StaffSummarySchema.extend({
 
 export const StaffListResponseSchema = paginated(StaffSummarySchema);
 
+/**
+ * An already-provisioned identity that may be linked as staff for this tenant. Only global-status
+ * `active` identities that do NOT already hold a membership in the tenant are returned. The projection is
+ * deliberately minimal and never reveals another tenant's membership relationships.
+ */
+export const EligibleIdentitySchema = z.object({
+  identityId: UuidSchema,
+  displayName: z.string().nullable(),
+  primaryEmail: z.string().nullable(),
+  status: z.enum(["active", "suspended", "deactivated"]),
+});
+
+export const EligibleIdentitiesResponseSchema = paginated(EligibleIdentitySchema);
+
 const reasonField = z.string().trim().min(1).max(500).optional();
 
 export const CreateStaffRequestSchema = z.object({ identityId: UuidSchema }).strict();
@@ -87,6 +101,8 @@ export type StaffAssignment = z.infer<typeof StaffAssignmentSchema>;
 export type StaffSummary = z.infer<typeof StaffSummarySchema>;
 export type StaffDetail = z.infer<typeof StaffDetailSchema>;
 export type StaffListResponse = z.infer<typeof StaffListResponseSchema>;
+export type EligibleIdentity = z.infer<typeof EligibleIdentitySchema>;
+export type EligibleIdentitiesResponse = z.infer<typeof EligibleIdentitiesResponseSchema>;
 export type CreateStaffRequest = z.infer<typeof CreateStaffRequestSchema>;
 export type UpdateStaffStatusRequest = z.infer<typeof UpdateStaffStatusRequestSchema>;
 export type AssignStaffRoleRequest = z.infer<typeof AssignStaffRoleRequestSchema>;

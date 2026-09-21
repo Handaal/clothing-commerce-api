@@ -91,4 +91,29 @@ describe("Staff SDK", () => {
     fetcher.mockResolvedValueOnce(new Response(JSON.stringify({ membershipId: "not-a-uuid" })));
     await expect(client.getStaffMember(id)).rejects.toBeInstanceOf(ApiContractError);
   });
+
+  it("discovers eligible identities with a tenant-scoped, bounded search", async () => {
+    const identity = {
+      identityId: id,
+      displayName: "Dana Newhire",
+      primaryEmail: "dana@example.test",
+      status: "active",
+    };
+    const fetcher = vi.fn<typeof fetch>(
+      async () =>
+        new Response(
+          JSON.stringify({ items: [identity], pageInfo: { nextCursor: null, hasMore: false } }),
+        ),
+    );
+    const client = createCommerceClient({
+      baseUrl: "https://example.test",
+      fetch: fetcher,
+    }).withTenant(id);
+    const page = await client.listEligibleStaffIdentities({ search: "dana", limit: 10 });
+    expect(page.items[0]).toEqual(identity);
+    const url = new URL(String(fetcher.mock.calls[0][0]));
+    expect(url.pathname).toBe("/api/v1/staff/eligible-identities");
+    expect(url.searchParams.get("search")).toBe("dana");
+    expect(new Headers(fetcher.mock.calls[0][1]?.headers).get("X-Tenant-Id")).toBe(id);
+  });
 });

@@ -27,7 +27,7 @@ truth lives on `origin/main`. All feature branches below were confirmed merged i
 > Always `git fetch` and inspect `origin/main` before branching. Do not trust local `main`.
 
 **Current SDK:** `@shifted/clothing-commerce-sdk@0.10.0`
-(deterministic pack SHA-256 `010a6063e5795ec7b8689a22e3e335eaae5ab127c8d871f8135029a8516f8a4b`,
+(deterministic pack SHA-256 `054b8fe5d2562450f3bf340aec90bd4e2a6f69a1ceac6fdf14eb4ef5a3cc2840`,
 artifact `artifacts/shifted-clothing-commerce-sdk-0.10.0.tgz`; `0.9.0` was the prior Phase 2N release).
 The `0.10.0` release adds the Phase 2O staff-management methods and is not yet vendored by any client.
 
@@ -159,10 +159,11 @@ plus `docs/development/phase-2l-validation.md` and `docs/development/phase-2m-va
 
 - **Package version:** `0.10.0` (`packages/sdk/package.json`).
 - **Artifact:** `artifacts/shifted-clothing-commerce-sdk-0.10.0.tgz`.
-- **Deterministic pack SHA-256:** `010a6063e5795ec7b8689a22e3e335eaae5ab127c8d871f8135029a8516f8a4b`
+- **Deterministic pack SHA-256:** `054b8fe5d2562450f3bf340aec90bd4e2a6f69a1ceac6fdf14eb4ef5a3cc2840`
   (identical across two independent packs, per Phase 2O validation).
-- **0.10.0 additions:** `listStaff`, `getStaffMember`, `createStaff`, `updateStaffStatus`,
-  `assignStaffRole`, `unassignStaffRole`; `getContext().access.staff` optional `{ canRead, canManage }`.
+- **0.10.0 additions:** `listStaff`, `listEligibleStaffIdentities`, `getStaffMember`, `createStaff`,
+  `updateStaffStatus`, `assignStaffRole`, `unassignStaffRole`; `getContext().access.staff` optional
+  `{ canRead, canManage }`.
 - **0.9.0 additions:** `listSuppliers`, `getSupplier`, `createSupplier`, `updateSupplier`,
   `listSupplierReceipts`; `receiveInventory` gains optional `supplierId` / `supplierReference`;
   `getContext().access.suppliers` optional `{ canRead, canManage }` UI guidance.

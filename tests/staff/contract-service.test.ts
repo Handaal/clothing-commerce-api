@@ -8,7 +8,7 @@ import {
 } from "../../src/contracts/management/staff";
 import { StaffRepository } from "../../src/staff/repository";
 import { StaffService, staffCapabilities } from "../../src/staff/service";
-import { StaffListQuerySchema } from "../../src/staff/request";
+import { EligibleIdentityQuerySchema, StaffListQuerySchema } from "../../src/staff/request";
 import { contextWith, grant, location, ids, StubResourceRepository } from "../inventory/fakes";
 
 const identity = "70000000-0000-4000-8000-0000000000aa";
@@ -65,6 +65,20 @@ describe("Staff request validation", () => {
       expect(StaffListQuerySchema.safeParse(value).success).toBe(false);
     },
   );
+
+  it.each([{ limit: 0 }, { limit: 101 }, { cursor: "" }, { search: "" }, { status: "active" }])(
+    "fails closed for eligible-identity query %j",
+    (value) => {
+      expect(EligibleIdentityQuerySchema.safeParse(value).success).toBe(false);
+    },
+  );
+
+  it("accepts a bounded eligible-identity search", () => {
+    expect(EligibleIdentityQuerySchema.parse({ search: " dana ", limit: 10 })).toEqual({
+      search: "dana",
+      limit: 10,
+    });
+  });
 });
 
 describe("Staff permission coupling", () => {
@@ -97,6 +111,15 @@ describe("Staff permission coupling", () => {
     await expect(
       service.updateStatus(context, ids.tenant, "key", { status: "suspended" }),
     ).rejects.toMatchObject({ code: "PERMISSION_DENIED" });
+  });
+
+  it("requires staff.manage (not merely staff.read) to discover eligible identities", async () => {
+    const spy = vi.spyOn(repository, "listEligibleIdentities");
+    await expect(
+      service.listEligibleIdentities(contextWith([grant(["staff.read"])]), { limit: 25 }),
+    ).rejects.toMatchObject({ code: "PERMISSION_DENIED" });
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
   });
 
   it("reports full capability for a tenant-wide manager", () => {

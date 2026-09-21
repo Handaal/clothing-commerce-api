@@ -11,7 +11,12 @@ import {
   type UpdateStaffStatusRequest,
 } from "../contracts/management/staff";
 import { StaffError } from "./errors";
-import { StaffListQuerySchema, type StaffListQuery } from "./request";
+import {
+  EligibleIdentityQuerySchema,
+  StaffListQuerySchema,
+  type EligibleIdentityQuery,
+  type StaffListQuery,
+} from "./request";
 import type { StaffRepository } from "./repository";
 
 export const StaffPermission = { read: "staff.read", manage: "staff.manage" } as const;
@@ -49,6 +54,15 @@ export class StaffService {
     return this.repository.list(
       await this.authorize(context, StaffPermission.read),
       parse(StaffListQuerySchema, query),
+    );
+  }
+
+  // Discovery is part of the add-staff flow, so it requires the same tenant-wide staff.manage grant.
+  // It returns only linkable (active, not-already-a-member) identities with a minimal projection.
+  async listEligibleIdentities(context: AuthorizationContext, query: EligibleIdentityQuery) {
+    return this.repository.listEligibleIdentities(
+      await this.authorize(context, StaffPermission.manage),
+      parse(EligibleIdentityQuerySchema, query),
     );
   }
 

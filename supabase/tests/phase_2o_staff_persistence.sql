@@ -11,8 +11,18 @@ declare
  newid uuid:='2a000030-0000-4000-8000-000000000001';
  goneid uuid:='2a000030-0000-4000-8000-000000000002';
  admin_assignment uuid:='2a000016-0000-4000-8000-000000000001';
+ mem2 uuid:='2a000012-0000-4000-8000-000000000002';    -- second base membership (not yet an admin)
+ role_admin uuid:='2a000013-0000-4000-8000-000000000001'; -- actor's own role (carries staff.manage)
  created jsonb; d jsonb; m uuid; asg uuid;
 begin
+ -- Runtime J: identity discovery. Before linking, an active non-member identity is discoverable by
+ -- email/display-name search; a deactivated identity is never eligible; search is a literal substring.
+ assert jsonb_array_length(staff_private.list_eligible_identities(t,'dana',null,26))=1,'active non-member identity discoverable';
+ assert (staff_private.list_eligible_identities(t,'dana',null,26)->0->>'identityId')=newid::text,'eligible projection identity id';
+ assert (staff_private.list_eligible_identities(t,'dana',null,26)->0->>'primaryEmail')='dana@example.test','eligible projection email';
+ assert jsonb_array_length(staff_private.list_eligible_identities(t,'removed',null,26))=0,'deactivated identity never eligible';
+ assert jsonb_array_length(staff_private.list_eligible_identities(t,'%',null,26))=0,'literal search, no wildcard injection';
+
  -- Create: links an existing active identity as an active membership.
  created:=staff_private.create_staff(t,a,'create-1',newid);
  m:=(created->>'membershipId')::uuid;
@@ -29,6 +39,12 @@ begin
  exception when sqlstate 'ST423' then null; end;
  begin perform staff_private.create_staff(t,a,'dup-link',newid); raise exception 'expected duplicate membership';
  exception when sqlstate '23505' then null; end;
+
+ -- J (cont.): once linked, the identity is excluded from THIS tenant's eligible list. Exclusion is
+ -- strictly per-tenant; the minimal projection carries no tenant/membership field, so a foreign tenant
+ -- learns nothing about where the identity is a member.
+ assert jsonb_array_length(staff_private.list_eligible_identities(t,'dana',null,26))=0,'linked identity excluded for this tenant';
+ assert jsonb_array_length(staff_private.list_eligible_identities(ft,'dana',null,26))=1,'exclusion is per-tenant; no membership linkage leaked';
 
  -- List / search / tenant isolation.
  assert jsonb_array_length(staff_private.list_staff(t,'dana',null,null,null,26))=1,'case-insensitive display-name search';
@@ -78,6 +94,13 @@ begin
  -- Historical actor references survive every operation above.
  assert (select status='active' from public.memberships where id=a),'actor membership intact';
  assert (select count(*)=1 from public.membership_role_assignments where id=admin_assignment and unassigned_at is null),'actor admin assignment intact';
+
+ -- Last-admin, two-admin case: with a second tenant-wide staff.manage admin present, the original admin
+ -- MAY step down. Promote mem2 with the actor's own admin role (subset check passes: equal permission set).
+ perform staff_private.assign_role(t,a,'promote-2',mem2,role_admin,sc,null);
+ d:=staff_private.set_staff_status(t,a,'stepdown',a,'deactivated','handover');
+ assert d->>'status'='deactivated','admin may step down while another admin satisfies the invariant';
+ assert (select status='active' from public.memberships where id=mem2),'the remaining admin is still active';
 end $b$;
 reset role;
 select 'ALL_STAFF_PERSISTENCE_ASSERTIONS_PASSED';

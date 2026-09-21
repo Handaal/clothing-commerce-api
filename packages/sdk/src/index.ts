@@ -34,9 +34,11 @@ export type UpdateSupplierInput = UpdateSupplierRequest & IdempotentWrite & { su
 import {
   StaffDetailSchema,
   StaffListResponseSchema,
+  EligibleIdentitiesResponseSchema,
   type StaffDetail,
   type StaffListResponse,
   type StaffStatus,
+  type EligibleIdentitiesResponse,
   type CreateStaffRequest,
   type UpdateStaffStatusRequest,
   type AssignStaffRoleRequest,
@@ -50,6 +52,8 @@ export type {
   StaffScopeTarget,
   StaffAssignment,
   StaffListResponse,
+  EligibleIdentity,
+  EligibleIdentitiesResponse,
   CreateStaffRequest,
   UpdateStaffStatusRequest,
   AssignStaffRoleRequest,
@@ -59,6 +63,11 @@ export interface StaffListQuery {
   search?: string;
   status?: StaffStatus;
   roleId?: string;
+  limit?: number;
+  cursor?: string;
+}
+export interface EligibleIdentityQuery {
+  search?: string;
   limit?: number;
   cursor?: string;
 }
@@ -340,6 +349,7 @@ export interface TenantCommerceClient {
     query?: SupplierReceiptsQuery,
   ): Promise<SupplierReceiptsResponse>;
   listStaff(query?: StaffListQuery): Promise<StaffListResponse>;
+  listEligibleStaffIdentities(query?: EligibleIdentityQuery): Promise<EligibleIdentitiesResponse>;
   getStaffMember(membershipId: string): Promise<StaffDetail>;
   createStaff(input: CreateStaffInput): Promise<StaffDetail>;
   updateStaffStatus(input: UpdateStaffStatusInput): Promise<StaffDetail>;
@@ -645,6 +655,12 @@ export function createCommerceClient({
         request(
           `/api/v1/staff${buildQuery({ search: query.search, status: query.status, roleId: query.roleId, limit: query.limit, cursor: query.cursor })}`,
           StaffListResponseSchema,
+          { tenantId },
+        ),
+      listEligibleStaffIdentities: (query: EligibleIdentityQuery = {}) =>
+        request(
+          `/api/v1/staff/eligible-identities${buildQuery({ search: query.search, limit: query.limit, cursor: query.cursor })}`,
+          EligibleIdentitiesResponseSchema,
           { tenantId },
         ),
       getStaffMember: (membershipId: string) =>

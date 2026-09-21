@@ -8,8 +8,8 @@ authority. It is **not** an HR/payroll system.
 - **Contracts:** [`src/contracts/management/staff.ts`](../../src/contracts/management/staff.ts)
 - **Domain:** [`src/staff/`](../../src/staff) (`service.ts`, `repository.ts`, `request.ts`, `errors.ts`)
 - **Routes:** [`app/api/v1/staff/`](../../app/api/v1/staff)
-- **SDK:** `@shifted/clothing-commerce-sdk@0.10.0` (`listStaff`, `getStaffMember`, `createStaff`,
-  `updateStaffStatus`, `assignStaffRole`, `unassignStaffRole`)
+- **SDK:** `@shifted/clothing-commerce-sdk@0.10.0` (`listStaff`, `listEligibleStaffIdentities`,
+  `getStaffMember`, `createStaff`, `updateStaffStatus`, `assignStaffRole`, `unassignStaffRole`)
 - **DB/behaviour proof:** `pnpm test:staff:persistence`; **RLS:** `pnpm test:staff:rls`
 
 ## 1. Staff is a projection, not a new model
@@ -38,6 +38,33 @@ management therefore operates **membership-side over already-provisioned identit
 creates a `Membership` for an existing `UserIdentity` referenced by `identityId`. The new membership is
 created **active** (there is no acceptance handshake to gate it). External invitation/email delivery is
 **explicitly deferred** — no fake invite flow, no passwords, no local credential store.
+
+### Identity discovery (making Add Staff usable)
+
+Because `POST /api/v1/staff` needs an `identityId`, a manager must be able to find one without typing a
+raw UUID. `GET /api/v1/staff/eligible-identities` provides that lookup:
+
+- requires the same **tenant-wide `staff.manage`** grant as adding staff;
+- bounded, keyset-paginated, stable id order; case-insensitive literal substring `search` on display
+  name / email (`position()`, never interpolated LIKE);
+- returns a **minimal projection** — `{ identityId, displayName, primaryEmail, status }` — and **never**
+  provider bindings, tokens, or any tenant/membership relationship;
+- **excludes** identities that already hold a membership in this tenant (any status — the
+  `(tenant, identity)` unique constraint would otherwise block re-linking);
+- **eligibility rule (identity status):** only globally `active` identities are returned. A `suspended`
+  or `deactivated` `UserIdentity` cannot authorize (the context resolver rejects a non-active identity),
+  so linking one would create a membership that can never be used. `create_staff` independently rejects a
+  non-active identity with `IDENTITY_INACTIVE` (`ST423`) as defense in depth.
+
+Discovery **does not** create identities, send invitations, or modify Clerk.
+
+> **Directory-exposure note (reviewed):** `UserIdentity` is platform-global, and the "link existing
+> identity" model inherently requires a global lookup, so an authorized `staff.manage` manager can
+> discover any active, non-member identity — including people who are staff only in another tenant. The
+> projection deliberately carries no tenant/membership field, so **no cross-tenant membership relationship
+> is ever revealed** (only the same name/email you would need to invite someone). Exclusion is strictly
+> per-tenant. Narrowing discovery further (e.g. exact-email-only lookup) is a possible future hardening if
+> a stricter directory-privacy posture is required.
 
 ## 3. Membership lifecycle
 
@@ -130,10 +157,14 @@ existing current-assignment unique index).
 
 ## 10. Testing
 
-- `pnpm test:staff:persistence` — real-PostgreSQL behaviour proof: create + idempotent replay/conflict,
+- `pnpm test:staff:persistence` — real-PostgreSQL behaviour proof: identity discovery (search hit,
+  deactivated-never-eligible, post-link per-tenant exclusion), create + idempotent replay/conflict,
   inactive-identity and duplicate-membership rejection, tenant-isolated list/search, subset assignment,
   anti-escalation block, cross-tenant role/membership rejection, history-preserving unassign, full
-  lifecycle (suspend → reactivate → revoke → terminal), and last-admin protection on suspend and unassign.
+  lifecycle (suspend → reactivate → revoke → terminal), last-admin protection on suspend and unassign,
+  and the two-admin case (an admin may step down while another admin satisfies the invariant). Wired into
+  Linux CI alongside `pnpm test:staff:rls`. Real authorization-layer denial of suspended/deactivated
+  memberships is covered by `tests/authorization/tenant-lifecycle.test.ts` (`MEMBERSHIP_INACTIVE`).
 - `pnpm test:staff:rls` — pgTAP grant/policy/role-privilege assertions on an ownership-validated disposable
   Supabase project (Linux CI authoritative; the local Supabase stack is required).
 - `pnpm test` — contract/service unit tests (`tests/staff/`, `packages/sdk/src/staff.test.ts`) plus the
