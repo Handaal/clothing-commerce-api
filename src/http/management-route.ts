@@ -13,6 +13,7 @@ import { OrderError } from "../orders/errors";
 import { PosSaleError } from "../pos/errors";
 import { OfflinePosError } from "../pos/offline-errors";
 import { SupplierError } from "../suppliers/errors";
+import { StaffError } from "../staff/errors";
 import { ReturnError } from "../returns/errors";
 import { corsHeaders } from "./cors";
 
@@ -179,7 +180,8 @@ function mapError(error: unknown, requestId: string, request?: Request): Respons
     error instanceof OfflinePosError ||
     error instanceof CatalogError ||
     error instanceof ReturnError ||
-    error instanceof SupplierError
+    error instanceof SupplierError ||
+    error instanceof StaffError
   ) {
     const details =
       error instanceof PosSaleError &&
