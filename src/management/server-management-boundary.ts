@@ -21,6 +21,8 @@ import { createSupabaseOrdersRepository } from "../orders";
 import { OrdersReadService } from "../orders/orders-read-service";
 import { SuppliersService } from "../suppliers/service";
 import { createSuppliersRepository } from "../suppliers/repository";
+import { StaffService } from "../staff/service";
+import { createStaffRepository } from "../staff/repository";
 import { ReturnsService } from "../returns/service";
 import { createReturnsRepository } from "../returns/repository";
 import { createSupabaseOrdersReadRepository } from "../orders/supabase-orders-read-repository";
@@ -128,6 +130,10 @@ export function createManagementApiBoundary(
     suppliersService: new SuppliersService(
       authorizationService,
       createSuppliersRepository(supabaseConfiguration),
+    ),
+    staffService: new StaffService(
+      authorizationService,
+      createStaffRepository(supabaseConfiguration),
     ),
     posSaleService,
     offlinePosService,

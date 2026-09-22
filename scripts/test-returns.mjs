@@ -122,6 +122,7 @@ try {
             "supabase/tests/phase_2c_inventory_operations_rls.test.sql",
           ]
         : []),
+      ...(process.argv.includes("--staff") ? ["supabase/tests/phase_2o_staff_rls.test.sql"] : []),
       "supabase/tests/phase_1c_b_tenant_rls.test.sql",
       "supabase/tests/phase_2a_catalog_rls.test.sql",
       "supabase/tests/phase_2b_inventory_rls.test.sql",

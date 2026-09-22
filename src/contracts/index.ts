@@ -182,3 +182,5 @@ export * from "./storefront/checkout";
 export * from "./management/returns";
 
 export * from "./management/suppliers";
+
+export * from "./management/staff";

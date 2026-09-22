@@ -8,6 +8,17 @@ import {
   SupplierReceiptsResponseSchema,
 } from "../contracts/management/suppliers";
 import {
+  StaffSummarySchema,
+  StaffDetailSchema,
+  StaffListResponseSchema,
+  EligibleIdentitySchema,
+  EligibleIdentitiesResponseSchema,
+  CreateStaffRequestSchema,
+  UpdateStaffStatusRequestSchema,
+  AssignStaffRoleRequestSchema,
+  UnassignStaffRoleRequestSchema,
+} from "../contracts/management/staff";
+import {
   CreateReturnRequestSchema,
   SettleRefundRequestSchema,
   ReturnDetailResponseSchema,
@@ -160,6 +171,12 @@ export function generateOpenApiDocument() {
       {
         name: "suppliers",
         description: "Tenant-owned supplier management and canonical receiving history.",
+      },
+      {
+        name: "staff",
+        description:
+          "Tenant staff (membership) management: list/detail, lifecycle, and role/scope assignment " +
+          "over the existing identity + RBAC model. Not an HR/payroll domain.",
       },
       { name: "orders", description: "Read-only orders and fulfillment progress." },
       { name: "pos", description: "Authorized register context and atomic POS checkout." },
@@ -527,6 +544,212 @@ export function generateOpenApiDocument() {
             "500": {
               $ref: "#/components/responses/Error500",
             },
+          },
+        },
+      },
+      "/api/v1/staff": {
+        get: {
+          operationId: "listStaff",
+          tags: ["staff"],
+          summary: "listStaff",
+          description: "Requires a tenant-wide staff.read grant.",
+          security: clerkSecurity,
+          parameters: [
+            tenantHeaderParameter,
+            limitParameter(),
+            cursorParameter(),
+            {
+              name: "search",
+              in: "query",
+              required: false,
+              description: "Case-insensitive literal substring in identity display name or email.",
+              schema: { type: "string", minLength: 1, maxLength: 200 },
+            },
+            {
+              name: "status",
+              in: "query",
+              required: false,
+              schema: {
+                type: "string",
+                enum: ["invited", "active", "suspended", "deactivated"],
+              },
+            },
+            uuidQueryParameter("roleId", "Filter to memberships currently assigned this role."),
+          ],
+          responses: {
+            "200": jsonResponse("Success", "#/components/schemas/StaffListResponse"),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+        post: {
+          operationId: "createStaff",
+          tags: ["staff"],
+          summary: "createStaff",
+          description:
+            "Requires a tenant-wide staff.manage grant and Idempotency-Key. Creates an active " +
+            "membership for an already-provisioned identity; there is no invitation delivery. Exact " +
+            "replay returns the original response; changed intent conflicts.",
+          security: clerkSecurity,
+          parameters: [tenantHeaderParameter, idempotencyKeyHeaderParameter],
+          requestBody: jsonRequestBody(
+            "Identity to link.",
+            "#/components/schemas/CreateStaffRequest",
+          ),
+          responses: {
+            "200": jsonResponse("Success", "#/components/schemas/StaffDetail"),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
+      "/api/v1/staff/eligible-identities": {
+        get: {
+          operationId: "findEligibleStaffIdentitiesByEmail",
+          tags: ["staff"],
+          summary: "findEligibleStaffIdentitiesByEmail",
+          description:
+            "Requires a tenant-wide staff.manage grant. Resolves an existing account by EXACT email " +
+            "(case-insensitive, trimmed) so a manager can add it as staff — this is a confirmation " +
+            "lookup, NOT a browsable directory: there is no display-name, partial, substring, or " +
+            "wildcard search, and no pagination. Returns already-provisioned, active identities that " +
+            "do not yet hold a membership in this tenant, with a minimal projection; never reveals " +
+            "other tenants' membership relationships. An unknown email, an inactive identity, and an " +
+            "already-a-member identity are indistinguishable (all return an empty list). Because " +
+            "primary_email is not unique, the response is an explicit 0..N list ordered by identity id " +
+            "ascending (bounded to 50 exact matches): 0 items = no eligible account; 1 item = an " +
+            "unambiguous account; more than 1 = multiple provisioned identities share the exact email, " +
+            "and the client MUST require explicit selection and MUST NOT silently choose one (the " +
+            "server never collapses or prefers a match). Does not create identities or send invitations.",
+          security: clerkSecurity,
+          parameters: [
+            tenantHeaderParameter,
+            {
+              name: "email",
+              in: "query",
+              required: true,
+              description:
+                "Exact email of the existing account to link (trimmed, case-insensitive).",
+              schema: { type: "string", minLength: 1, maxLength: 320 },
+            },
+          ],
+          responses: {
+            "200": jsonResponse("Success", "#/components/schemas/EligibleIdentitiesResponse"),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
+      "/api/v1/staff/{membershipId}": {
+        get: {
+          operationId: "getStaffMember",
+          tags: ["staff"],
+          summary: "getStaffMember",
+          description: "Requires a tenant-wide staff.read grant.",
+          security: clerkSecurity,
+          parameters: [
+            tenantHeaderParameter,
+            {
+              name: "membershipId",
+              in: "path",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+          ],
+          responses: {
+            "200": jsonResponse("Success", "#/components/schemas/StaffDetail"),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+        patch: {
+          operationId: "updateStaffStatus",
+          tags: ["staff"],
+          summary: "updateStaffStatus",
+          description:
+            "Requires a tenant-wide staff.manage grant and Idempotency-Key. Transitions membership " +
+            "lifecycle (activate/suspend/revoke). Revoked (deactivated) is terminal. The last active " +
+            "staff.manage membership cannot be suspended or revoked.",
+          security: clerkSecurity,
+          parameters: [
+            tenantHeaderParameter,
+            {
+              name: "membershipId",
+              in: "path",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+            idempotencyKeyHeaderParameter,
+          ],
+          requestBody: jsonRequestBody(
+            "Target lifecycle status.",
+            "#/components/schemas/UpdateStaffStatusRequest",
+          ),
+          responses: {
+            "200": jsonResponse("Success", "#/components/schemas/StaffDetail"),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
+      "/api/v1/staff/{membershipId}/role-assignments": {
+        post: {
+          operationId: "assignStaffRole",
+          tags: ["staff"],
+          summary: "assignStaffRole",
+          description:
+            "Requires a tenant-wide staff.manage grant and Idempotency-Key. Assigns an existing tenant " +
+            "role + access scope to the membership. Anti-escalation: the role's permission set must be a " +
+            "subset of the caller's own current tenant-wide permissions.",
+          security: clerkSecurity,
+          parameters: [
+            tenantHeaderParameter,
+            {
+              name: "membershipId",
+              in: "path",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+            idempotencyKeyHeaderParameter,
+          ],
+          requestBody: jsonRequestBody(
+            "Role and access scope to assign.",
+            "#/components/schemas/AssignStaffRoleRequest",
+          ),
+          responses: {
+            "200": jsonResponse("Success", "#/components/schemas/StaffDetail"),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
+      "/api/v1/staff/{membershipId}/role-assignments/{assignmentId}": {
+        delete: {
+          operationId: "unassignStaffRole",
+          tags: ["staff"],
+          summary: "unassignStaffRole",
+          description:
+            "Requires a tenant-wide staff.manage grant and Idempotency-Key. Revokes an active " +
+            "assignment (history-preserving; never deleted). Cannot strand the tenant's last active " +
+            "staff.manage membership.",
+          security: clerkSecurity,
+          parameters: [
+            tenantHeaderParameter,
+            {
+              name: "membershipId",
+              in: "path",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+            {
+              name: "assignmentId",
+              in: "path",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+            idempotencyKeyHeaderParameter,
+          ],
+          requestBody: jsonRequestBody(
+            "Optional unassignment reason.",
+            "#/components/schemas/UnassignStaffRoleRequest",
+          ),
+          responses: {
+            "200": jsonResponse("Success", "#/components/schemas/StaffDetail"),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
           },
         },
       },
@@ -1734,6 +1957,16 @@ export function generateOpenApiDocument() {
         SupplierListResponse: jsonSchema(SupplierListResponseSchema),
         SupplierReceipt: jsonSchema(SupplierReceiptSchema),
         SupplierReceiptsResponse: jsonSchema(SupplierReceiptsResponseSchema),
+
+        StaffSummary: jsonSchema(StaffSummarySchema),
+        StaffDetail: jsonSchema(StaffDetailSchema),
+        StaffListResponse: jsonSchema(StaffListResponseSchema),
+        EligibleIdentity: jsonSchema(EligibleIdentitySchema),
+        EligibleIdentitiesResponse: jsonSchema(EligibleIdentitiesResponseSchema),
+        CreateStaffRequest: jsonSchema(CreateStaffRequestSchema),
+        UpdateStaffStatusRequest: jsonSchema(UpdateStaffStatusRequestSchema),
+        AssignStaffRoleRequest: jsonSchema(AssignStaffRoleRequestSchema),
+        UnassignStaffRoleRequest: jsonSchema(UnassignStaffRoleRequestSchema),
 
         CreateReturnRequest: jsonSchema(CreateReturnRequestSchema),
         SettleRefundRequest: jsonSchema(SettleRefundRequestSchema),

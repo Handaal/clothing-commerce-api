@@ -71,7 +71,9 @@
     "test:returns:safety": "node scripts/test-returns-safety.mjs",
     "test:suppliers:integration": "node scripts/test-returns.mjs --suppliers",
     "test:suppliers:persistence": "node scripts/test-returns-persistence.mjs --suppliers",
-    "test:suppliers:rls": "node scripts/test-returns.mjs --suppliers --rls-only"
+    "test:suppliers:rls": "node scripts/test-returns.mjs --suppliers --rls-only",
+    "test:staff:persistence": "node scripts/test-returns-persistence.mjs --staff",
+    "test:staff:rls": "node scripts/test-returns.mjs --staff --rls-only"
   },
   "dependencies": {
     "@clerk/backend": "3.16.8",

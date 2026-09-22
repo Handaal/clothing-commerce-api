@@ -192,6 +192,21 @@ try {
       throw new Error("Supplier persistence did not complete");
     process.stdout.write(supplierResult.stdout);
   }
+
+  if (process.argv.includes("--staff")) {
+    runPsql(
+      readFileSync(join(repositoryRoot, "supabase/tests/phase_2o_staff.setup.sql"), "utf8"),
+      "[fixture] staff",
+    );
+    const staffResult = runPsql(
+      readFileSync(join(repositoryRoot, "supabase/tests/phase_2o_staff_persistence.sql"), "utf8"),
+      "[acceptance] staff",
+      { capture: true },
+    );
+    if (!staffResult.stdout.includes("ALL_STAFF_PERSISTENCE_ASSERTIONS_PASSED"))
+      throw new Error("Staff persistence did not complete");
+    process.stdout.write(staffResult.stdout);
+  }
   process.stdout.write(`${successMarker}\nPhase 2M returns persistence passed.\n`);
 } finally {
   removeInterruptHandlers();

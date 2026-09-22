@@ -32,6 +32,59 @@ export interface SupplierReceiptsQuery {
 export type CreateSupplierInput = CreateSupplierRequest & IdempotentWrite;
 export type UpdateSupplierInput = UpdateSupplierRequest & IdempotentWrite & { supplierId: string };
 import {
+  StaffDetailSchema,
+  StaffListResponseSchema,
+  EligibleIdentitiesResponseSchema,
+  type StaffDetail,
+  type StaffListResponse,
+  type StaffStatus,
+  type EligibleIdentitiesResponse,
+  type CreateStaffRequest,
+  type UpdateStaffStatusRequest,
+  type AssignStaffRoleRequest,
+} from "../../../src/contracts/management/staff";
+export type {
+  StaffSummary,
+  StaffDetail,
+  StaffStatus,
+  StaffStatusTarget,
+  StaffRoleRef,
+  StaffScopeTarget,
+  StaffAssignment,
+  StaffListResponse,
+  EligibleIdentity,
+  EligibleIdentitiesResponse,
+  CreateStaffRequest,
+  UpdateStaffStatusRequest,
+  AssignStaffRoleRequest,
+  UnassignStaffRoleRequest,
+} from "../../../src/contracts/management/staff";
+export interface StaffListQuery {
+  search?: string;
+  status?: StaffStatus;
+  roleId?: string;
+  limit?: number;
+  cursor?: string;
+}
+/**
+ * Add-Staff identity resolution is an EXACT-email lookup, not a directory search — the only input is the
+ * email of the account to link. There is deliberately no name, partial, or wildcard search and no
+ * pagination.
+ */
+export interface EligibleStaffIdentityLookup {
+  email: string;
+}
+export type CreateStaffInput = CreateStaffRequest & IdempotentWrite;
+export type UpdateStaffStatusInput = UpdateStaffStatusRequest &
+  IdempotentWrite & { membershipId: string };
+export type AssignStaffRoleInput = AssignStaffRoleRequest &
+  IdempotentWrite & { membershipId: string };
+export interface UnassignStaffRoleInput extends IdempotentWrite {
+  membershipId: string;
+  assignmentId: string;
+  reason?: string;
+}
+import {
   CheckoutResultSchema,
   type CheckoutRequest,
   type CheckoutResult,
@@ -298,6 +351,15 @@ export interface TenantCommerceClient {
     supplierId: string,
     query?: SupplierReceiptsQuery,
   ): Promise<SupplierReceiptsResponse>;
+  listStaff(query?: StaffListQuery): Promise<StaffListResponse>;
+  findEligibleStaffIdentitiesByEmail(
+    lookup: EligibleStaffIdentityLookup,
+  ): Promise<EligibleIdentitiesResponse>;
+  getStaffMember(membershipId: string): Promise<StaffDetail>;
+  createStaff(input: CreateStaffInput): Promise<StaffDetail>;
+  updateStaffStatus(input: UpdateStaffStatusInput): Promise<StaffDetail>;
+  assignStaffRole(input: AssignStaffRoleInput): Promise<StaffDetail>;
+  unassignStaffRole(input: UnassignStaffRoleInput): Promise<StaffDetail>;
   receiveInventory(input: ReceiveInventoryInput): Promise<ReceiveInventoryResponse>;
   adjustInventory(input: AdjustInventoryInput): Promise<AdjustInventoryResponse>;
   transferInventory(input: TransferInventoryInput): Promise<TransferInventoryResponse>;
@@ -593,6 +655,53 @@ export function createCommerceClient({
           `/api/v1/suppliers/${encodeURIComponent(supplierId)}/receipts${buildQuery({ limit: query.limit, cursor: query.cursor })}`,
           SupplierReceiptsResponseSchema,
           { tenantId },
+        ),
+      listStaff: (query: StaffListQuery = {}) =>
+        request(
+          `/api/v1/staff${buildQuery({ search: query.search, status: query.status, roleId: query.roleId, limit: query.limit, cursor: query.cursor })}`,
+          StaffListResponseSchema,
+          { tenantId },
+        ),
+      findEligibleStaffIdentitiesByEmail: (lookup: EligibleStaffIdentityLookup) =>
+        request(
+          `/api/v1/staff/eligible-identities${buildQuery({ email: lookup.email })}`,
+          EligibleIdentitiesResponseSchema,
+          { tenantId },
+        ),
+      getStaffMember: (membershipId: string) =>
+        request(`/api/v1/staff/${encodeURIComponent(membershipId)}`, StaffDetailSchema, {
+          tenantId,
+        }),
+      createStaff: ({ idempotencyKey, ...body }: CreateStaffInput) =>
+        request("/api/v1/staff", StaffDetailSchema, {
+          tenantId,
+          method: "POST",
+          body,
+          idempotencyKey,
+        }),
+      updateStaffStatus: ({ membershipId, idempotencyKey, ...body }: UpdateStaffStatusInput) =>
+        request(`/api/v1/staff/${encodeURIComponent(membershipId)}`, StaffDetailSchema, {
+          tenantId,
+          method: "PATCH",
+          body,
+          idempotencyKey,
+        }),
+      assignStaffRole: ({ membershipId, idempotencyKey, ...body }: AssignStaffRoleInput) =>
+        request(
+          `/api/v1/staff/${encodeURIComponent(membershipId)}/role-assignments`,
+          StaffDetailSchema,
+          { tenantId, method: "POST", body, idempotencyKey },
+        ),
+      unassignStaffRole: ({
+        membershipId,
+        assignmentId,
+        idempotencyKey,
+        ...body
+      }: UnassignStaffRoleInput) =>
+        request(
+          `/api/v1/staff/${encodeURIComponent(membershipId)}/role-assignments/${encodeURIComponent(assignmentId)}`,
+          StaffDetailSchema,
+          { tenantId, method: "DELETE", body, idempotencyKey },
         ),
       receiveInventory: ({ idempotencyKey, ...body }: ReceiveInventoryInput) =>
         request("/api/v1/inventory/receipts", ReceiveInventoryResponseSchema, {

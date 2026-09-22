@@ -33,6 +33,39 @@ function commandFailure(command, args, result) {
   );
 }
 
+// Replace secret and secret-shaped values before anything is logged. The goal is a diagnostic that keeps
+// the useful non-secret signal (failing stage, exit code, PostgreSQL/config error text, migration/file
+// names) while never emitting JWTs, anon/service keys, database passwords, or credential-bearing URLs.
+function sanitize(text) {
+  if (!text) return "";
+  return (
+    text
+      // Credentials embedded in URLs: scheme://user:password@host -> scheme://user:REDACTED@host
+      .replace(/([a-z][a-z0-9+.-]*:\/\/[^\s:/@]+:)[^\s@]+@/gi, "$1REDACTED@")
+      // JWTs (header.payload.signature; header begins eyJ)
+      .replace(/eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g, "REDACTED.JWT")
+      // Supabase publishable/secret API keys
+      .replace(/sb_(?:publishable|secret)_[A-Za-z0-9_-]+/g, "REDACTED_SB_KEY")
+      // Known secret-named JSON/TOML fields: "FIELD":"value" or FIELD = "value"
+      .replace(
+        /("?(?:ANON_KEY|SERVICE_ROLE_KEY|JWT_SECRET|SECRET_KEY|PUBLISHABLE_KEY|DB_URL|password|token|api[_-]?key)"?\s*[:=]\s*")[^"]*(")/gi,
+        "$1REDACTED$2",
+      )
+  );
+}
+
+// Best-effort, secret-free container status snapshot to accompany a Supabase startup failure. Names and
+// statuses carry no credentials; failure here never masks the primary error.
+function supabaseContainerStatus() {
+  const result = spawnSync(
+    "docker",
+    ["ps", "-a", "--filter", "name=supabase", "--format", "{{.Names}}\t{{.Status}}"],
+    { cwd: repositoryRoot, encoding: "utf8", windowsHide: true },
+  );
+  const output = (result.stdout ?? "").trim();
+  return output === "" ? "(no supabase containers found)" : output;
+}
+
 function run(command, args, { redactOutput = false, ...options } = {}) {
   const result = spawnSync(command, args, {
     cwd: repositoryRoot,
@@ -42,8 +75,13 @@ function run(command, args, { redactOutput = false, ...options } = {}) {
   });
   if (result.status !== 0) {
     if (redactOutput) {
+      const diagnostic = sanitize([result.stdout, result.stderr].filter(Boolean).join("\n"));
       throw new Error(
-        `${command} ${args.join(" ")} failed with exit code ${result.status ?? "none"}; output was redacted because it may contain local credentials.`,
+        `${command} ${args.join(" ")} failed with exit code ${result.status ?? "none"}.\n` +
+          `Output is sanitized (JWTs, anon/service keys, DB passwords, and credential URLs are masked) ` +
+          `rather than fully redacted, so the underlying failure remains diagnosable:\n` +
+          `${diagnostic || "(no output captured)"}\n` +
+          `--- supabase container status ---\n${supabaseContainerStatus()}`,
       );
     }
     throw commandFailure(command, args, result);

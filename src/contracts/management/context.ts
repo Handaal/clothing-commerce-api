@@ -103,6 +103,7 @@ export const MeContextResponseSchema = z.object({
   membership: z.object({ id: UuidSchema }),
   access: z.object({
     suppliers: z.object({ canRead: z.boolean(), canManage: z.boolean() }).optional(),
+    staff: z.object({ canRead: z.boolean(), canManage: z.boolean() }).optional(),
     catalog: CatalogAccessSchema,
     inventory: InventoryAccessSchema,
     orders: OrdersAccessSchema,
