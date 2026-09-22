@@ -27,7 +27,7 @@ truth lives on `origin/main`. All feature branches below were confirmed merged i
 > Always `git fetch` and inspect `origin/main` before branching. Do not trust local `main`.
 
 **Current SDK:** `@shifted/clothing-commerce-sdk@0.10.0`
-(deterministic pack SHA-256 `ebd7187568ed4a3a7b7749e6d9b3d459457d4db5cea688d7dd7692ed0d4be3ea`,
+(deterministic pack SHA-256 `74247c03b44ad81f07bf777e78bb7cdf5734c75a482744702ed26a157189cb99`,
 artifact `artifacts/shifted-clothing-commerce-sdk-0.10.0.tgz`; `0.9.0` was the prior Phase 2N release).
 The `0.10.0` release adds the Phase 2O staff-management methods and is not yet vendored by any client.
 
@@ -159,7 +159,7 @@ plus `docs/development/phase-2l-validation.md` and `docs/development/phase-2m-va
 
 - **Package version:** `0.10.0` (`packages/sdk/package.json`).
 - **Artifact:** `artifacts/shifted-clothing-commerce-sdk-0.10.0.tgz`.
-- **Deterministic pack SHA-256:** `ebd7187568ed4a3a7b7749e6d9b3d459457d4db5cea688d7dd7692ed0d4be3ea`
+- **Deterministic pack SHA-256:** `74247c03b44ad81f07bf777e78bb7cdf5734c75a482744702ed26a157189cb99`
   (identical across two independent packs, per Phase 2O validation).
 - **0.10.0 additions:** `listStaff`, `findEligibleStaffIdentitiesByEmail`, `getStaffMember`,
   `createStaff`, `updateStaffStatus`, `assignStaffRole`, `unassignStaffRole`; `getContext().access.staff`

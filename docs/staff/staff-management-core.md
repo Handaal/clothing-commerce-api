@@ -64,9 +64,25 @@ lookup, not a browsable directory**:
   identity that already holds a membership in this tenant are **indistinguishable** — all return an empty
   list. No reason-specific state is disclosed for an ineligible result.
 
+#### Response multiplicity (frozen 0/1/N contract)
+
 `primary_email` is **not unique** in the schema (nullable, only a not-empty check), so an exact match can
-in principle return more than one active, non-member identity; the (small, capped) set is returned as a
-bare `{ items: [...] }` list — there is no cursor and no `pageInfo`.
+legitimately resolve more than one active, non-member identity. The response is therefore an **explicit
+`0..N` list** — `{ items: EligibleIdentity[] }` — and this multiplicity is a **frozen part of the
+contract**, not an implementation accident:
+
+| `items.length` | Meaning                                  | Client requirement                                                   |
+| -------------- | ---------------------------------------- | -------------------------------------------------------------------- |
+| `0`            | No eligible account for that email       | Nothing to link (indistinguishable from inactive / already-a-member) |
+| `1`            | An unambiguous eligible account          | May proceed to `POST /staff` with that `identityId`                  |
+| `> 1`          | Several identities share the exact email | **MUST require explicit selection; MUST NOT silently choose one**    |
+
+- **Order is deterministic:** identity id ascending (the `jsonb_agg(... order by u.id)` in the
+  security-definer function). Two calls return the same order.
+- **The server never collapses or prefers a match** — it does not pick the first, newest, or
+  best-looking identity. Disambiguation is the client's responsibility.
+- **Bounded, not paginated:** the set is capped server-side at 50 exact matches; there is no cursor and
+  no `pageInfo`. Pagination is intentionally not offered for this exact-email lookup.
 
 Resolution **does not** create identities, send invitations, browse a directory, or modify Clerk. Raw
 UUID entry is not part of the normal workflow.
@@ -170,8 +186,9 @@ existing current-assignment unique index).
 
 - `pnpm test:staff:persistence` — real-PostgreSQL behaviour proof: exact-email identity resolution
   (Runtime J: exact hit, case/whitespace normalization, partial/display-name miss, inactive- and
-  unknown-email neutrality, post-link per-tenant exclusion, foreign-tenant still-eligible with no linkage
-  leaked), create + idempotent replay/conflict,
+  unknown-email neutrality, the `N > 1` shared-email case — both matches returned in deterministic
+  id-ascending order with neither preferred, post-link per-tenant exclusion, foreign-tenant still-eligible
+  with no linkage leaked), create + idempotent replay/conflict,
   inactive-identity and duplicate-membership rejection, tenant-isolated list/search, subset assignment,
   anti-escalation block, cross-tenant role/membership rejection, history-preserving unassign, full
   lifecycle (suspend → reactivate → revoke → terminal), last-admin protection on suspend and unassign,

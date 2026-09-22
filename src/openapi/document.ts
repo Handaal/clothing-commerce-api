@@ -613,8 +613,12 @@ export function generateOpenApiDocument() {
             "wildcard search, and no pagination. Returns already-provisioned, active identities that " +
             "do not yet hold a membership in this tenant, with a minimal projection; never reveals " +
             "other tenants' membership relationships. An unknown email, an inactive identity, and an " +
-            "already-a-member identity are indistinguishable (all return an empty list). Does not " +
-            "create identities or send invitations.",
+            "already-a-member identity are indistinguishable (all return an empty list). Because " +
+            "primary_email is not unique, the response is an explicit 0..N list ordered by identity id " +
+            "ascending (bounded to 50 exact matches): 0 items = no eligible account; 1 item = an " +
+            "unambiguous account; more than 1 = multiple provisioned identities share the exact email, " +
+            "and the client MUST require explicit selection and MUST NOT silently choose one (the " +
+            "server never collapses or prefers a match). Does not create identities or send invitations.",
           security: clerkSecurity,
           parameters: [
             tenantHeaderParameter,

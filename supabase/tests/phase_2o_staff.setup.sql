@@ -17,6 +17,15 @@ values
  ('2a000030-0000-4000-8000-000000000002','deactivated','Removed Person','gone@example.test',now())
 on conflict(id) do nothing;
 
+-- Two ACTIVE identities that share the exact same (normalized) email. primary_email is not unique, so an
+-- exact-email lookup must return BOTH (0..N contract), in deterministic id order, preferring neither.
+-- Stored with case/whitespace variation to prove normalization collapses them to one match set.
+insert into public.user_identities(id,status,display_name,primary_email,deactivated_at)
+values
+ ('2a000030-0000-4000-8000-000000000003','active','Sam Alpha','shared@example.test',null),
+ ('2a000030-0000-4000-8000-000000000004','active','Sam Beta',' SHARED@Example.test ',null)
+on conflict(id) do nothing;
+
 -- Subset role (assignable by the actor) and escalated role (must be blocked by anti-escalation).
 insert into public.roles(id,tenant_id,name,status,is_protected)
 values

@@ -114,4 +114,26 @@ describe("Staff SDK", () => {
     expect(url.searchParams.get("search")).toBeNull();
     expect(new Headers(fetcher.mock.calls[0][1]?.headers).get("X-Tenant-Id")).toBe(id);
   });
+
+  it("passes through every match when an email is shared (0..N), preferring none", async () => {
+    const other = "22222222-2222-4222-8222-222222222222";
+    const first = {
+      identityId: id,
+      displayName: "Sam Alpha",
+      primaryEmail: "shared@example.test",
+      status: "active",
+    };
+    const second = { ...first, identityId: other, displayName: "Sam Beta" };
+    const fetcher = vi.fn<typeof fetch>(
+      async () => new Response(JSON.stringify({ items: [first, second] })),
+    );
+    const client = createCommerceClient({
+      baseUrl: "https://example.test",
+      fetch: fetcher,
+    }).withTenant(id);
+    const result = await client.findEligibleStaffIdentitiesByEmail({
+      email: "shared@example.test",
+    });
+    expect(result.items).toEqual([first, second]);
+  });
 });

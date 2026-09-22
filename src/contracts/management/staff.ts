@@ -81,8 +81,17 @@ export const EligibleIdentitySchema = z.object({
 
 /**
  * Exact-email lookup is a bounded confirmation, not a browsable page: there is no cursor and no
- * `pageInfo`. `primary_email` is not unique in the schema, so more than one active, non-member identity
- * could share an address; the (small, capped) set of exact matches is returned as a bare item list.
+ * `pageInfo`. `primary_email` is not unique in the schema, so the result is an explicit 0..N list — this
+ * multiplicity is a frozen part of the contract, not an implementation accident:
+ *
+ * - `items.length === 0` — no eligible account for that email.
+ * - `items.length === 1` — an unambiguous eligible account.
+ * - `items.length > 1`  — multiple provisioned identities share the exact same (normalized) email; the
+ *   client MUST require explicit selection and MUST NOT silently choose one. The server never collapses
+ *   the result or prefers a match.
+ *
+ * Order is deterministic: identity id ascending. The set is bounded server-side (currently 50 exact
+ * matches); pagination is intentionally not offered for this lookup.
  */
 export const EligibleIdentitiesResponseSchema = z.object({
   items: z.array(EligibleIdentitySchema),

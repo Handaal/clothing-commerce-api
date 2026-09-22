@@ -32,6 +32,14 @@ begin
  assert jsonb_array_length(staff_private.find_eligible_identities_by_email(t,'nobody@example.test'))=0,'J.E unknown email yields the same empty result';
  -- No wildcard/substring injection surface: a LIKE metacharacter is treated as a literal email.
  assert jsonb_array_length(staff_private.find_eligible_identities_by_email(t,'%'))=0,'J literal email, no wildcard injection';
+ -- (N>1) primary_email is not unique: two ACTIVE non-member identities share the exact normalized email.
+ -- The lookup returns BOTH (0..N contract), in deterministic identity-id-ascending order, preferring
+ -- neither. Case/whitespace variation on either the query or the stored value collapses to the same set.
+ d:=staff_private.find_eligible_identities_by_email(t,'shared@example.test');
+ assert jsonb_array_length(d)=2,'J.N exact-email lookup returns every matching identity (no server-side collapse)';
+ assert (d->0->>'identityId')='2a000030-0000-4000-8000-000000000003','J.N deterministic order: id ascending (first)';
+ assert (d->1->>'identityId')='2a000030-0000-4000-8000-000000000004','J.N deterministic order: id ascending (second); neither silently preferred';
+ assert staff_private.find_eligible_identities_by_email(t,'  SHARED@Example.TEST  ')=d,'J.N query normalization yields the identical match set';
 
  -- Create: links an existing active identity as an active membership.
  created:=staff_private.create_staff(t,a,'create-1',newid);
