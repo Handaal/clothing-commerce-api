@@ -1,6 +1,25 @@
-# @shifted/clothing-commerce-sdk 0.9.0
+# @shifted/clothing-commerce-sdk 0.11.0
 
-Version 0.9.0 adds tenant-scoped `listSuppliers`, `getSupplier`, `createSupplier`, `updateSupplier`
+Version 0.11.0 adds the tenant-scoped staff **assignment catalogs**:
+`listAssignableStaffRoles()` and `listAssignableStaffScopes()`. These are the canonical source of the
+`roleId` and `accessScopeId` values `assignStaffRole` accepts — do not derive selectable options from
+assignments other staff already hold, which returns nothing on a fresh tenant and silently hides
+valid-but-unused roles and scopes. Both require a tenant-wide `staff.manage` grant, are read-only
+(they create and edit nothing), return the common `{ items, pageInfo }` envelope ordered by name, and
+list only the caller's own tenant. The role catalog omits any role carrying a permission the caller
+does not already hold tenant-wide; `assignStaffRole` still re-checks that server-side and remains
+authoritative. Access scopes are not caller-filtered because a scope only narrows where a role's
+permissions apply; explicit scopes carry their existing brand/branch/warehouse/inventory-location
+targets with the display name read from the referenced record.
+
+Version 0.10.0 added tenant-scoped `listStaff`, `findEligibleStaffIdentitiesByEmail`,
+`getStaffMember`, `createStaff`, `updateStaffStatus`, `assignStaffRole` and `unassignStaffRole`.
+Staff mutations take `idempotencyKey`. `findEligibleStaffIdentitiesByEmail({ email })` is an exact
+email confirmation lookup, not a directory search, and returns an explicit `0..N` list: with more
+than one item the client MUST require explicit selection and MUST NOT silently choose one.
+`getContext().access.staff` optionally exposes `{ canRead, canManage }` as UI guidance only.
+
+Version 0.9.0 added tenant-scoped `listSuppliers`, `getSupplier`, `createSupplier`, `updateSupplier`
 and `listSupplierReceipts`. Supplier mutations take `idempotencyKey`; update also takes
 `supplierId`. Use `updateSupplier({ supplierId, status: "inactive", idempotencyKey })` to deactivate
 and `status: "active"` to reactivate. Receipt history also respects `inventory.read` scope.

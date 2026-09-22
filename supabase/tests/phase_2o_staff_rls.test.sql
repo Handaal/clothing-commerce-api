@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(23);
+select plan(30);
 
 -- Deny-by-default surface -------------------------------------------------------------------------
 select is((select count(*) from pg_class where relname='staff_commands' and relrowsecurity),1::bigint,'staff_commands enables RLS');
@@ -30,6 +30,25 @@ select ok(has_table_privilege('staff_writer','public.memberships','INSERT'),'wri
 select ok(not has_table_privilege('staff_writer','public.memberships','DELETE'),'writer cannot delete memberships (history preserved)');
 select ok(not has_table_privilege('staff_writer','public.membership_role_assignments','DELETE'),'writer cannot delete assignments (history preserved)');
 select ok(not has_table_privilege('staff_writer','public.roles','INSERT'),'writer cannot mint roles or escalate the catalog');
+
+-- Assignment catalogs: transport-only reads that add no authoring capability ------------------------
+select ok(has_function_privilege('service_role','staff_private.list_assignable_roles(uuid,uuid,text,integer)','EXECUTE'),'transport can read the assignable role catalog');
+select ok(has_function_privilege('service_role','staff_private.list_assignable_scopes(uuid,text,integer)','EXECUTE'),'transport can read the assignable scope catalog');
+select ok(not has_function_privilege('authenticated','staff_private.list_assignable_roles(uuid,uuid,text,integer)','EXECUTE'),'client cannot read the role catalog directly');
+select ok(not has_function_privilege('anon','staff_private.list_assignable_scopes(uuid,text,integer)','EXECUTE'),'anon cannot read the scope catalog directly');
+-- Scope-target labels are read from the real records, so the writer gains SELECT there and nothing else.
+select ok(has_table_privilege('staff_writer','public.warehouses','SELECT'),'writer can read scope-target records for labels');
+select ok(
+  not has_table_privilege('staff_writer','public.brands','INSERT')
+  and not has_table_privilege('staff_writer','public.branches','UPDATE')
+  and not has_table_privilege('staff_writer','public.inventory_locations','DELETE'),
+  'scope-target label access is strictly read-only');
+-- Role/scope/target AUTHORING remains deferred: the writer can create none of them.
+select ok(
+  not has_table_privilege('staff_writer','public.access_scopes','INSERT')
+  and not has_table_privilege('staff_writer','public.access_scope_targets','INSERT')
+  and not has_table_privilege('staff_writer','public.role_permissions','INSERT'),
+  'writer cannot author scopes, scope targets or role permissions');
 
 -- Every private entrypoint/helper is a hardened security-definer with an empty search_path.
 select is((select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='staff_private' and (not p.prosecdef or not p.proconfig @> array['search_path=""'])),0::bigint,'all staff_private functions are hardened');

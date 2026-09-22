@@ -13,6 +13,11 @@ import {
   StaffListResponseSchema,
   EligibleIdentitySchema,
   EligibleIdentitiesResponseSchema,
+  AssignableStaffRoleSchema,
+  AssignableStaffRolesResponseSchema,
+  AssignableStaffScopeTargetSchema,
+  AssignableStaffScopeSchema,
+  AssignableStaffScopesResponseSchema,
   CreateStaffRequestSchema,
   UpdateStaffStatusRequestSchema,
   AssignStaffRoleRequestSchema,
@@ -633,6 +638,52 @@ export function generateOpenApiDocument() {
           ],
           responses: {
             "200": jsonResponse("Success", "#/components/schemas/EligibleIdentitiesResponse"),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
+      "/api/v1/staff/assignable-roles": {
+        get: {
+          operationId: "listAssignableStaffRoles",
+          tags: ["staff"],
+          summary: "listAssignableStaffRoles",
+          description:
+            "Requires a tenant-wide staff.manage grant. The canonical catalog of EXISTING roles in the " +
+            "caller's own tenant that may be selected for a Role+Scope assignment — use it instead of " +
+            "deriving options from assignments other staff already hold. Read-only: it creates, edits " +
+            "and deletes nothing, and role/permission authoring remains out of scope. Archived roles " +
+            "are excluded (assignment rejects them). Anti-delegation: a role appears only when every " +
+            "active permission it carries is already held by the caller tenant-wide — the same subset " +
+            "rule the assignment write enforces. The filter is a convenience, NOT the authorization " +
+            "boundary: POST /role-assignments re-runs the check independently, so knowing a role id " +
+            "grants nothing and no role name is ever interpreted. Ordered by role name ascending.",
+          security: clerkSecurity,
+          parameters: [tenantHeaderParameter, limitParameter(), cursorParameter()],
+          responses: {
+            "200": jsonResponse("Success", "#/components/schemas/AssignableStaffRolesResponse"),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
+      "/api/v1/staff/assignable-scopes": {
+        get: {
+          operationId: "listAssignableStaffScopes",
+          tags: ["staff"],
+          summary: "listAssignableStaffScopes",
+          description:
+            "Requires a tenant-wide staff.manage grant. The canonical catalog of EXISTING active access " +
+            "scopes in the caller's own tenant that may be selected for a Role+Scope assignment. " +
+            "Read-only: scope and scope-target authoring remains out of scope. Scopes are NOT filtered " +
+            "against the caller because a scope carries no authority of its own — it only narrows where " +
+            "an assigned role's permissions apply, and the role is already subset-filtered. Explicit " +
+            "scopes project their existing targets (brand / branch / warehouse / inventory_location) " +
+            "with the display name read from the referenced record; no label is invented and every " +
+            "target is tenant-bound by composite foreign key. Tenant-mode scopes have no targets. " +
+            "Ordered by scope name ascending.",
+          security: clerkSecurity,
+          parameters: [tenantHeaderParameter, limitParameter(), cursorParameter()],
+          responses: {
+            "200": jsonResponse("Success", "#/components/schemas/AssignableStaffScopesResponse"),
             ...errorResponses(400, 401, 403, 404, 409, 422, 500),
           },
         },
@@ -1963,6 +2014,11 @@ export function generateOpenApiDocument() {
         StaffListResponse: jsonSchema(StaffListResponseSchema),
         EligibleIdentity: jsonSchema(EligibleIdentitySchema),
         EligibleIdentitiesResponse: jsonSchema(EligibleIdentitiesResponseSchema),
+        AssignableStaffRole: jsonSchema(AssignableStaffRoleSchema),
+        AssignableStaffRolesResponse: jsonSchema(AssignableStaffRolesResponseSchema),
+        AssignableStaffScopeTarget: jsonSchema(AssignableStaffScopeTargetSchema),
+        AssignableStaffScope: jsonSchema(AssignableStaffScopeSchema),
+        AssignableStaffScopesResponse: jsonSchema(AssignableStaffScopesResponseSchema),
         CreateStaffRequest: jsonSchema(CreateStaffRequestSchema),
         UpdateStaffStatusRequest: jsonSchema(UpdateStaffStatusRequestSchema),
         AssignStaffRoleRequest: jsonSchema(AssignStaffRoleRequestSchema),

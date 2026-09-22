@@ -23,6 +23,18 @@ export const EligibleIdentityLookupSchema = z
   })
   .strict();
 
+/**
+ * The assignment catalogs are plain bounded lists: there is no search, no filter, and no caller-supplied
+ * ordering. Options are few and the order is server-fixed (scope/role name ascending), so the only knobs
+ * are page size and the opaque forward cursor.
+ */
+export const AssignmentCatalogQuerySchema = z
+  .object({
+    limit: z.coerce.number().int().min(1).max(100).default(25),
+    cursor: z.string().min(1).max(1000).optional(),
+  })
+  .strict();
+
 export const StaffPathSchema = z.object({ membershipId: z.uuid() });
 export const StaffAssignmentPathSchema = z.object({
   membershipId: z.uuid(),
@@ -31,3 +43,4 @@ export const StaffAssignmentPathSchema = z.object({
 
 export type StaffListQuery = z.infer<typeof StaffListQuerySchema>;
 export type EligibleIdentityLookup = z.infer<typeof EligibleIdentityLookupSchema>;
+export type AssignmentCatalogQuery = z.infer<typeof AssignmentCatalogQuerySchema>;

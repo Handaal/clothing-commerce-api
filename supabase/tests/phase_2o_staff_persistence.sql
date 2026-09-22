@@ -1,5 +1,22 @@
 \set ON_ERROR_STOP on
 begin;
+
+-- Assertion helpers for the assignment-catalog projections (session-temporary; the transaction rolls
+-- back regardless). Membership is checked by the human-meaningful name so a fixture id change cannot
+-- silently weaken the proof; sortedness is checked on `cursorKey`, the normalized name the server
+-- actually orders and pages by.
+create function pg_temp.catalog_has(p jsonb, p_field text, p_value text) returns boolean
+language sql immutable as $h$
+ select exists(select 1 from jsonb_array_elements(p) e where e->>p_field = p_value)
+$h$;
+
+create function pg_temp.catalog_sorted(p jsonb) returns boolean language sql immutable as $h$
+ select coalesce((select bool_and(previous is null or previous < current_key) from (
+   select e->>'cursorKey' as current_key,
+          lag(e->>'cursorKey') over (order by ordinality) as previous
+   from jsonb_array_elements(p) with ordinality as rows(e, ordinality)) ordered), true)
+$h$;
+
 set role service_role;
 do $b$
 declare
@@ -13,7 +30,7 @@ declare
  admin_assignment uuid:='2a000016-0000-4000-8000-000000000001';
  mem2 uuid:='2a000012-0000-4000-8000-000000000002';    -- second base membership (not yet an admin)
  role_admin uuid:='2a000013-0000-4000-8000-000000000001'; -- actor's own role (carries staff.manage)
- created jsonb; d jsonb; m uuid; asg uuid;
+ created jsonb; d jsonb; cat jsonb; cat2 jsonb; m uuid; asg uuid;
 begin
  -- Runtime J: Add-Staff identity resolution by EXACT email (a confirmation lookup, not a directory).
  -- (A) exact email -> the active, non-member identity is returned with the minimal projection.
@@ -112,6 +129,54 @@ begin
  exception when sqlstate 'ST412' then null; end;
  begin perform staff_private.unassign_role(t,a,'self-unassign',a,admin_assignment,null); raise exception 'expected last-admin block on unassign';
  exception when sqlstate 'ST412' then null; end;
+
+ -- Assignment catalogs (Phase 2O completion): the canonical selectable Role / AccessScope sets.
+ -- A. authorized staff manager sees eligible CURRENT-TENANT roles.
+ cat:=staff_private.list_assignable_roles(t,a,null,101);
+ assert jsonb_array_length(cat)>=3,'A the manager has several assignable roles to choose from';
+ assert pg_temp.catalog_has(cat,'roleName','Staff Reader'),'A subset role is offered to the manager';
+ assert pg_temp.catalog_has(cat,'roleName','Empty Role'),'A permissionless role is a trivial subset and is offered';
+ assert (select e->'permissionKeys'=jsonb_build_array('staff.read') from jsonb_array_elements(cat) e
+   where e->>'roleName'='Staff Reader'),'A role carries its active permission keys for the picker';
+ -- B. a role carrying a permission the caller does NOT hold is absent -- and the write still refuses it,
+ -- so the catalog filter is a convenience and never the authorization boundary.
+ assert not pg_temp.catalog_has(cat,'roleName','Privileged'),'B escalating role absent from the assignable catalog';
+ begin perform staff_private.assign_role(t,a,'catalog-escalate',mem2,privileged,sc,null); raise exception 'expected escalation block';
+ exception when sqlstate 'ST403' then null; end;
+ -- An archived role is rejected by assign_role, so it is never offered.
+ assert not pg_temp.catalog_has(cat,'roleName','Retired Role'),'archived role absent from the assignable catalog';
+ -- C. no foreign-tenant role ever appears, in either direction.
+ assert not pg_temp.catalog_has(cat,'roleName','Foreign Role'),'C foreign-tenant role absent';
+ assert not pg_temp.catalog_has(staff_private.list_assignable_roles(ft,a,null,101),'roleName','Staff Reader'),'C base-tenant role absent from a foreign-tenant read';
+ -- Ordering is deterministic (role name ascending) and the keyset cursor continues from it.
+ assert pg_temp.catalog_sorted(cat),'role catalog is ordered by name ascending';
+ assert staff_private.list_assignable_roles(t,a,null,101)=cat,'repeated role catalog read is stable';
+ cat2:=staff_private.list_assignable_roles(t,a,null,2);
+ assert jsonb_array_length(cat2)=2,'role catalog honours the page limit';
+ assert cat2->0=cat->0 and cat2->1=cat->1,'first role page matches the head of the full ordering';
+ cat2:=staff_private.list_assignable_roles(t,a,cat2->1->>'cursorKey',101);
+ assert (cat2->0->>'roleName')=(cat->2->>'roleName'),'role keyset cursor resumes after the last row';
+ assert not pg_temp.catalog_has(cat2,'roleName',cat->0->>'roleName'),'role keyset cursor never repeats a delivered row';
+
+ -- D. current-tenant scopes are visible with their mode and explicit target summaries.
+ cat:=staff_private.list_assignable_scopes(t,null,101);
+ assert jsonb_array_length(cat)=4,'D every active current-tenant scope is offered';
+ assert pg_temp.catalog_sorted(cat),'scope catalog is ordered by name ascending';
+ assert (select e->>'scopeMode'='tenant' and e->'targets'='[]'::jsonb from jsonb_array_elements(cat) e
+   where e->>'scopeName'='POS Tenant'),'D tenant-mode scope has no targets by construction';
+ -- E. no foreign-tenant scope appears, in either direction.
+ assert not pg_temp.catalog_has(cat,'scopeName','Foreign Scope'),'E foreign-tenant scope absent';
+ assert not pg_temp.catalog_has(cat,'scopeName','Retired Scope'),'archived scope absent from the assignable catalog';
+ -- F. explicit target summaries name the real record and belong only to the scope's own tenant.
+ assert (select e->'targets'=jsonb_build_array(jsonb_build_object(
+     'kind','branch','id','2a000003-0000-4000-8000-000000000001','name','Main Branch'))
+   from jsonb_array_elements(cat) e where e->>'scopeName'='Main Branch'),'F explicit branch target projects its real display name';
+ assert (select e->'targets'->0->>'name'='Other Location' and e->'targets'->0->>'kind'='inventory_location'
+   from jsonb_array_elements(cat) e where e->>'scopeName'='Other Location'),'F explicit inventory-location target projects its real display name';
+ cat2:=staff_private.list_assignable_scopes(ft,null,101);
+ assert jsonb_array_length(cat2)=1 and (cat2->0->>'scopeName')='Foreign Scope','E/F foreign tenant sees only its own scope';
+ assert (cat2->0->'targets'->0->>'id')='2a000003-0000-4000-8000-0000000000f1'
+   and (cat2->0->'targets'->0->>'name')='Foreign Branch','F foreign scope targets stay bound to the foreign tenant';
 
  -- Historical actor references survive every operation above.
  assert (select status='active' from public.memberships where id=a),'actor membership intact';

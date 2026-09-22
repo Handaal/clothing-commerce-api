@@ -115,6 +115,69 @@ describe("Staff SDK", () => {
     expect(new Headers(fetcher.mock.calls[0][1]?.headers).get("X-Tenant-Id")).toBe(id);
   });
 
+  it("reads the assignment catalogs as tenant-scoped, paged, read-only lists", async () => {
+    const role = {
+      roleId: id,
+      roleName: "Store Manager",
+      description: null,
+      isProtected: false,
+      permissionKeys: ["staff.read"],
+    };
+    const scope = {
+      accessScopeId: id,
+      scopeName: "Main Branch",
+      description: null,
+      scopeMode: "explicit",
+      targets: [{ kind: "branch", id, name: "Main Branch" }],
+    };
+    const page = { nextCursor: "next", hasMore: true };
+    const fetcher = vi.fn<typeof fetch>(
+      async (input) =>
+        new Response(
+          JSON.stringify(
+            String(input).includes("assignable-roles")
+              ? { items: [role], pageInfo: page }
+              : { items: [scope], pageInfo: page },
+          ),
+        ),
+    );
+    const client = createCommerceClient({
+      baseUrl: "https://example.test",
+      fetch: fetcher,
+    }).withTenant(id);
+
+    const roles = await client.listAssignableStaffRoles({ limit: 5 });
+    expect(roles.items).toEqual([role]);
+    const rolesUrl = new URL(String(fetcher.mock.calls[0][0]));
+    expect(rolesUrl.pathname).toBe("/api/v1/staff/assignable-roles");
+    expect(rolesUrl.searchParams.get("limit")).toBe("5");
+    expect(fetcher.mock.calls[0][1]?.method ?? "GET").toBe("GET");
+    expect(new Headers(fetcher.mock.calls[0][1]?.headers).get("X-Tenant-Id")).toBe(id);
+
+    const scopes = await client.listAssignableStaffScopes({ cursor: "next" });
+    expect(scopes.items).toEqual([scope]);
+    const scopesUrl = new URL(String(fetcher.mock.calls[1][0]));
+    expect(scopesUrl.pathname).toBe("/api/v1/staff/assignable-scopes");
+    expect(scopesUrl.searchParams.get("cursor")).toBe("next");
+  });
+
+  it("rejects an assignment catalog page missing a contracted role field", async () => {
+    const fetcher = vi.fn<typeof fetch>(
+      async () =>
+        new Response(
+          JSON.stringify({
+            items: [{ roleId: id, roleName: "Store Manager", isProtected: false }],
+            pageInfo: { nextCursor: null, hasMore: false },
+          }),
+        ),
+    );
+    const client = createCommerceClient({
+      baseUrl: "https://example.test",
+      fetch: fetcher,
+    }).withTenant(id);
+    await expect(client.listAssignableStaffRoles()).rejects.toBeInstanceOf(ApiContractError);
+  });
+
   it("passes through every match when an email is shared (0..N), preferring none", async () => {
     const other = "22222222-2222-4222-8222-222222222222";
     const first = {
