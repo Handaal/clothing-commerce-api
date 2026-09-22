@@ -12,9 +12,9 @@ import {
 } from "../contracts/management/staff";
 import { StaffError } from "./errors";
 import {
-  EligibleIdentityQuerySchema,
+  EligibleIdentityLookupSchema,
   StaffListQuerySchema,
-  type EligibleIdentityQuery,
+  type EligibleIdentityLookup,
   type StaffListQuery,
 } from "./request";
 import type { StaffRepository } from "./repository";
@@ -57,12 +57,16 @@ export class StaffService {
     );
   }
 
-  // Discovery is part of the add-staff flow, so it requires the same tenant-wide staff.manage grant.
-  // It returns only linkable (active, not-already-a-member) identities with a minimal projection.
-  async listEligibleIdentities(context: AuthorizationContext, query: EligibleIdentityQuery) {
-    return this.repository.listEligibleIdentities(
+  // Add-Staff identity resolution is an exact-email lookup, part of the add-staff flow, so it requires
+  // the same tenant-wide staff.manage grant. It returns only linkable (active, not-already-a-member)
+  // identities that match the given email exactly, with a minimal projection — never a directory search.
+  async findEligibleIdentitiesByEmail(
+    context: AuthorizationContext,
+    lookup: EligibleIdentityLookup,
+  ) {
+    return this.repository.findEligibleIdentitiesByEmail(
       await this.authorize(context, StaffPermission.manage),
-      parse(EligibleIdentityQuerySchema, query),
+      parse(EligibleIdentityLookupSchema, lookup),
     );
   }
 

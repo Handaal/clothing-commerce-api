@@ -13,14 +13,11 @@ import {
 } from "../contracts/management/staff";
 import { InvalidCursorError } from "../management/cursor";
 import { StaffError, staffDatabaseError } from "./errors";
-import type { EligibleIdentityQuery, StaffListQuery } from "./request";
+import type { EligibleIdentityLookup, StaffListQuery } from "./request";
 
 const SORT = "staff_id_asc";
-const ELIGIBLE_SORT = "eligible_identities_id_asc";
 
-const CursorSchema = z
-  .object({ v: z.literal(1), sort: z.enum([SORT, ELIGIBLE_SORT]), id: z.uuid() })
-  .strict();
+const CursorSchema = z.object({ v: z.literal(1), sort: z.literal(SORT), id: z.uuid() }).strict();
 
 function cursorId(cursor: string | undefined, sort: string) {
   if (cursor === undefined) return null;
@@ -76,25 +73,19 @@ export class StaffRepository {
     });
   }
 
-  async listEligibleIdentities(proof: AuthorizedOperationContext, query: EligibleIdentityQuery) {
+  async findEligibleIdentitiesByEmail(
+    proof: AuthorizedOperationContext,
+    lookup: EligibleIdentityLookup,
+  ) {
     const { data, error } = await this.client
       .schema("staff_private")
-      .rpc("list_eligible_identities", {
+      .rpc("find_eligible_identities_by_email", {
         p_tenant: this.tenant(proof),
-        p_search: query.search ?? null,
-        p_after: cursorId(query.cursor, ELIGIBLE_SORT),
-        p_limit: query.limit + 1,
+        p_email: lookup.email,
       });
     if (error) throw staffDatabaseError(error);
     const rows = z.array(EligibleIdentitySchema).parse(data);
-    return EligibleIdentitiesResponseSchema.parse({
-      items: rows.slice(0, query.limit),
-      pageInfo: pageInfo(
-        rows.map((r) => r.identityId),
-        query.limit,
-        ELIGIBLE_SORT,
-      ),
-    });
+    return EligibleIdentitiesResponseSchema.parse({ items: rows });
   }
 
   async detail(proof: AuthorizedOperationContext, membershipId: string) {

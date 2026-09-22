@@ -66,9 +66,11 @@ export const StaffDetailSchema = StaffSummarySchema.extend({
 export const StaffListResponseSchema = paginated(StaffSummarySchema);
 
 /**
- * An already-provisioned identity that may be linked as staff for this tenant. Only global-status
- * `active` identities that do NOT already hold a membership in the tenant are returned. The projection is
- * deliberately minimal and never reveals another tenant's membership relationships.
+ * An already-provisioned identity that may be linked as staff for this tenant, resolved by an EXACT
+ * email lookup (not a directory search). Only global-status `active` identities that do NOT already hold
+ * a membership in the tenant are returned. The projection is deliberately minimal and never reveals
+ * another tenant's membership relationships. `status` is always `active` in practice (the lookup filters
+ * to active identities); it is retained so the client can render the confirmed account state.
  */
 export const EligibleIdentitySchema = z.object({
   identityId: UuidSchema,
@@ -77,7 +79,14 @@ export const EligibleIdentitySchema = z.object({
   status: z.enum(["active", "suspended", "deactivated"]),
 });
 
-export const EligibleIdentitiesResponseSchema = paginated(EligibleIdentitySchema);
+/**
+ * Exact-email lookup is a bounded confirmation, not a browsable page: there is no cursor and no
+ * `pageInfo`. `primary_email` is not unique in the schema, so more than one active, non-member identity
+ * could share an address; the (small, capped) set of exact matches is returned as a bare item list.
+ */
+export const EligibleIdentitiesResponseSchema = z.object({
+  items: z.array(EligibleIdentitySchema),
+});
 
 const reasonField = z.string().trim().min(1).max(500).optional();
 

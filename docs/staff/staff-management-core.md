@@ -8,7 +8,7 @@ authority. It is **not** an HR/payroll system.
 - **Contracts:** [`src/contracts/management/staff.ts`](../../src/contracts/management/staff.ts)
 - **Domain:** [`src/staff/`](../../src/staff) (`service.ts`, `repository.ts`, `request.ts`, `errors.ts`)
 - **Routes:** [`app/api/v1/staff/`](../../app/api/v1/staff)
-- **SDK:** `@shifted/clothing-commerce-sdk@0.10.0` (`listStaff`, `listEligibleStaffIdentities`,
+- **SDK:** `@shifted/clothing-commerce-sdk@0.10.0` (`listStaff`, `findEligibleStaffIdentitiesByEmail`,
   `getStaffMember`, `createStaff`, `updateStaffStatus`, `assignStaffRole`, `unassignStaffRole`)
 - **DB/behaviour proof:** `pnpm test:staff:persistence`; **RLS:** `pnpm test:staff:rls`
 
@@ -39,32 +39,43 @@ creates a `Membership` for an existing `UserIdentity` referenced by `identityId`
 created **active** (there is no acceptance handshake to gate it). External invitation/email delivery is
 **explicitly deferred** — no fake invite flow, no passwords, no local credential store.
 
-### Identity discovery (making Add Staff usable)
+### Identity resolution by exact email (making Add Staff usable)
 
 Because `POST /api/v1/staff` needs an `identityId`, a manager must be able to find one without typing a
-raw UUID. `GET /api/v1/staff/eligible-identities` provides that lookup:
+raw UUID. Add Staff uses **exact existing-account email lookup only** —
+`GET /api/v1/staff/eligible-identities?email=<email>`. The manager enters the staff member's exact email;
+the API normalizes it and returns the matching eligible account. This is deliberately a **confirmation
+lookup, not a browsable directory**:
 
 - requires the same **tenant-wide `staff.manage`** grant as adding staff;
-- bounded, keyset-paginated, stable id order; case-insensitive literal substring `search` on display
-  name / email (`position()`, never interpolated LIKE);
+- **exact email match only** — email is trimmed and lowercased (the same `lower(btrim(...))` convention
+  roles/scopes use, normalized once in the security-definer function). There is **no display-name search,
+  no partial/substring search, no wildcard search, and no pagination** — you cannot browse the global
+  identity store;
 - returns a **minimal projection** — `{ identityId, displayName, primaryEmail, status }` — and **never**
-  provider bindings, tokens, or any tenant/membership relationship;
+  provider bindings, tokens, roles, scopes, or any tenant/membership relationship;
 - **excludes** identities that already hold a membership in this tenant (any status — the
   `(tenant, identity)` unique constraint would otherwise block re-linking);
 - **eligibility rule (identity status):** only globally `active` identities are returned. A `suspended`
   or `deactivated` `UserIdentity` cannot authorize (the context resolver rejects a non-active identity),
   so linking one would create a membership that can never be used. `create_staff` independently rejects a
-  non-active identity with `IDENTITY_INACTIVE` (`ST423`) as defense in depth.
+  non-active identity with `IDENTITY_INACTIVE` (`ST423`) as defense in depth;
+- **enumeration-resistant:** an unknown email, an inactive/suspended/deactivated identity, and an
+  identity that already holds a membership in this tenant are **indistinguishable** — all return an empty
+  list. No reason-specific state is disclosed for an ineligible result.
 
-Discovery **does not** create identities, send invitations, or modify Clerk.
+`primary_email` is **not unique** in the schema (nullable, only a not-empty check), so an exact match can
+in principle return more than one active, non-member identity; the (small, capped) set is returned as a
+bare `{ items: [...] }` list — there is no cursor and no `pageInfo`.
 
-> **Directory-exposure note (reviewed):** `UserIdentity` is platform-global, and the "link existing
-> identity" model inherently requires a global lookup, so an authorized `staff.manage` manager can
-> discover any active, non-member identity — including people who are staff only in another tenant. The
-> projection deliberately carries no tenant/membership field, so **no cross-tenant membership relationship
-> is ever revealed** (only the same name/email you would need to invite someone). Exclusion is strictly
-> per-tenant. Narrowing discovery further (e.g. exact-email-only lookup) is a possible future hardening if
-> a stricter directory-privacy posture is required.
+Resolution **does not** create identities, send invitations, browse a directory, or modify Clerk. Raw
+UUID entry is not part of the normal workflow.
+
+> **Multi-tenant note (reviewed):** `UserIdentity` is platform-global and one identity may participate in
+> several tenants. An identity that is a member of Tenant B is still eligible for Tenant A (until it holds
+> a Tenant A membership). Because the caller must already know the person's exact email, and the projection
+> carries no tenant/membership field, **no cross-tenant membership relationship is ever revealed** — the
+> lookup only confirms the account behind an email the manager already has.
 
 ## 3. Membership lifecycle
 
@@ -157,8 +168,10 @@ existing current-assignment unique index).
 
 ## 10. Testing
 
-- `pnpm test:staff:persistence` — real-PostgreSQL behaviour proof: identity discovery (search hit,
-  deactivated-never-eligible, post-link per-tenant exclusion), create + idempotent replay/conflict,
+- `pnpm test:staff:persistence` — real-PostgreSQL behaviour proof: exact-email identity resolution
+  (Runtime J: exact hit, case/whitespace normalization, partial/display-name miss, inactive- and
+  unknown-email neutrality, post-link per-tenant exclusion, foreign-tenant still-eligible with no linkage
+  leaked), create + idempotent replay/conflict,
   inactive-identity and duplicate-membership rejection, tenant-isolated list/search, subset assignment,
   anti-escalation block, cross-tenant role/membership rejection, history-preserving unassign, full
   lifecycle (suspend → reactivate → revoke → terminal), last-admin protection on suspend and unassign,

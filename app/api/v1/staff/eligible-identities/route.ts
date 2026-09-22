@@ -4,7 +4,7 @@ import {
   parseRequest,
   runTenantManagementRoute,
 } from "../../../../../src/http/management-route";
-import { EligibleIdentityQuerySchema } from "../../../../../src/staff/request";
+import { EligibleIdentityLookupSchema } from "../../../../../src/staff/request";
 import { getManagementApiBoundary } from "../../../../../src/management/server-management-boundary";
 
 export async function GET(request: Request) {
@@ -14,10 +14,10 @@ export async function GET(request: Request) {
     contextResolver: boundary.contextResolver,
     responseSchema: EligibleIdentitiesResponseSchema,
     handler: (context) =>
-      boundary.staffService.listEligibleIdentities(
+      boundary.staffService.findEligibleIdentitiesByEmail(
         context,
         parseRequest(
-          EligibleIdentityQuerySchema,
+          EligibleIdentityLookupSchema,
           Object.fromEntries(new URL(request.url).searchParams),
         ),
       ),

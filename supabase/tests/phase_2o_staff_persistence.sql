@@ -15,13 +15,23 @@ declare
  role_admin uuid:='2a000013-0000-4000-8000-000000000001'; -- actor's own role (carries staff.manage)
  created jsonb; d jsonb; m uuid; asg uuid;
 begin
- -- Runtime J: identity discovery. Before linking, an active non-member identity is discoverable by
- -- email/display-name search; a deactivated identity is never eligible; search is a literal substring.
- assert jsonb_array_length(staff_private.list_eligible_identities(t,'dana',null,26))=1,'active non-member identity discoverable';
- assert (staff_private.list_eligible_identities(t,'dana',null,26)->0->>'identityId')=newid::text,'eligible projection identity id';
- assert (staff_private.list_eligible_identities(t,'dana',null,26)->0->>'primaryEmail')='dana@example.test','eligible projection email';
- assert jsonb_array_length(staff_private.list_eligible_identities(t,'removed',null,26))=0,'deactivated identity never eligible';
- assert jsonb_array_length(staff_private.list_eligible_identities(t,'%',null,26))=0,'literal search, no wildcard injection';
+ -- Runtime J: Add-Staff identity resolution by EXACT email (a confirmation lookup, not a directory).
+ -- (A) exact email -> the active, non-member identity is returned with the minimal projection.
+ assert jsonb_array_length(staff_private.find_eligible_identities_by_email(t,'dana@example.test'))=1,'J.A exact email resolves the eligible identity';
+ assert (staff_private.find_eligible_identities_by_email(t,'dana@example.test')->0->>'identityId')=newid::text,'J.A eligible projection identity id';
+ assert (staff_private.find_eligible_identities_by_email(t,'dana@example.test')->0->>'primaryEmail')='dana@example.test','J.A eligible projection email';
+ -- (B) case variation / surrounding whitespace follows normalized exact-match behavior.
+ assert jsonb_array_length(staff_private.find_eligible_identities_by_email(t,'  DANA@Example.TEST  '))=1,'J.B email normalized (case-insensitive, trimmed)';
+ -- (C) a partial email is not a match (no substring semantics).
+ assert jsonb_array_length(staff_private.find_eligible_identities_by_email(t,'dana@'))=0,'J.C partial email does not match';
+ assert jsonb_array_length(staff_private.find_eligible_identities_by_email(t,'dana'))=0,'J.C bare local-part does not match';
+ -- (D) display-name search is unsupported (the display name is not an email).
+ assert jsonb_array_length(staff_private.find_eligible_identities_by_email(t,'Dana Newhire'))=0,'J.D display-name lookup unsupported';
+ -- (E) an inactive (deactivated) identity is indistinguishable from an unknown email: both empty.
+ assert jsonb_array_length(staff_private.find_eligible_identities_by_email(t,'gone@example.test'))=0,'J.E inactive identity yields empty (enumeration-resistant)';
+ assert jsonb_array_length(staff_private.find_eligible_identities_by_email(t,'nobody@example.test'))=0,'J.E unknown email yields the same empty result';
+ -- No wildcard/substring injection surface: a LIKE metacharacter is treated as a literal email.
+ assert jsonb_array_length(staff_private.find_eligible_identities_by_email(t,'%'))=0,'J literal email, no wildcard injection';
 
  -- Create: links an existing active identity as an active membership.
  created:=staff_private.create_staff(t,a,'create-1',newid);
@@ -40,11 +50,15 @@ begin
  begin perform staff_private.create_staff(t,a,'dup-link',newid); raise exception 'expected duplicate membership';
  exception when sqlstate '23505' then null; end;
 
- -- J (cont.): once linked, the identity is excluded from THIS tenant's eligible list. Exclusion is
- -- strictly per-tenant; the minimal projection carries no tenant/membership field, so a foreign tenant
- -- learns nothing about where the identity is a member.
- assert jsonb_array_length(staff_private.list_eligible_identities(t,'dana',null,26))=0,'linked identity excluded for this tenant';
- assert jsonb_array_length(staff_private.list_eligible_identities(ft,'dana',null,26))=1,'exclusion is per-tenant; no membership linkage leaked';
+ -- J (cont.): (F/H) once linked, the exact-email lookup returns no eligible identity for THIS tenant —
+ -- indistinguishable from an unknown/inactive email. (G) exclusion is strictly per-tenant: the same email
+ -- still resolves for a foreign tenant where the identity is not yet a member, and the minimal projection
+ -- carries no tenant/membership field, so no cross-tenant membership relationship is ever revealed.
+ assert jsonb_array_length(staff_private.find_eligible_identities_by_email(t,'dana@example.test'))=0,'J.F/H linked identity no longer eligible for this tenant';
+ d:=staff_private.find_eligible_identities_by_email(ft,'dana@example.test');
+ assert jsonb_array_length(d)=1,'J.G exclusion is per-tenant; still eligible for a foreign tenant';
+ assert (d->0->>'identityId')=newid::text,'J.G foreign-tenant lookup resolves the same identity';
+ assert not (d->0 ? 'tenantId') and not (d->0 ? 'membershipId'),'J.G projection leaks no tenant/membership linkage';
 
  -- List / search / tenant isolation.
  assert jsonb_array_length(staff_private.list_staff(t,'dana',null,null,null,26))=1,'case-insensitive display-name search';

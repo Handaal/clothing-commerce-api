@@ -603,25 +603,28 @@ export function generateOpenApiDocument() {
       },
       "/api/v1/staff/eligible-identities": {
         get: {
-          operationId: "listEligibleStaffIdentities",
+          operationId: "findEligibleStaffIdentitiesByEmail",
           tags: ["staff"],
-          summary: "listEligibleStaffIdentities",
+          summary: "findEligibleStaffIdentitiesByEmail",
           description:
-            "Requires a tenant-wide staff.manage grant. Returns already-provisioned, active identities " +
-            "that do not yet hold a membership in this tenant, so a manager can pick one to add. Minimal " +
-            "projection; never reveals other tenants' membership relationships. Does not create identities " +
-            "or send invitations.",
+            "Requires a tenant-wide staff.manage grant. Resolves an existing account by EXACT email " +
+            "(case-insensitive, trimmed) so a manager can add it as staff — this is a confirmation " +
+            "lookup, NOT a browsable directory: there is no display-name, partial, substring, or " +
+            "wildcard search, and no pagination. Returns already-provisioned, active identities that " +
+            "do not yet hold a membership in this tenant, with a minimal projection; never reveals " +
+            "other tenants' membership relationships. An unknown email, an inactive identity, and an " +
+            "already-a-member identity are indistinguishable (all return an empty list). Does not " +
+            "create identities or send invitations.",
           security: clerkSecurity,
           parameters: [
             tenantHeaderParameter,
-            limitParameter(),
-            cursorParameter(),
             {
-              name: "search",
+              name: "email",
               in: "query",
-              required: false,
-              description: "Case-insensitive literal substring in identity display name or email.",
-              schema: { type: "string", minLength: 1, maxLength: 200 },
+              required: true,
+              description:
+                "Exact email of the existing account to link (trimmed, case-insensitive).",
+              schema: { type: "string", minLength: 1, maxLength: 320 },
             },
           ],
           responses: {

@@ -8,7 +8,7 @@ import {
 } from "../../src/contracts/management/staff";
 import { StaffRepository } from "../../src/staff/repository";
 import { StaffService, staffCapabilities } from "../../src/staff/service";
-import { EligibleIdentityQuerySchema, StaffListQuerySchema } from "../../src/staff/request";
+import { EligibleIdentityLookupSchema, StaffListQuerySchema } from "../../src/staff/request";
 import { contextWith, grant, location, ids, StubResourceRepository } from "../inventory/fakes";
 
 const identity = "70000000-0000-4000-8000-0000000000aa";
@@ -66,17 +66,20 @@ describe("Staff request validation", () => {
     },
   );
 
-  it.each([{ limit: 0 }, { limit: 101 }, { cursor: "" }, { search: "" }, { status: "active" }])(
-    "fails closed for eligible-identity query %j",
-    (value) => {
-      expect(EligibleIdentityQuerySchema.safeParse(value).success).toBe(false);
-    },
-  );
+  it.each([
+    {},
+    { email: "" },
+    { email: "   " },
+    { email: "dana@example.test", search: "dana" },
+    { email: "dana@example.test", limit: 10 },
+    { search: "dana" },
+  ])("fails closed for eligible-identity lookup %j (email-only, no directory search)", (value) => {
+    expect(EligibleIdentityLookupSchema.safeParse(value).success).toBe(false);
+  });
 
-  it("accepts a bounded eligible-identity search", () => {
-    expect(EligibleIdentityQuerySchema.parse({ search: " dana ", limit: 10 })).toEqual({
-      search: "dana",
-      limit: 10,
+  it("accepts an exact-email lookup and trims surrounding whitespace", () => {
+    expect(EligibleIdentityLookupSchema.parse({ email: "  Dana@Example.test  " })).toEqual({
+      email: "Dana@Example.test",
     });
   });
 });
@@ -113,10 +116,12 @@ describe("Staff permission coupling", () => {
     ).rejects.toMatchObject({ code: "PERMISSION_DENIED" });
   });
 
-  it("requires staff.manage (not merely staff.read) to discover eligible identities", async () => {
-    const spy = vi.spyOn(repository, "listEligibleIdentities");
+  it("requires staff.manage (not merely staff.read) to resolve an eligible identity by email", async () => {
+    const spy = vi.spyOn(repository, "findEligibleIdentitiesByEmail");
     await expect(
-      service.listEligibleIdentities(contextWith([grant(["staff.read"])]), { limit: 25 }),
+      service.findEligibleIdentitiesByEmail(contextWith([grant(["staff.read"])]), {
+        email: "dana@example.test",
+      }),
     ).rejects.toMatchObject({ code: "PERMISSION_DENIED" });
     expect(spy).not.toHaveBeenCalled();
     spy.mockRestore();

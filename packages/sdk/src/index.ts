@@ -66,10 +66,13 @@ export interface StaffListQuery {
   limit?: number;
   cursor?: string;
 }
-export interface EligibleIdentityQuery {
-  search?: string;
-  limit?: number;
-  cursor?: string;
+/**
+ * Add-Staff identity resolution is an EXACT-email lookup, not a directory search — the only input is the
+ * email of the account to link. There is deliberately no name, partial, or wildcard search and no
+ * pagination.
+ */
+export interface EligibleStaffIdentityLookup {
+  email: string;
 }
 export type CreateStaffInput = CreateStaffRequest & IdempotentWrite;
 export type UpdateStaffStatusInput = UpdateStaffStatusRequest &
@@ -349,7 +352,9 @@ export interface TenantCommerceClient {
     query?: SupplierReceiptsQuery,
   ): Promise<SupplierReceiptsResponse>;
   listStaff(query?: StaffListQuery): Promise<StaffListResponse>;
-  listEligibleStaffIdentities(query?: EligibleIdentityQuery): Promise<EligibleIdentitiesResponse>;
+  findEligibleStaffIdentitiesByEmail(
+    lookup: EligibleStaffIdentityLookup,
+  ): Promise<EligibleIdentitiesResponse>;
   getStaffMember(membershipId: string): Promise<StaffDetail>;
   createStaff(input: CreateStaffInput): Promise<StaffDetail>;
   updateStaffStatus(input: UpdateStaffStatusInput): Promise<StaffDetail>;
@@ -657,9 +662,9 @@ export function createCommerceClient({
           StaffListResponseSchema,
           { tenantId },
         ),
-      listEligibleStaffIdentities: (query: EligibleIdentityQuery = {}) =>
+      findEligibleStaffIdentitiesByEmail: (lookup: EligibleStaffIdentityLookup) =>
         request(
-          `/api/v1/staff/eligible-identities${buildQuery({ search: query.search, limit: query.limit, cursor: query.cursor })}`,
+          `/api/v1/staff/eligible-identities${buildQuery({ email: lookup.email })}`,
           EligibleIdentitiesResponseSchema,
           { tenantId },
         ),

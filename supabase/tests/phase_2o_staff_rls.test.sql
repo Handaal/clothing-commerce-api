@@ -17,8 +17,8 @@ select ok(not has_table_privilege('service_role','public.staff_commands','SELECT
 -- Function boundary: transport may invoke entrypoints; clients and internals may not -----------------
 select ok(not has_function_privilege('authenticated','staff_private.create_staff(uuid,uuid,text,uuid)','EXECUTE'),'client cannot invoke staff writer');
 select ok(has_function_privilege('service_role','staff_private.list_staff(uuid,text,text,uuid,uuid,integer)','EXECUTE'),'transport can list staff');
-select ok(has_function_privilege('service_role','staff_private.list_eligible_identities(uuid,text,uuid,integer)','EXECUTE'),'transport can list eligible identities');
-select ok(not has_function_privilege('authenticated','staff_private.list_eligible_identities(uuid,text,uuid,integer)','EXECUTE'),'client cannot enumerate identities directly');
+select ok(has_function_privilege('service_role','staff_private.find_eligible_identities_by_email(uuid,text)','EXECUTE'),'transport can resolve eligible identities by email');
+select ok(not has_function_privilege('authenticated','staff_private.find_eligible_identities_by_email(uuid,text)','EXECUTE'),'client cannot enumerate identities directly');
 select ok(has_function_privilege('service_role','staff_private.create_staff(uuid,uuid,text,uuid)','EXECUTE'),'transport can create staff');
 select ok(has_function_privilege('service_role','staff_private.assign_role(uuid,uuid,text,uuid,uuid,uuid,text)','EXECUTE'),'transport can assign roles');
 select ok(has_function_privilege('service_role','staff_private.unassign_role(uuid,uuid,text,uuid,uuid,text)','EXECUTE'),'transport can unassign roles');
