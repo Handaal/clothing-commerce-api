@@ -729,9 +729,10 @@ select ok(
 );
 -- The platform permission catalog is seeded by the Phase 2D migration (8 stable keys), the Phase 2E
 -- migration (1 more, 'orders.fulfill'), the Phase 2F migration (1 more, 'catalog.read'), Phase 2H
--- (1 more, 'payments.capture'), and Phase 2J (2 more, 'catalog.author' and 'catalog.publish'); this
--- transaction-local fixture adds 'test.read', for 17 visible rows including returns/refunds.
-select is((select count(*) from public.permissions), 19::bigint, 'active member can read Permission catalog including returns/refunds and suppliers');
+-- (1 more, 'payments.capture'), Phase 2J (2 more, 'catalog.author' and 'catalog.publish'), Phase 2N
+-- (2 more, 'suppliers.read' and 'suppliers.manage'), and Phase 2O (2 more, 'staff.read' and
+-- 'staff.manage'); this transaction-local fixture adds 'test.read', for 21 visible rows.
+select is((select count(*) from public.permissions), 21::bigint, 'active member can read Permission catalog including returns/refunds, suppliers and staff');
 
 select is(
   (

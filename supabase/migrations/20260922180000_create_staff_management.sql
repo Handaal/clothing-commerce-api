@@ -47,7 +47,13 @@ grant select, insert, update on public.memberships to staff_writer;
 grant select, insert, update on public.membership_role_assignments to staff_writer;
 grant select on public.user_identities, public.roles, public.permissions, public.role_permissions,
  public.access_scopes, public.access_scope_targets to staff_writer;
+-- Reassigning ownership requires the NEW owner to hold CREATE on the table's schema. Under
+-- `supabase start` migrations run as a non-superuser role that enforces this (a plain-postgres apply as
+-- superuser bypasses it), so grant CREATE on public transiently and revoke it immediately after the
+-- single ownership transfer -- staff_writer keeps no standing CREATE on public. Mirrors the suppliers domain.
+grant create on schema public to staff_writer;
 alter table public.staff_commands owner to staff_writer;
+revoke create on schema public from staff_writer;
 
 create policy staff_writer_membership_read on public.memberships for select to staff_writer using(true);
 create policy staff_writer_membership_write on public.memberships for update to staff_writer using(true) with check(true);
