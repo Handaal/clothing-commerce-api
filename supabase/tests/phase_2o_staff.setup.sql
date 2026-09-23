@@ -38,3 +38,34 @@ from public.permissions where key in ('staff.read') on conflict do nothing;
 insert into public.role_permissions(tenant_id,role_id,permission_id)
 select '2a000001-0000-4000-8000-000000000001'::uuid,'2a000031-0000-4000-8000-000000000002'::uuid,id
 from public.permissions where key in ('staff.read','reports.read') on conflict do nothing;
+
+-- Assignment-catalog fixtures ---------------------------------------------------------------------
+-- An archived role and an archived scope: both are rejected by assign_role, so neither may appear in a
+-- catalog. A permissionless role is a trivial subset and MUST appear.
+insert into public.roles(id,tenant_id,name,status,is_protected,archived_at)
+values
+ ('2a000031-0000-4000-8000-000000000003','2a000001-0000-4000-8000-000000000001','Retired Role','archived',false,now()),
+ ('2a000031-0000-4000-8000-000000000004','2a000001-0000-4000-8000-000000000001','Empty Role','active',false,null)
+on conflict(id) do nothing;
+
+insert into public.access_scopes(id,tenant_id,name,scope_mode,status,archived_at)
+values ('2a000014-0000-4000-8000-000000000009','2a000001-0000-4000-8000-000000000001','Retired Scope','tenant','archived',now())
+on conflict(id) do nothing;
+
+-- Foreign-tenant role and explicit scope with its own branch target. Nothing here may ever surface in a
+-- catalog read for the base tenant, and the foreign scope's target must stay bound to the foreign tenant.
+insert into public.branches(id,tenant_id,code,display_name,timezone,status)
+values ('2a000003-0000-4000-8000-0000000000f1','2a000001-0000-4000-8000-000000000002','foreign-branch','Foreign Branch','UTC','active')
+on conflict(id) do nothing;
+
+insert into public.roles(id,tenant_id,name,status,is_protected)
+values ('2a000031-0000-4000-8000-0000000000f1','2a000001-0000-4000-8000-000000000002','Foreign Role','active',false)
+on conflict(id) do nothing;
+
+insert into public.access_scopes(id,tenant_id,name,scope_mode,status)
+values ('2a000014-0000-4000-8000-0000000000f1','2a000001-0000-4000-8000-000000000002','Foreign Scope','explicit','active')
+on conflict(id) do nothing;
+
+insert into public.access_scope_targets(id,tenant_id,access_scope_id,brand_id,branch_id)
+values ('2a000015-0000-4000-8000-0000000000f1','2a000001-0000-4000-8000-000000000002','2a000014-0000-4000-8000-0000000000f1',null,'2a000003-0000-4000-8000-0000000000f1')
+on conflict(id) do nothing;

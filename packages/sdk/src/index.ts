@@ -35,10 +35,14 @@ import {
   StaffDetailSchema,
   StaffListResponseSchema,
   EligibleIdentitiesResponseSchema,
+  AssignableStaffRolesResponseSchema,
+  AssignableStaffScopesResponseSchema,
   type StaffDetail,
   type StaffListResponse,
   type StaffStatus,
   type EligibleIdentitiesResponse,
+  type AssignableStaffRolesResponse,
+  type AssignableStaffScopesResponse,
   type CreateStaffRequest,
   type UpdateStaffStatusRequest,
   type AssignStaffRoleRequest,
@@ -54,6 +58,11 @@ export type {
   StaffListResponse,
   EligibleIdentity,
   EligibleIdentitiesResponse,
+  AssignableStaffRole,
+  AssignableStaffRolesResponse,
+  AssignableStaffScopeTarget,
+  AssignableStaffScope,
+  AssignableStaffScopesResponse,
   CreateStaffRequest,
   UpdateStaffStatusRequest,
   AssignStaffRoleRequest,
@@ -73,6 +82,16 @@ export interface StaffListQuery {
  */
 export interface EligibleStaffIdentityLookup {
   email: string;
+}
+/**
+ * The assignment catalogs are the canonical server-backed source of the role ids and access-scope ids
+ * `assignStaffRole` accepts. Do NOT derive selectable options from other staff members' assignments:
+ * that yields nothing on a fresh tenant and silently hides valid-but-unused roles and scopes. There is
+ * no search or filter — the sets are small, server-ordered by name, and only paged.
+ */
+export interface AssignmentCatalogQuery {
+  limit?: number;
+  cursor?: string;
 }
 export type CreateStaffInput = CreateStaffRequest & IdempotentWrite;
 export type UpdateStaffStatusInput = UpdateStaffStatusRequest &
@@ -355,6 +374,8 @@ export interface TenantCommerceClient {
   findEligibleStaffIdentitiesByEmail(
     lookup: EligibleStaffIdentityLookup,
   ): Promise<EligibleIdentitiesResponse>;
+  listAssignableStaffRoles(query?: AssignmentCatalogQuery): Promise<AssignableStaffRolesResponse>;
+  listAssignableStaffScopes(query?: AssignmentCatalogQuery): Promise<AssignableStaffScopesResponse>;
   getStaffMember(membershipId: string): Promise<StaffDetail>;
   createStaff(input: CreateStaffInput): Promise<StaffDetail>;
   updateStaffStatus(input: UpdateStaffStatusInput): Promise<StaffDetail>;
@@ -666,6 +687,18 @@ export function createCommerceClient({
         request(
           `/api/v1/staff/eligible-identities${buildQuery({ email: lookup.email })}`,
           EligibleIdentitiesResponseSchema,
+          { tenantId },
+        ),
+      listAssignableStaffRoles: (query: AssignmentCatalogQuery = {}) =>
+        request(
+          `/api/v1/staff/assignable-roles${buildQuery({ limit: query.limit, cursor: query.cursor })}`,
+          AssignableStaffRolesResponseSchema,
+          { tenantId },
+        ),
+      listAssignableStaffScopes: (query: AssignmentCatalogQuery = {}) =>
+        request(
+          `/api/v1/staff/assignable-scopes${buildQuery({ limit: query.limit, cursor: query.cursor })}`,
+          AssignableStaffScopesResponseSchema,
           { tenantId },
         ),
       getStaffMember: (membershipId: string) =>

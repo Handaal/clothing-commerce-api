@@ -207,9 +207,12 @@ Phase 2O adds [Staff management core](docs/staff/staff-management-core.md): a St
 existing identity + membership + RBAC model with membership lifecycle (active/suspend/revoke), role and
 access-scope assignment, a subset-of-own anti-escalation rule, and last-staff-admin lockout protection.
 Add-staff links an already-provisioned identity (no Clerk invitation integration; external delivery
-deferred). It is operational access management, **not** an HR/payroll system. Run
-`pnpm test:staff:persistence` and `pnpm test:staff:rls`. The additive SDK release is `0.10.0`. Admin
-Mobile integration of this surface is a later change.
+deferred). It is operational access management, **not** an HR/payroll system. Assignment options come
+from two canonical read-only catalogs — `GET /api/v1/staff/assignable-roles` (filtered to roles whose
+permissions the caller already holds) and `GET /api/v1/staff/assignable-scopes` — never from assignments
+other staff already hold; role, scope and scope-target **authoring stays deferred**. Run
+`pnpm test:staff:persistence` and `pnpm test:staff:rls`. The additive SDK release is `0.11.0`. Phase 2O
+remains in progress until Admin Mobile integration of this surface and its runtime acceptance merge.
 
 The repository now owns catalog, append-only inventory, canonical Orders, immutable Fulfillments, the
 management API, Connected POS Sale V1, and the Phase 2I Offline POS server boundary. A connected cash checkout composes its POS Order, captured

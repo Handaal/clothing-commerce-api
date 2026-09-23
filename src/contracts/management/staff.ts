@@ -97,6 +97,63 @@ export const EligibleIdentitiesResponseSchema = z.object({
   items: z.array(EligibleIdentitySchema),
 });
 
+/**
+ * Assignment catalogs (read-only). `assign_role` consumes an EXISTING role id and an EXISTING access
+ * scope id; these two lists are the canonical server-backed source of those ids. They exist so a client
+ * never has to derive selectable options from assignments other staff already hold — a derivation that
+ * is empty on a fresh tenant, silently drops valid-but-unused roles/scopes, and makes one member's
+ * options depend on another member's memberships.
+ *
+ * Both catalogs are strictly SELECTION surfaces: they create, edit and delete nothing. Authoring roles,
+ * scopes, scope targets and role permissions remains deferred.
+ */
+
+/**
+ * A role the caller may potentially assign. Listed only when every active permission the role carries is
+ * already held by the caller tenant-wide — the same subset rule `POST /role-assignments` enforces, so the
+ * catalog never offers an assignment the write would reject. This is a convenience filter, NOT the
+ * authorization boundary: the write re-runs the check independently, so knowing a role id grants nothing.
+ * `permissionKeys` is included so a manager can see what the role actually confers before assigning it.
+ * Archived roles are excluded (assignment rejects them).
+ */
+export const AssignableStaffRoleSchema = z.object({
+  roleId: UuidSchema,
+  roleName: z.string(),
+  description: z.string().nullable(),
+  isProtected: z.boolean(),
+  permissionKeys: z.array(z.string()),
+});
+
+export const AssignableStaffRolesResponseSchema = paginated(AssignableStaffRoleSchema);
+
+/**
+ * An existing explicit scope target, projected with the `display_name` read from the referenced
+ * brand/branch/warehouse/inventory location. No label is invented; every target is tenant-bound by
+ * composite foreign key. This is a richer projection than `StaffScopeTarget` (which is id-only) because
+ * a manager choosing a scope needs to read what it covers, not merely identify it.
+ */
+export const AssignableStaffScopeTargetSchema = z.object({
+  kind: z.enum(["brand", "branch", "warehouse", "inventory_location"]),
+  id: UuidSchema,
+  name: z.string(),
+});
+
+/**
+ * An existing access scope selectable for a Role+Scope assignment. Unlike roles, scopes are NOT filtered
+ * against the caller: a scope carries no authority of its own, it only narrows where an assigned role's
+ * permissions apply, so listing every active tenant scope cannot widen what a manager can grant. A
+ * `tenant`-mode scope has no targets by construction. Archived scopes are excluded.
+ */
+export const AssignableStaffScopeSchema = z.object({
+  accessScopeId: UuidSchema,
+  scopeName: z.string(),
+  description: z.string().nullable(),
+  scopeMode: z.enum(["tenant", "explicit"]),
+  targets: z.array(AssignableStaffScopeTargetSchema),
+});
+
+export const AssignableStaffScopesResponseSchema = paginated(AssignableStaffScopeSchema);
+
 const reasonField = z.string().trim().min(1).max(500).optional();
 
 export const CreateStaffRequestSchema = z.object({ identityId: UuidSchema }).strict();
@@ -121,6 +178,11 @@ export type StaffDetail = z.infer<typeof StaffDetailSchema>;
 export type StaffListResponse = z.infer<typeof StaffListResponseSchema>;
 export type EligibleIdentity = z.infer<typeof EligibleIdentitySchema>;
 export type EligibleIdentitiesResponse = z.infer<typeof EligibleIdentitiesResponseSchema>;
+export type AssignableStaffRole = z.infer<typeof AssignableStaffRoleSchema>;
+export type AssignableStaffRolesResponse = z.infer<typeof AssignableStaffRolesResponseSchema>;
+export type AssignableStaffScopeTarget = z.infer<typeof AssignableStaffScopeTargetSchema>;
+export type AssignableStaffScope = z.infer<typeof AssignableStaffScopeSchema>;
+export type AssignableStaffScopesResponse = z.infer<typeof AssignableStaffScopesResponseSchema>;
 export type CreateStaffRequest = z.infer<typeof CreateStaffRequestSchema>;
 export type UpdateStaffStatusRequest = z.infer<typeof UpdateStaffStatusRequestSchema>;
 export type AssignStaffRoleRequest = z.infer<typeof AssignStaffRoleRequestSchema>;

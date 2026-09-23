@@ -52,6 +52,8 @@ describe("OpenAPI management surface", () => {
         "/api/v1/suppliers/{supplierId}/receipts",
         "/api/v1/staff",
         "/api/v1/staff/eligible-identities",
+        "/api/v1/staff/assignable-roles",
+        "/api/v1/staff/assignable-scopes",
         "/api/v1/staff/{membershipId}",
         "/api/v1/staff/{membershipId}/role-assignments",
         "/api/v1/staff/{membershipId}/role-assignments/{assignmentId}",
@@ -123,6 +125,24 @@ describe("OpenAPI management surface", () => {
     }
     expect(hasIdempotencyHeader("/api/v1/products/{productId}/media/upload-intent")).toBe(false);
     expect(hasTenantHeader("/api/v1/products/{productId}/media/upload-intent")).toBe(true);
+  });
+
+  it("exposes the staff assignment catalogs as tenant-scoped, paginated, read-only GETs", () => {
+    for (const catalogPath of [
+      "/api/v1/staff/assignable-roles",
+      "/api/v1/staff/assignable-scopes",
+    ]) {
+      // Selection only: authoring roles, scopes and scope targets stays deferred, so there is no write
+      // verb and therefore no idempotency key.
+      expect(Object.keys(paths[catalogPath])).toEqual(["get"]);
+      expect(hasIdempotencyHeader(catalogPath)).toBe(false);
+      expect(hasTenantHeader(catalogPath)).toBe(true);
+      expect(parametersOf(catalogPath).map((parameter) => parameter.name)).toEqual([
+        undefined,
+        "limit",
+        "cursor",
+      ]);
+    }
   });
 
   it("exposes the inventory writes as POST operations with typed request bodies", () => {

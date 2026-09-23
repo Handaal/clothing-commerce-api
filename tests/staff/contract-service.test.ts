@@ -8,7 +8,11 @@ import {
 } from "../../src/contracts/management/staff";
 import { StaffRepository } from "../../src/staff/repository";
 import { StaffService, staffCapabilities } from "../../src/staff/service";
-import { EligibleIdentityLookupSchema, StaffListQuerySchema } from "../../src/staff/request";
+import {
+  AssignmentCatalogQuerySchema,
+  EligibleIdentityLookupSchema,
+  StaffListQuerySchema,
+} from "../../src/staff/request";
 import { contextWith, grant, location, ids, StubResourceRepository } from "../inventory/fakes";
 
 const identity = "70000000-0000-4000-8000-0000000000aa";
@@ -82,6 +86,17 @@ describe("Staff request validation", () => {
       email: "Dana@Example.test",
     });
   });
+
+  it.each([{ limit: 0 }, { limit: 101 }, { search: "admin" }, { roleId: role }, { cursor: "" }])(
+    "fails closed for assignment-catalog query %j (paging only, no search or filter)",
+    (value) => {
+      expect(AssignmentCatalogQuerySchema.safeParse(value).success).toBe(false);
+    },
+  );
+
+  it("defaults the assignment-catalog page size", () => {
+    expect(AssignmentCatalogQuerySchema.parse({})).toEqual({ limit: 25 });
+  });
 });
 
 describe("Staff permission coupling", () => {
@@ -126,6 +141,24 @@ describe("Staff permission coupling", () => {
     expect(spy).not.toHaveBeenCalled();
     spy.mockRestore();
   });
+
+  it.each(["listAssignableRoles", "listAssignableScopes"] as const)(
+    "requires staff.manage (not merely staff.read) for %s",
+    async (operation) => {
+      const spy = vi.spyOn(repository, operation);
+      await expect(
+        service[operation](contextWith([grant(["staff.read"])]), { limit: 25 }),
+      ).rejects.toMatchObject({ code: "PERMISSION_DENIED" });
+      // A brand/branch-scoped staff.manage grant is likewise insufficient for a tenant-wide catalog.
+      await expect(
+        service[operation](contextWith([grant(["staff.manage"], [location(ids.locationActive)])]), {
+          limit: 25,
+        }),
+      ).rejects.toMatchObject({ code: "SCOPE_DENIED" });
+      expect(spy).not.toHaveBeenCalled();
+      spy.mockRestore();
+    },
+  );
 
   it("reports full capability for a tenant-wide manager", () => {
     expect(staffCapabilities(contextWith([grant(["staff.read", "staff.manage"])]))).toEqual({

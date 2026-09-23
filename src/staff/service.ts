@@ -12,8 +12,10 @@ import {
 } from "../contracts/management/staff";
 import { StaffError } from "./errors";
 import {
+  AssignmentCatalogQuerySchema,
   EligibleIdentityLookupSchema,
   StaffListQuerySchema,
+  type AssignmentCatalogQuery,
   type EligibleIdentityLookup,
   type StaffListQuery,
 } from "./request";
@@ -67,6 +69,24 @@ export class StaffService {
     return this.repository.findEligibleIdentitiesByEmail(
       await this.authorize(context, StaffPermission.manage),
       parse(EligibleIdentityLookupSchema, lookup),
+    );
+  }
+
+  // The assignment catalogs exist only to populate the Add/Edit Staff assignment picker, so they are
+  // management-only: they require the same tenant-wide staff.manage grant as the assignment write, and a
+  // staff.read-only caller cannot reach them. The role catalog additionally applies the write's own
+  // subset-of-own-permissions rule; the write remains authoritative and re-checks it independently.
+  async listAssignableRoles(context: AuthorizationContext, query: AssignmentCatalogQuery) {
+    return this.repository.listAssignableRoles(
+      await this.authorize(context, StaffPermission.manage),
+      parse(AssignmentCatalogQuerySchema, query),
+    );
+  }
+
+  async listAssignableScopes(context: AuthorizationContext, query: AssignmentCatalogQuery) {
+    return this.repository.listAssignableScopes(
+      await this.authorize(context, StaffPermission.manage),
+      parse(AssignmentCatalogQuerySchema, query),
     );
   }
 
