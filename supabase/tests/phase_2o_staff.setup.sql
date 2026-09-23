@@ -17,6 +17,22 @@ values
  ('2a000030-0000-4000-8000-000000000002','deactivated','Removed Person','gone@example.test',now())
 on conflict(id) do nothing;
 
+-- A second active, unique-email non-member reserved for the create-succeeds/assign-fails recovery proof
+-- (Admin runtime scenario M): the membership is created for real, the initial assignment is made to fail
+-- once, and only the assignment is retried — never the create — so exactly one membership results.
+insert into public.user_identities(id,status,display_name,primary_email,deactivated_at)
+values ('2a000030-0000-4000-8000-000000000005','active','Percy Partial','percy@example.test',null)
+on conflict(id) do nothing;
+
+-- Two more active, unique-email non-members so the Admin runtime's role/scope-assignment (F) and
+-- suspend/reactivate/deactivate (I+L) scenarios each operate on their OWN dedicated member — never the
+-- last tenant-wide admin, and independent of each other's ordering.
+insert into public.user_identities(id,status,display_name,primary_email,deactivated_at)
+values
+ ('2a000030-0000-4000-8000-000000000006','active','Frankie Fixture','frankie@example.test',null),
+ ('2a000030-0000-4000-8000-000000000007','active','Ingrid Fixture','ingrid@example.test',null)
+on conflict(id) do nothing;
+
 -- Two ACTIVE identities that share the exact same (normalized) email. primary_email is not unique, so an
 -- exact-email lookup must return BOTH (0..N contract), in deterministic id order, preferring neither.
 -- Stored with case/whitespace variation to prove normalization collapses them to one match set.
