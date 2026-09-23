@@ -260,8 +260,15 @@ its phase arrives.
 - **Acquisition / unit-cost model** — no cost basis exists; retail price must not be reused as cost.
 - **Procurement / purchase orders** — deferred (PO, requisitions, RFQ, quotations, reorder, forecasting).
 - **Supplier invoices / Accounts Payable / supplier payments** — deferred.
-- **Detailed promotions / voucher / discount semantics** — not implemented; integrity-sensitive
-  because it touches immutable order pricing snapshots.
+- **Detailed promotions / voucher / discount semantics** — Phase 2P-A delivers the validated **money
+  core** (branch `phase/2p-promotions-core`): promotion/adjustment/redemption schema, the Order
+  accounting evolution (`gross_subtotal_minor`/`discount_total_minor`/net `total_minor`, backward
+  compatible), the shared deterministic evaluation engine, largest-remainder allocation, redemption
+  under row locks, and the Returns net-refund basis, proven by `pnpm test:promotions:persistence`
+  (39 invariants, twice from empty). Frozen product contract: one promotion per order (best eligible
+  saving), global/voucher limits only. See [promotions core](../promotions/promotions-core.md) and
+  [ADR-037](../decisions/ADR-037-promotion-accounting-and-adjustment-semantics.md). The client-facing
+  API surface (quote/checkout/POS intent, Admin management, SDK `0.12.x`) is the next slice.
 - **Reporting / export expectations** — exact report and export list undecided.
 - **Operational POS settings** — register/receipt/cash-drawer/session configuration pending.
 - **Admin / business settings** — tenant/brand/branch/tax/currency configuration pending.
