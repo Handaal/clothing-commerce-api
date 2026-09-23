@@ -31,6 +31,18 @@ import {
   ReturnHistoryResponseSchema,
 } from "../contracts/management/returns";
 import { CheckoutRequestSchema, CheckoutResultSchema } from "../contracts/storefront/checkout";
+import { StorefrontQuoteRequestSchema } from "../contracts/storefront/quote";
+import { PosQuoteRequestSchema } from "../contracts/pos";
+import { PricingBreakdownSchema } from "../contracts/common/promotion-pricing";
+import {
+  PromotionDetailSchema,
+  PromotionListResponseSchema,
+  CreatePromotionRequestSchema,
+  UpdatePromotionRequestSchema,
+  SetPromotionStatusRequestSchema,
+  CreatePromotionCodeRequestSchema,
+  SetPromotionCodeStatusRequestSchema,
+} from "../contracts/management/promotions";
 import { z } from "zod";
 
 import packageMetadata from "../../package.json";
@@ -185,8 +197,226 @@ export function generateOpenApiDocument() {
       },
       { name: "orders", description: "Read-only orders and fulfillment progress." },
       { name: "pos", description: "Authorized register context and atomic POS checkout." },
+      {
+        name: "promotions",
+        description:
+          "Tenant-owned promotion and code management, and non-consuming pricing quotes. " +
+          "Money is server-authoritative; one promotion per order (best eligible saving).",
+      },
     ],
     paths: {
+      "/api/v1/storefront/quote": {
+        post: {
+          operationId: "quoteCheckout",
+          summary: "Non-consuming Storefront pricing quote with the best-eligible promotion.",
+          description:
+            "Public configured tenant/brand context. Evaluates one automatic promotion and one optional entered code and returns the server-authoritative gross/discount/net breakdown. Never creates a Customer or Order, reserves stock, or consumes a redemption.",
+          tags: ["promotions"],
+          security: [],
+          parameters: [],
+          requestBody: jsonRequestBody(
+            "Basket lines and optional promotion code",
+            "#/components/schemas/StorefrontQuoteRequest",
+          ),
+          responses: {
+            "200": jsonResponse(
+              "Server-authoritative pricing breakdown",
+              "#/components/schemas/PricingBreakdown",
+            ),
+            ...errorResponses(400, 422, 500),
+          },
+        },
+      },
+      "/api/v1/pos/quote": {
+        post: {
+          operationId: "posQuote",
+          summary: "Non-consuming connected-POS pricing quote.",
+          description:
+            "Resolves the register selling context and evaluates the best-eligible promotion over the same engine as the sale. Never consumes a redemption. No Idempotency-Key (no durable state change).",
+          tags: ["promotions"],
+          security: clerkSecurity,
+          parameters: [tenantHeaderParameter],
+          requestBody: jsonRequestBody(
+            "Register, basket lines and optional promotion code",
+            "#/components/schemas/PosQuoteRequest",
+          ),
+          responses: {
+            "200": jsonResponse(
+              "Server-authoritative pricing breakdown",
+              "#/components/schemas/PricingBreakdown",
+            ),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
+      "/api/v1/promotions": {
+        get: {
+          operationId: "listPromotions",
+          summary: "listPromotions",
+          description: "Requires a tenant-wide promotions.read grant.",
+          tags: ["promotions"],
+          security: clerkSecurity,
+          parameters: [
+            tenantHeaderParameter,
+            {
+              name: "limit",
+              in: "query",
+              schema: { type: "integer", minimum: 1, maximum: 200, default: 50 },
+            },
+            { name: "offset", in: "query", schema: { type: "integer", minimum: 0, default: 0 } },
+          ],
+          responses: {
+            "200": jsonResponse("Success", "#/components/schemas/PromotionListResponse"),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+        post: {
+          operationId: "createPromotion",
+          summary: "createPromotion",
+          description:
+            "Requires a tenant-wide promotions.manage grant and Idempotency-Key. Exact replay returns the original promotion.",
+          tags: ["promotions"],
+          security: clerkSecurity,
+          parameters: [tenantHeaderParameter, idempotencyKeyHeaderParameter],
+          requestBody: jsonRequestBody(
+            "Promotion configuration (optionally with targets and codes)",
+            "#/components/schemas/CreatePromotionRequest",
+          ),
+          responses: {
+            "200": jsonResponse("Promotion detail", "#/components/schemas/PromotionDetail"),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
+      "/api/v1/promotions/{promotionId}": {
+        get: {
+          operationId: "getPromotion",
+          summary: "getPromotion",
+          description: "Requires a tenant-wide promotions.read grant.",
+          tags: ["promotions"],
+          security: clerkSecurity,
+          parameters: [
+            tenantHeaderParameter,
+            {
+              name: "promotionId",
+              in: "path",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+          ],
+          responses: {
+            "200": jsonResponse("Promotion detail", "#/components/schemas/PromotionDetail"),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+        patch: {
+          operationId: "updatePromotion",
+          summary: "updatePromotion",
+          description:
+            "Requires a tenant-wide promotions.manage grant and Idempotency-Key. Economic fields are rejected after the first redemption.",
+          tags: ["promotions"],
+          security: clerkSecurity,
+          parameters: [
+            tenantHeaderParameter,
+            idempotencyKeyHeaderParameter,
+            {
+              name: "promotionId",
+              in: "path",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+          ],
+          requestBody: jsonRequestBody(
+            "Editable fields",
+            "#/components/schemas/UpdatePromotionRequest",
+          ),
+          responses: {
+            "200": jsonResponse("Promotion detail", "#/components/schemas/PromotionDetail"),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
+      "/api/v1/promotions/{promotionId}/status": {
+        post: {
+          operationId: "setPromotionStatus",
+          summary: "setPromotionStatus",
+          description: "Requires a tenant-wide promotions.manage grant and Idempotency-Key.",
+          tags: ["promotions"],
+          security: clerkSecurity,
+          parameters: [
+            tenantHeaderParameter,
+            idempotencyKeyHeaderParameter,
+            {
+              name: "promotionId",
+              in: "path",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+          ],
+          requestBody: jsonRequestBody(
+            "Target lifecycle status",
+            "#/components/schemas/SetPromotionStatusRequest",
+          ),
+          responses: {
+            "200": jsonResponse("Promotion detail", "#/components/schemas/PromotionDetail"),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
+      "/api/v1/promotions/{promotionId}/codes": {
+        post: {
+          operationId: "createPromotionCode",
+          summary: "createPromotionCode",
+          description: "Requires a tenant-wide promotions.manage grant and Idempotency-Key.",
+          tags: ["promotions"],
+          security: clerkSecurity,
+          parameters: [
+            tenantHeaderParameter,
+            idempotencyKeyHeaderParameter,
+            {
+              name: "promotionId",
+              in: "path",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+          ],
+          requestBody: jsonRequestBody(
+            "Code and optional maxRedemptions (1 = single-use voucher)",
+            "#/components/schemas/CreatePromotionCodeRequest",
+          ),
+          responses: {
+            "200": jsonResponse("Promotion detail", "#/components/schemas/PromotionDetail"),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
+      "/api/v1/promotions/codes/{codeId}/status": {
+        post: {
+          operationId: "setPromotionCodeStatus",
+          summary: "setPromotionCodeStatus",
+          description: "Requires a tenant-wide promotions.manage grant and Idempotency-Key.",
+          tags: ["promotions"],
+          security: clerkSecurity,
+          parameters: [
+            tenantHeaderParameter,
+            idempotencyKeyHeaderParameter,
+            {
+              name: "codeId",
+              in: "path",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+          ],
+          requestBody: jsonRequestBody(
+            "Target code status",
+            "#/components/schemas/SetPromotionCodeStatusRequest",
+          ),
+          responses: {
+            "200": jsonResponse("Promotion detail", "#/components/schemas/PromotionDetail"),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
       "/api/v1/suppliers": {
         get: {
           operationId: "listSuppliers",
@@ -2032,6 +2262,16 @@ export function generateOpenApiDocument() {
 
         CheckoutRequest: jsonSchema(CheckoutRequestSchema),
         CheckoutResult: jsonSchema(CheckoutResultSchema),
+        StorefrontQuoteRequest: jsonSchema(StorefrontQuoteRequestSchema),
+        PosQuoteRequest: jsonSchema(PosQuoteRequestSchema),
+        PricingBreakdown: jsonSchema(PricingBreakdownSchema),
+        PromotionListResponse: jsonSchema(PromotionListResponseSchema),
+        PromotionDetail: jsonSchema(PromotionDetailSchema),
+        CreatePromotionRequest: jsonSchema(CreatePromotionRequestSchema),
+        UpdatePromotionRequest: jsonSchema(UpdatePromotionRequestSchema),
+        SetPromotionStatusRequest: jsonSchema(SetPromotionStatusRequestSchema),
+        CreatePromotionCodeRequest: jsonSchema(CreatePromotionCodeRequestSchema),
+        SetPromotionCodeStatusRequest: jsonSchema(SetPromotionCodeStatusRequestSchema),
         HealthResponse: jsonSchema(HealthResponseSchema),
         ApiError: jsonSchema(ApiErrorSchema),
         PageInfo: jsonSchema(PageInfoSchema),

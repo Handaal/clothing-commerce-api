@@ -111,7 +111,19 @@ function scalar(sql) {
 function waitForPostgres() {
   for (let attempt = 1; attempt <= 60; attempt += 1) {
     const result = runDocker(
-      ["exec", containerName, "pg_isready", "--host", pgHost, "--port", pgPort, "--username", "postgres", "--dbname", databaseName],
+      [
+        "exec",
+        containerName,
+        "pg_isready",
+        "--host",
+        pgHost,
+        "--port",
+        pgPort,
+        "--username",
+        "postgres",
+        "--dbname",
+        databaseName,
+      ],
       { allowFailure: true },
     );
     if (result.status === 0) {
@@ -268,7 +280,10 @@ async function finalVoucherRace() {
   // Two already-committed, undiscounted orders so the ONLY contention is the redemption row lock.
   const orderA = createOrder("voucher-a");
   const orderB = createOrder("voucher-b");
-  check(orderA !== orderB && orderA.length === 36, "two independent orders were created for the race");
+  check(
+    orderA !== orderB && orderA.length === 36,
+    "two independent orders were created for the race",
+  );
 
   const s1 = new Session("v1");
   const s2 = new Session("v2");
@@ -295,7 +310,8 @@ async function finalVoucherRace() {
   }
 
   check(
-    scalar(`select count(*) from public.promotion_redemptions where tenant_id = '${tenant}';`) === "1",
+    scalar(`select count(*) from public.promotion_redemptions where tenant_id = '${tenant}';`) ===
+      "1",
     "exactly one promotion_redemption row exists",
   );
   check(
@@ -336,7 +352,10 @@ async function finalVoucherRace() {
       ...psqlConnectionArgs,
       "--file=-",
     ],
-    { input: `select promotions_private.redeem('${tenant}','${orderA}','ONCE');`, allowFailure: true },
+    {
+      input: `select promotions_private.redeem('${tenant}','${orderA}','ONCE');`,
+      allowFailure: true,
+    },
   );
   check(
     `${retry.stdout}${retry.stderr}`.includes("already adjusted"),

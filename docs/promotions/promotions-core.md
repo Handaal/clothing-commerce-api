@@ -1,10 +1,10 @@
 # Promotions Core (Phase 2P-A)
 
-Tenant-owned promotions with immutable, server-authoritative sale-time discount adjustments. This
-document covers the **validated money core** delivered in Phase 2P-A: schema, the shared evaluation
-engine, allocation, redemption, and the Returns net-refund basis. The client-facing API surface
-(Storefront/POS quote, checkout/POS promotion intent, Admin management endpoints, SDK `0.12.x`) is the
-next slice and is tracked in [current-v1-state](../platform/current-v1-state.md).
+Tenant-owned promotions with immutable, server-authoritative sale-time discount adjustments. Phase 2P-A
+delivers the validated **money core** (schema, the shared evaluation engine, allocation, redemption, and
+the Returns net-refund basis) **and** the client-facing API surface (Storefront/POS quote, checkout/POS
+promotion intent, Admin management endpoints, SDK `0.12.0`) — see [API surface](#client-facing-api-surface)
+and [SDK](#sdk) below.
 
 See [ADR-037](../decisions/ADR-037-promotion-accounting-and-adjustment-semantics.md) for the accounting
 identity and immutability rationale, and [ADR-026](../decisions/ADR-026-immutable-pricing-snapshots-and-totals.md)
@@ -87,10 +87,39 @@ net refundable basis, and tenant isolation. The new `promotions_private` schema 
 seven two-cycle persistence reset lists; `phase_2a_catalog_persistence.sql` now asserts the promotions
 table exists.
 
-## Not in this slice (next: Phase 2P-A API surface)
+## Client-facing API surface
 
-Storefront `POST /storefront/quote` + checkout promotion intent, connected `POST /pos/quote` + sale
-promotion intent, Admin promotions/codes management endpoints (`promotions.read` / `promotions.manage`),
-the TypeScript domain services/repositories/handlers, OpenAPI regeneration, and SDK `0.12.x` with the
-deterministic pack + isolated consumer gates. The database contract above is frozen for those to build
-against.
+All endpoints reuse the same DB engine; money is server-authoritative.
+
+| Endpoint                                        | Auth                          | Purpose                                                                                                                             |
+| ----------------------------------------------- | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /api/v1/storefront/quote`                 | public                        | Non-consuming Storefront pricing quote (`quote_checkout`).                                                                          |
+| `POST /api/v1/storefront/checkout`              | public + Idempotency-Key      | Checkout now accepts optional `promotionCode`; redeems in the placement transaction; validates the client's expected **net** total. |
+| `POST /api/v1/pos/quote`                        | tenant                        | Non-consuming connected-POS pricing quote.                                                                                          |
+| `POST /api/v1/pos/sales`                        | tenant + Idempotency-Key      | Sale now accepts optional `promotionCode`; redeems transactionally; the server re-derives the net total. Offline POS unchanged.     |
+| `GET/POST /api/v1/promotions`                   | `promotions.read` / `.manage` | List / create promotions (idempotent create).                                                                                       |
+| `GET/PATCH /api/v1/promotions/{id}`             | `promotions.read` / `.manage` | Detail / edit (economics frozen after first redemption → 409).                                                                      |
+| `POST /api/v1/promotions/{id}/status`           | `promotions.manage`           | Activate / deactivate.                                                                                                              |
+| `POST /api/v1/promotions/{id}/codes`            | `promotions.manage`           | Create a code / voucher.                                                                                                            |
+| `POST /api/v1/promotions/codes/{codeId}/status` | `promotions.manage`           | Enable / disable a code.                                                                                                            |
+
+Shared `PricingBreakdown` (`currency`, `grossSubtotalMinor`, `discountTotalMinor`, `totalMinor`,
+`codeStatus`, `promotion`) is returned by both quote endpoints. Checkout/quote surface a small, actionable
+outcome set: `PRICE_CHANGED` (re-quote), `PROMOTION_UNAVAILABLE` (invalid/exhausted code — re-quote),
+`CURRENCY_CHANGED`, `INSUFFICIENT_STOCK`, `IDEMPOTENCY_CONFLICT`. Exact idempotent checkout/POS replay
+returns the original placement **without** a second redemption.
+
+**Compatibility:** the checkout result gains additive `grossSubtotalMinor` / `discountTotalMinor` /
+`promotion` fields (non-strict consumers ignore them); the existing POS sale and Returns response shapes
+are unchanged (new pricing detail is a separate `PricingBreakdown` projection, not an expansion of a
+strict object). Offline grant/bootstrap/outbox schemas are untouched, so queued offline sales still
+ingest.
+
+## SDK
+
+`@shifted/clothing-commerce-sdk@0.12.0` (additive MINOR). New public method `quote`; new tenant methods
+`posQuote`, `listPromotions`, `getPromotion`, `createPromotion`, `updatePromotion`,
+`setPromotionStatus`, `createPromotionCode`, `setPromotionCodeStatus`; new types `PricingBreakdown`,
+`AppliedPromotion`, `PromotionDetail`, `PromotionSummary`, `PromotionListResponse`, quote request/response
+types. Verified by the deterministic pack + isolated ESM/CJS + strict (`skipLibCheck:false`) consumer
+gates (`pnpm test:sdk`).

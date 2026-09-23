@@ -13,7 +13,11 @@ import type {
   PosSaleReplayTarget,
   PosSaleResult,
 } from "./model";
-import type { PosSaleRepository, RecordPosSaleCommand } from "./repository";
+import type {
+  PosSaleRepository,
+  PromotionEvaluationInput,
+  RecordPosSaleCommand,
+} from "./repository";
 
 const PRIVATE_SCHEMA = "pos_sales_private";
 
@@ -65,6 +69,17 @@ const SaleSchema = z.object({
   order_id: z.string().uuid(),
   payment_id: z.string().uuid(),
   fulfillment_id: z.string().uuid(),
+});
+
+const EvaluationSchema = z.object({
+  applied: z.boolean(),
+  codeStatus: z.enum(["none", "valid", "invalid"]),
+  discountTotalMinor: z.number().int().nonnegative().optional(),
+  promotionId: z.string().uuid().nullable().optional(),
+  codeId: z.string().uuid().nullable().optional(),
+  promotionName: z.string().nullable().optional(),
+  benefitType: z.enum(["percentage", "fixed_amount"]).nullable().optional(),
+  codeSnapshot: z.string().nullable().optional(),
 });
 
 const PaymentSchema = z.object({
@@ -159,6 +174,7 @@ export class SupabasePosSaleRepository implements PosSaleRepository {
         register_id: intent.registerId,
         expected_total_minor: intent.expectedTotalMinor,
         cash_received_minor: intent.cashReceivedMinor,
+        promotion_code: intent.promotionCode,
         lines: intent.lines.map((line) => ({
           variant_id: line.variantId,
           quantity: line.quantity,
@@ -229,6 +245,7 @@ export class SupabasePosSaleRepository implements PosSaleRepository {
       p_idempotency_key: command.idempotencyKey,
       p_expected_total_minor: command.expectedTotalMinor,
       p_cash_received_minor: command.cashReceivedMinor,
+      p_promotion_code: command.promotionCode,
       p_lines: command.lines.map((line) => ({
         variant_id: line.variantId,
         product_id: line.productId,
@@ -245,6 +262,42 @@ export class SupabasePosSaleRepository implements PosSaleRepository {
     const parsed = z.string().uuid().safeParse(data);
     if (!parsed.success) throw new Error("record_sale did not return a sale id.");
     return parsed.data;
+  }
+
+  async evaluatePromotion(input: PromotionEvaluationInput) {
+    const { data, error } = await this.client.schema("promotions_private").rpc("evaluate", {
+      p_tenant: input.tenantId,
+      p_channel: "pos",
+      p_currency: input.currency,
+      p_brand: input.brandId,
+      p_branch: input.branchId,
+      p_code: input.promotionCode,
+      p_lines: input.lines.map((line, index) => ({
+        ord: index + 1,
+        variantId: line.variantId,
+        productId: line.productId,
+        quantity: line.quantity,
+        lineTotalMinor: line.lineTotalMinor,
+      })),
+    });
+    if (error) throw mapError(error);
+    const parsed = EvaluationSchema.parse(data);
+    return {
+      applied: parsed.applied,
+      discountTotalMinor: parsed.discountTotalMinor ?? 0,
+      codeStatus: parsed.codeStatus,
+      promotion:
+        parsed.applied && parsed.promotionId
+          ? {
+              promotionId: parsed.promotionId,
+              name: parsed.promotionName ?? "",
+              benefitType: parsed.benefitType ?? "percentage",
+              activation: parsed.codeId ? ("code" as const) : ("automatic" as const),
+              code: parsed.codeSnapshot ?? null,
+              discountTotalMinor: parsed.discountTotalMinor ?? 0,
+            }
+          : null,
+    };
   }
 
   async getSale(

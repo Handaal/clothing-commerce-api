@@ -91,6 +91,135 @@ describe("Commerce SDK", () => {
       expect.objectContaining({ headers: expect.objectContaining({ "X-Tenant-Id": id }) }),
     );
   });
+  it("exposes non-consuming quotes and idempotent promotion management", async () => {
+    const id = "22222222-2222-4222-8222-222222222222";
+    const breakdown = {
+      currency: "USD",
+      grossSubtotalMinor: 2000,
+      discountTotalMinor: 200,
+      totalMinor: 1800,
+      codeStatus: "valid",
+      promotion: {
+        promotionId: id,
+        name: "Ten",
+        benefitType: "percentage",
+        activation: "code",
+        code: "SAVE",
+        discountTotalMinor: 200,
+      },
+    };
+    const detail = {
+      id,
+      name: "Ten",
+      status: "active",
+      benefitType: "percentage",
+      targetType: "order",
+      activationType: "code",
+      channel: null,
+      redemptionCount: 0,
+      globalRedemptionLimit: null,
+      economicsLocked: false,
+      createdAt: "2026-09-24T00:00:00.000Z",
+      description: null,
+      benefitPercentBp: 1000,
+      benefitAmountMinor: null,
+      benefitCurrency: null,
+      minSubtotalMinor: null,
+      maxDiscountMinor: null,
+      startsAt: null,
+      endsAt: null,
+      brandId: null,
+      branchId: null,
+      remainingRedemptions: null,
+      targets: [],
+      codes: [],
+    };
+    const fetchImplementation = vi.fn<typeof globalThis.fetch>(
+      async (_url, init) =>
+        new Response(
+          JSON.stringify(
+            (init?.method ?? "GET") === "GET" &&
+              String(_url).endsWith("/promotions?limit=10&offset=0")
+              ? { total: 1, items: [detail] }
+              : String(_url).includes("/quote")
+                ? breakdown
+                : detail,
+          ),
+        ),
+    );
+    const root = createCommerceClient({
+      baseUrl: "https://api.example.test",
+      getToken: () => "session",
+      fetch: fetchImplementation,
+    });
+
+    // Public storefront quote: POST, no tenant header, no idempotency key.
+    await expect(
+      root.quote({
+        tenantId: id,
+        brandId: id,
+        lines: [{ variantId: id, quantity: 1 }],
+        promotionCode: "SAVE",
+      }),
+    ).resolves.toEqual(breakdown);
+    expect(fetchImplementation).toHaveBeenLastCalledWith(
+      "https://api.example.test/api/v1/storefront/quote",
+      expect.objectContaining({ method: "POST" }),
+    );
+    const lastHeaders = (fetchImplementation.mock.lastCall?.[1]?.headers ?? {}) as Record<
+      string,
+      string
+    >;
+    expect(lastHeaders["Idempotency-Key"]).toBeUndefined();
+    expect(lastHeaders["X-Tenant-Id"]).toBeUndefined();
+
+    const tenant = root.withTenant(id);
+    // Connected POS quote: tenant header, no idempotency.
+    await tenant.posQuote({ registerId: id, lines: [{ variantId: id, quantity: 1 }] });
+    expect(fetchImplementation).toHaveBeenLastCalledWith(
+      "https://api.example.test/api/v1/pos/quote",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({ "X-Tenant-Id": id }),
+      }),
+    );
+
+    // Create promotion: idempotency key carried out of band, not in the body.
+    await tenant.createPromotion({
+      idempotencyKey: "promo-key",
+      name: "Ten",
+      benefitType: "percentage",
+      benefitPercentBp: 1000,
+      targetType: "order",
+      activationType: "automatic",
+    });
+    expect(fetchImplementation).toHaveBeenLastCalledWith(
+      "https://api.example.test/api/v1/promotions",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({ "Idempotency-Key": "promo-key", "X-Tenant-Id": id }),
+        body: JSON.stringify({
+          name: "Ten",
+          benefitType: "percentage",
+          benefitPercentBp: 1000,
+          targetType: "order",
+          activationType: "automatic",
+        }),
+      }),
+    );
+
+    await tenant.listPromotions({ limit: 10, offset: 0 });
+    expect(fetchImplementation).toHaveBeenLastCalledWith(
+      "https://api.example.test/api/v1/promotions?limit=10&offset=0",
+      expect.objectContaining({ headers: expect.objectContaining({ "X-Tenant-Id": id }) }),
+    );
+
+    await tenant.setPromotionStatus({ promotionId: id, status: "inactive", idempotencyKey: "s" });
+    expect(fetchImplementation).toHaveBeenLastCalledWith(
+      `https://api.example.test/api/v1/promotions/${id}/status`,
+      expect.objectContaining({ method: "POST", body: JSON.stringify({ status: "inactive" }) }),
+    );
+  });
   it("returns a validated health response and sends client metadata", async () => {
     const fetchImplementation = vi.fn<typeof globalThis.fetch>(async () =>
       Promise.resolve(new Response(JSON.stringify({ status: "ok", version: "0.1.0" }))),
@@ -143,7 +272,7 @@ describe("Commerce SDK", () => {
   });
 
   it("exposes semantic SDK version metadata", () => {
-    expect(SDK_VERSION).toBe("0.11.0");
+    expect(SDK_VERSION).toBe("0.12.0");
   });
 });
 

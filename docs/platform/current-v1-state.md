@@ -267,8 +267,13 @@ its phase arrives.
   under row locks, and the Returns net-refund basis, proven by `pnpm test:promotions:persistence`
   (39 invariants, twice from empty). Frozen product contract: one promotion per order (best eligible
   saving), global/voucher limits only. See [promotions core](../promotions/promotions-core.md) and
-  [ADR-037](../decisions/ADR-037-promotion-accounting-and-adjustment-semantics.md). The client-facing
-  API surface (quote/checkout/POS intent, Admin management, SDK `0.12.x`) is the next slice.
+  [ADR-037](../decisions/ADR-037-promotion-accounting-and-adjustment-semantics.md). The **client-facing
+  API surface is now delivered**: `POST /storefront/quote` + `POST /pos/quote`, optional `promotionCode`
+  on checkout and POS sale (redeemed transactionally with server-authoritative net validation), Admin
+  promotion/code management (`promotions.read` / `promotions.manage`), OpenAPI, and SDK **`0.12.0`**
+  (deterministic pack SHA-256 `e2296c0300778ba3847065605d1863e86caea6042bd6063676bd60c40ef9b076`).
+  Proven by `pnpm test:promotions:persistence` (46), `pnpm test:promotions:concurrency` (12 — final
+  voucher race), and the SDK consumer gates.
 - **Reporting / export expectations** — exact report and export list undecided.
 - **Operational POS settings** — register/receipt/cash-drawer/session configuration pending.
 - **Admin / business settings** — tenant/brand/branch/tax/currency configuration pending.
