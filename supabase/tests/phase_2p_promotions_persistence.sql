@@ -298,4 +298,34 @@ select pg_temp.assert_true(
   'tenant B cannot evaluate tenant A promotions or codes');
 update public.promotions set status='inactive' where id='a0000000-0000-4000-8000-000000000091';
 
+-- ============================ management functions (migration 5) ============================
+create temp table created on commit drop as select promotions_private.create_promotion(
+  '10000000-0000-4000-8000-000000000001','mgmt-key-1',
+  '{"name":"Managed","benefitType":"percentage","benefitPercentBp":1500,"targetType":"order","activationType":"code"}'::jsonb) as d;
+select pg_temp.assert_true(
+  (select (d->>'economicsLocked')::boolean = false and d->>'name'='Managed' from created),
+  'create_promotion returns detail, economics unlocked before redemption');
+select pg_temp.assert_true(
+  (select promotions_private.create_promotion('10000000-0000-4000-8000-000000000001','mgmt-key-1','{}'::jsonb)->>'id'
+    = (select d->>'id' from created)),
+  'create_promotion is idempotent on creation key');
+select promotions_private.create_code('10000000-0000-4000-8000-000000000001',(select (d->>'id')::uuid from created),
+  '{"code":"managed10","maxRedemptions":5}'::jsonb);
+select pg_temp.assert_true(
+  (select jsonb_array_length(promotions_private.promotion_detail('10000000-0000-4000-8000-000000000001',(d->>'id')::uuid)->'codes')=1 from created),
+  'create_code attaches a normalized code to the promotion');
+select pg_temp.assert_true(
+  (select promotions_private.update_promotion('10000000-0000-4000-8000-000000000001',(d->>'id')::uuid,'{"name":"Renamed"}'::jsonb)->>'name'='Renamed' from created),
+  'update_promotion edits safe metadata');
+select pg_temp.assert_true(
+  (select promotions_private.set_promotion_status('10000000-0000-4000-8000-000000000001',(d->>'id')::uuid,'inactive')->>'status'='inactive' from created),
+  'set_promotion_status deactivates');
+-- Promotion a0..010 was redeemed earlier (redemption_count = 1); economic edits must be frozen.
+select pg_temp.assert_raises(
+  $$select promotions_private.update_promotion('10000000-0000-4000-8000-000000000001','a0000000-0000-4000-8000-000000000010','{"benefitPercentBp":2500}'::jsonb)$$,
+  'PR423','economic edit rejected after first redemption');
+select pg_temp.assert_true(
+  (promotions_private.list_promotions('10000000-0000-4000-8000-000000000001',5,0)->>'total')::int >= 1,
+  'list_promotions returns a paginated summary');
+
 rollback;

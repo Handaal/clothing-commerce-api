@@ -56,6 +56,7 @@
     "test:orders:integration": "node scripts/test-orders-integration.mjs",
     "test:orders:persistence": "node scripts/test-orders-persistence.mjs",
     "test:promotions:persistence": "node scripts/test-promotions-persistence.mjs",
+    "test:promotions:concurrency": "node scripts/test-promotions-concurrency.mjs",
     "test:orders:rls": "node scripts/test-orders-rls.mjs",
     "test:pos:sale:integration": "node scripts/test-pos-sale-integration.mjs",
     "test:pos:offline:integration": "node scripts/test-offline-pos-integration.mjs",
