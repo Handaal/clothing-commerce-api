@@ -10,8 +10,9 @@ import { createResources, handleInterrupts } from "./returns-test-resources.mjs"
 // the REAL Next.js API with a locally-signed Clerk-verifiable session, provisions the staff fixture graph
 // (base tenant-wide staff.manage admin, linkable identities, a shared-email duplicate pair, subset /
 // escalated / archived / permissionless / foreign roles and scopes from the canonical assignment
-// catalogs), then drives the REAL Admin-Mobile UI (acceptance/staff.runtime.tsx, scenarios A–M) against
-// it over real HTTP. It NEVER targets production or normal developer data — the disposable project is
+// catalogs, plus a second admin-eligible identity for the two-admin last-admin proof), then drives the
+// REAL Admin-Mobile UI (acceptance/staff.runtime.tsx, scenarios A–N incl. Admin-side H foreign-scope
+// isolation and J last-admin single/two-admin) against it over real HTTP. It NEVER targets production or normal developer data — the disposable project is
 // cryptographically fresh and torn down at the end. Mirrors scripts/test-returns.mjs exactly for the
 // stack lifecycle; only the fixtures, env and the suite it runs differ.
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -106,17 +107,22 @@ function sql(source) {
 }
 let server;
 function cleanup() {
-  if (server?.pid && server.exitCode === null) {
-    if (process.platform === "win32") {
-      const killed = spawnSync("taskkill", ["/pid", String(server.pid), "/t", "/f"], {
-        windowsHide: true,
-        stdio: "ignore",
-      });
-      if (killed.status !== 0)
-        throw new Error("Could not stop owned Next.js process; cleanup aborted");
-    } else process.kill(-server.pid, "SIGTERM");
+  // The disposable Supabase teardown MUST run even if stopping the owned Next.js process fails, so a
+  // benign kill failure never leaks Docker containers/volumes. Stop the owned process tree first (best
+  // effort — a non-zero taskkill status when the tree has already exited is benign and not fatal), then
+  // always tear down the isolated stack.
+  try {
+    if (server?.pid && server.exitCode === null) {
+      if (process.platform === "win32") {
+        spawnSync("taskkill", ["/pid", String(server.pid), "/t", "/f"], {
+          windowsHide: true,
+          stdio: "ignore",
+        });
+      } else process.kill(-server.pid, "SIGTERM");
+    }
+  } finally {
+    resources.cleanup();
   }
-  resources.cleanup();
 }
 const removeInterruptHandlers = handleInterrupts(cleanup);
 try {
@@ -190,6 +196,12 @@ try {
     STAFF_TEST_CONTAINER: dbContainer,
     STAFF_TEST_TENANT_ID: "2a000001-0000-4000-8000-000000000001",
     STAFF_TEST_TOKEN: issueToken("pos-full"),
+    // A second, independent admin-eligible session (identity 2a…10-05, binding subject "staff-admin-2").
+    // It has NO membership until scenario J provisions its tenant-wide admin membership at runtime; once
+    // provisioned this session can authoritatively re-read staff state to prove the two-admin removal
+    // succeeded and it remains the effective administrator, WITHOUT relying on the (now powerless) base
+    // actor session that just removed its own last-admin authority.
+    STAFF_TEST_SECOND_ADMIN_TOKEN: issueToken("staff-admin-2"),
     STAFF_TEST_ELIGIBLE_EMAIL: "dana@example.test",
     STAFF_TEST_DUP_EMAIL: "shared@example.test",
     STAFF_TEST_PARTIAL_EMAIL: "percy@example.test",
@@ -238,7 +250,7 @@ try {
   process.stdout.write(
     "Real Next.js API and local Supabase ready; using locally signed Clerk-verifiable test session.\n",
   );
-  // Drive the REAL Admin-Mobile staff UI (scenarios A–M) against the real API over HTTP.
+  // Drive the REAL Admin-Mobile staff UI (scenarios A–N, incl. Admin-side H and J) over real HTTP.
   run(
     process.execPath,
     [
