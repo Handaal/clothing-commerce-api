@@ -33,6 +33,27 @@ values
  ('2a000030-0000-4000-8000-000000000007','active','Ingrid Fixture','ingrid@example.test',null)
 on conflict(id) do nothing;
 
+-- One more active, unique-email non-member for the Admin runtime's foreign-scope isolation proof
+-- (scenario H): it is provisioned as a bare membership so the detail's add-assignment picker (fed by the
+-- canonical scope catalog) can be inspected, and a direct foreign-scope assignment attempt can be made
+-- against it via the real adapter seam and proven to be refused with no mutation.
+insert into public.user_identities(id,status,display_name,primary_email,deactivated_at)
+values ('2a000030-0000-4000-8000-000000000008','active','Harold Foreign','harold@example.test',null)
+on conflict(id) do nothing;
+
+-- A second admin-eligible identity for the Admin runtime's last-admin TWO-ADMIN proof (scenario J). It
+-- carries its OWN clerk provider binding so the runtime can mint a verifiable session for it, but it is
+-- seeded with NO membership and NO assignment: its tenant-wide staff.manage admin membership is created
+-- at RUNTIME by scenario J only, so the SINGLE-admin phase still sees exactly one tenant-wide admin
+-- (the base actor, membership 2a…12-01). After J provisions it, its session can authoritatively re-read
+-- staff state to prove the removal of the original admin succeeded and this one remains effective.
+insert into public.user_identities(id,status,display_name,primary_email,deactivated_at)
+values ('2a000010-0000-4000-8000-000000000005','active','Blair Backup','blair@example.test',null)
+on conflict(id) do nothing;
+insert into public.user_identity_provider_bindings(id,user_identity_id,provider,provider_subject)
+values ('2a000011-0000-4000-8000-000000000005','2a000010-0000-4000-8000-000000000005','clerk','staff-admin-2')
+on conflict(id) do nothing;
+
 -- Two ACTIVE identities that share the exact same (normalized) email. primary_email is not unique, so an
 -- exact-email lookup must return BOTH (0..N contract), in deterministic id order, preferring neither.
 -- Stored with case/whitespace variation to prove normalization collapses them to one match set.
