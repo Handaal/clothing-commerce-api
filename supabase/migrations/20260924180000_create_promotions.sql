@@ -327,7 +327,7 @@ create trigger promotion_redemptions_immutable before update or delete on public
 -- Ownership + privilege boundary. Writer owns the tables; PUBLIC/anon/authenticated have nothing;
 -- service_role gets SELECT only (RPC EXECUTE is granted in migrations 2/3).
 -- ============================================================================================
-grant create on schema public to promotions_writer;
+grant create on schema public, promotions_private to promotions_writer;
 do $block$
 declare t text;
 begin
@@ -351,9 +351,8 @@ begin
   end loop;
 end;
 $block$;
-revoke create on schema public from promotions_writer;
-
 alter function promotions_private.forbid_history_mutation() owner to promotions_writer;
+revoke create on schema public, promotions_private from promotions_writer;
 revoke all on function promotions_private.forbid_history_mutation() from public;
 
 -- The writer resolves catalog/order/customer state through narrow read-only policies (no DML on them).
