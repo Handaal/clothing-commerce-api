@@ -731,8 +731,37 @@ select ok(
 -- migration (1 more, 'orders.fulfill'), the Phase 2F migration (1 more, 'catalog.read'), Phase 2H
 -- (1 more, 'payments.capture'), Phase 2J (2 more, 'catalog.author' and 'catalog.publish'), Phase 2N
 -- (2 more, 'suppliers.read' and 'suppliers.manage'), and Phase 2O (2 more, 'staff.read' and
--- 'staff.manage'); this transaction-local fixture adds 'test.read', for 21 visible rows.
-select is((select count(*) from public.permissions), 21::bigint, 'active member can read Permission catalog including returns/refunds, suppliers and staff');
+-- 'staff.manage'), and Phase 2P (2 more, 'promotions.read' and 'promotions.manage'); this
+-- transaction-local fixture adds 'test.read', for the exact 23-key visible catalog below.
+select is(
+  (select array_agg(key order by key) from public.permissions),
+  array[
+    'catalog.author',
+    'catalog.publish',
+    'catalog.read',
+    'inventory.adjust',
+    'inventory.issue',
+    'inventory.read',
+    'inventory.receive',
+    'inventory.transfer',
+    'orders.cancel',
+    'orders.create',
+    'orders.fulfill',
+    'orders.read',
+    'payments.capture',
+    'payments.refund',
+    'promotions.manage',
+    'promotions.read',
+    'returns.create',
+    'returns.read',
+    'staff.manage',
+    'staff.read',
+    'suppliers.manage',
+    'suppliers.read',
+    'test.read'
+  ]::text[],
+  'active member can read the exact Permission catalog including returns/refunds, suppliers, staff and promotions'
+);
 
 select is(
   (
