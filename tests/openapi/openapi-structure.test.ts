@@ -277,6 +277,28 @@ describe("OpenAPI management surface", () => {
     }
   });
 
+  it("publishes additive independent Promotion capability guidance on /me/context", () => {
+    const contextSchema = (document.components.schemas as Record<string, unknown>)[
+      "MeContextResponse"
+    ] as {
+      properties: {
+        access: {
+          properties: Record<string, { required?: string[] }>;
+          required: string[];
+        };
+      };
+    };
+    const access = contextSchema.properties.access;
+
+    expect(access.properties.promotions?.required).toEqual(["canRead", "canManage"]);
+    expect(access.required).not.toContain("promotions");
+    expect(access.properties.catalog).toBeDefined();
+    expect(access.properties.inventory).toBeDefined();
+    expect(access.properties.orders).toBeDefined();
+    expect(access.properties.suppliers).toBeDefined();
+    expect(access.properties.staff).toBeDefined();
+  });
+
   it("keeps the health operation unchanged (no security, no tenant header)", () => {
     expect(paths["/api/v1/health"]).toEqual({
       get: {

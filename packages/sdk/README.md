@@ -1,4 +1,13 @@
-# @shifted/clothing-commerce-sdk 0.11.0
+# @shifted/clothing-commerce-sdk 0.12.1
+
+Version 0.12.1 adds optional `getContext().access.promotions` UI guidance with independent
+`{ canRead, canManage }` booleans derived from effective tenant-wide `promotions.read` and
+`promotions.manage` grants. The guidance does not authorize an operation; Promotion endpoints still
+enforce permissions and scope server-side. The field is optional so payloads from older API deployments
+remain parseable.
+
+Version 0.12.0 added Storefront/POS quote operations, optional promotion-code sale intent, and
+tenant-scoped Promotion and code management methods. Pricing and eligibility remain server-authoritative.
 
 Version 0.11.0 adds the tenant-scoped staff **assignment catalogs**:
 `listAssignableStaffRoles()` and `listAssignableStaffScopes()`. These are the canonical source of the

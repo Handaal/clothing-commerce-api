@@ -214,13 +214,19 @@ other staff already hold; role, scope and scope-target **authoring stays deferre
 `pnpm test:staff:persistence` and `pnpm test:staff:rls`. The additive SDK release is `0.11.0`. Phase 2O
 remains in progress until Admin Mobile integration of this surface and its runtime acceptance merge.
 
+Phase 2P adds [Promotions V1](docs/promotions/promotions-core.md): shared Storefront/POS quote and
+redemption semantics, immutable Order discount allocation, Returns on the net paid basis, and tenant
+Promotion/code management. SDK `0.12.1` additionally exposes optional, permission-derived
+`getContext().access.promotions` guidance for Admin navigation and read-only UX; API authorization
+remains authoritative.
+
 The repository now owns catalog, append-only inventory, canonical Orders, immutable Fulfillments, the
 management API, Connected POS Sale V1, and the Phase 2I Offline POS server boundary. A connected cash checkout composes its POS Order, captured
 Payment, full Fulfillment, and inventory issue atomically from a server-trusted Register context.
 Clerk-backed staff authorization remains the privileged human boundary; signed offline ingestion uses
-previously issued device authority. There is still no Electron POS UI, local offline database, card or
-split tender, refund/return, promotion/loyalty, tax engine, storefront, customer authentication, production Docker image/Compose file, or
-deployment. Fiscal/tax compliance must be completed before a production deployment where required.
+previously issued device authority. Production payment-gateway, customer authentication, tax-engine,
+loyalty, production Docker image/Compose, and deployment work remain deferred. Fiscal/tax compliance
+must be completed before a production deployment where required.
 
 ### Historical Phase 2A/2B boundary
 

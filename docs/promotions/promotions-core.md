@@ -3,7 +3,7 @@
 Tenant-owned promotions with immutable, server-authoritative sale-time discount adjustments. Phase 2P-A
 delivers the validated **money core** (schema, the shared evaluation engine, allocation, redemption, and
 the Returns net-refund basis) **and** the client-facing API surface (Storefront/POS quote, checkout/POS
-promotion intent, Admin management endpoints, SDK `0.12.0`) — see [API surface](#client-facing-api-surface)
+promotion intent, Admin management endpoints, SDK `0.12.1`) — see [API surface](#client-facing-api-surface)
 and [SDK](#sdk) below.
 
 See [ADR-037](../decisions/ADR-037-promotion-accounting-and-adjustment-semantics.md) for the accounting
@@ -117,9 +117,16 @@ ingest.
 
 ## SDK
 
-`@shifted/clothing-commerce-sdk@0.12.0` (additive MINOR). New public method `quote`; new tenant methods
+`@shifted/clothing-commerce-sdk@0.12.0` was the additive client-surface MINOR. It added public method
+`quote`; new tenant methods
 `posQuote`, `listPromotions`, `getPromotion`, `createPromotion`, `updatePromotion`,
 `setPromotionStatus`, `createPromotionCode`, `setPromotionCodeStatus`; new types `PricingBreakdown`,
 `AppliedPromotion`, `PromotionDetail`, `PromotionSummary`, `PromotionListResponse`, quote request/response
-types. Verified by the deterministic pack + isolated ESM/CJS + strict (`skipLibCheck:false`) consumer
-gates (`pnpm test:sdk`).
+types.
+
+`0.12.1` is a compatible PATCH that adds optional
+`getContext().access.promotions: { canRead, canManage }`. The server derives each boolean independently
+from an effective tenant-wide `promotions.read` or `promotions.manage` grant, matching the existing
+Supplier and Staff guidance convention. It is navigation/read-only UX guidance only; every Promotion
+endpoint continues to authorize independently. Both releases are verified by the deterministic pack +
+isolated ESM/CJS + strict (`skipLibCheck:false`) consumer gates (`pnpm test:sdk`).

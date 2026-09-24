@@ -4783,6 +4783,15 @@
                 "required": ["canRead", "canManage"],
                 "additionalProperties": false
               },
+              "promotions": {
+                "type": "object",
+                "properties": {
+                  "canRead": { "type": "boolean" },
+                  "canManage": { "type": "boolean" }
+                },
+                "required": ["canRead", "canManage"],
+                "additionalProperties": false
+              },
               "catalog": {
                 "type": "object",
                 "properties": {

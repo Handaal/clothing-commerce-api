@@ -1,9 +1,8 @@
 # Clothing Commerce Platform — Canonical V1 State
 
-**Status as of:** 2026-09-23 (Phase 2O — Staff Management API core **merged** as API PR #24; the Phase 2O
-**staff assignment catalogs** completion patch is implemented on branch
-`phase/2o-staff-assignment-catalogs`, PR pending. **Phase 2O remains in progress** until the Admin Mobile
-staff integration and its runtime acceptance merge.)
+**Status as of:** 2026-09-24 (Phase 2P Promotions API/core **merged** as API PR #28. The narrow
+Promotion `/me/context` guidance compatibility patch and SDK `0.12.1` are implemented in this branch.
+Admin Mobile Promotion integration remains gated on that patch merging.)
 **Audience:** Any engineering agent (Claude, Codex, or human) starting a new phase.
 **Authority:** This document describes the **actual merged state** verified against Git and source,
 not planned or remembered state. Where a claim could not be verified it is marked
@@ -13,14 +12,14 @@ Read this first. Then read the target repo's `AGENTS.md`, then the immediately p
 
 ---
 
-## Verified repository state (origin/main, 2026-09-21)
+## Verified repository state (origin/main, 2026-09-24)
 
 Git is the source of truth. Local `main` in every repo was stale at inspection time; the merged
 truth lives on `origin/main`. All feature branches below were confirmed merged into `origin/main`.
 
 | Repo         | Path                                                    | `origin/main` SHA | Merged head                                   |
 | ------------ | ------------------------------------------------------- | ----------------- | --------------------------------------------- |
-| API          | `C:\Users\ydelk\Desktop\clothing-commerce-api`          | `b43a24a`         | PR #24 — Phase 2O staff management core       |
+| API          | `C:\Users\ydelk\Desktop\clothing-commerce-api`          | `5c59fd6`         | PR #28 — Phase 2P Promotions API/core         |
 | POS          | `C:\Users\ydelk\Desktop\clothing-commerce-pos`          | `4553cc8`         | PR #5 — returns crash-durable recovery hotfix |
 | Storefront   | `C:\Users\ydelk\Desktop\clothing-commerce-storefront`   | `cde64e5`         | PR #2 — storefront checkout integration       |
 | Admin Mobile | `C:\Users\ydelk\Desktop\clothing-commerce-admin-mobile` | `652280b`         | PR #10 — admin suppliers foundation           |
@@ -28,13 +27,10 @@ truth lives on `origin/main`. All feature branches below were confirmed merged i
 > **Caution for future agents:** the local `main` branch in each repo may lag `origin/main`.
 > Always `git fetch` and inspect `origin/main` before branching. Do not trust local `main`.
 
-**Current SDK:** `@shifted/clothing-commerce-sdk@0.11.0`
-(deterministic pack SHA-256 `f549b42544561c8c6b3468292d64a11c3b118f4925e3ad78a2728754a4ad9e80`,
-artifact `artifacts/shifted-clothing-commerce-sdk-0.11.0.tgz`; `0.10.0` was the merged Phase 2O core
-release). `0.11.0` is a **MINOR** bump per `docs/platform/sdk-contract-strategy.md` — it is a
-backward-compatible addition of two new operations (`listAssignableStaffRoles`,
-`listAssignableStaffScopes`); PATCH is reserved for compatible fixes and additive fields on an existing
-response, as in `0.3.1`. Neither `0.10.0` nor `0.11.0` is vendored by any client yet.
+**Current SDK:** `@shifted/clothing-commerce-sdk@0.12.1`
+(deterministic pack SHA-256 `4fcd8076052cac6b4717b6eaa030a91f054398578cbbde9ceb69e7cfc819c7a0`, artifact
+`artifacts/shifted-clothing-commerce-sdk-0.12.1.tgz`). It is a compatible PATCH over merged Promotion
+SDK `0.12.0`, adding only the optional `getContext().access.promotions` response guidance.
 
 **SDK consumed by clients (staggered — not all on latest):**
 
@@ -162,11 +158,16 @@ plus `docs/development/phase-2l-validation.md` and `docs/development/phase-2m-va
 
 ## F. SDK state
 
-- **Package version:** `0.11.0` (`packages/sdk/package.json`).
-- **Artifact:** `artifacts/shifted-clothing-commerce-sdk-0.11.0.tgz`.
-- **Deterministic pack SHA-256:** `f549b42544561c8c6b3468292d64a11c3b118f4925e3ad78a2728754a4ad9e80`
-  (identical across two independent packs, per Phase 2O assignment-catalog validation). The merged
-  `0.10.0` artifact was `74247c03b44ad81f07bf777e78bb7cdf5734c75a482744702ed26a157189cb99`.
+- **Package version:** `0.12.1` (`packages/sdk/package.json`).
+- **Artifact:** `artifacts/shifted-clothing-commerce-sdk-0.12.1.tgz`.
+- **Deterministic pack SHA-256:**
+  `4fcd8076052cac6b4717b6eaa030a91f054398578cbbde9ceb69e7cfc819c7a0` (identical across two
+  independent packs).
+- **0.12.1 addition (PATCH — compatible response-field addition):**
+  `getContext().access.promotions` optional `{ canRead, canManage }`, derived independently from
+  tenant-wide effective `promotions.read` / `promotions.manage` grants. It is UI guidance only.
+- **0.12.0 additions (MINOR):** Storefront/POS quotes, optional Promotion code intent on sale placement,
+  and tenant-scoped Promotion/code management methods and DTOs.
 - **0.11.0 additions (MINOR — backward-compatible addition):** `listAssignableStaffRoles`,
   `listAssignableStaffScopes` — the canonical, read-only, tenant-scoped catalogs of the `roleId` and
   `accessScopeId` values `assignStaffRole` accepts. Both require tenant-wide `staff.manage`; the role
@@ -272,6 +273,8 @@ its phase arrives.
   on checkout and POS sale (redeemed transactionally with server-authoritative net validation), Admin
   promotion/code management (`promotions.read` / `promotions.manage`), OpenAPI, and SDK **`0.12.0`**
   (deterministic pack SHA-256 `e2296c0300778ba3847065605d1863e86caea6042bd6063676bd60c40ef9b076`).
+  SDK `0.12.1` adds the missing optional Promotion capability projection to `/me/context` without
+  changing Promotion authorization or money behavior.
   Proven by `pnpm test:promotions:persistence` (46), `pnpm test:promotions:concurrency` (12 — final
   voucher race), and the SDK consumer gates.
 - **Reporting / export expectations** — exact report and export list undecided.
@@ -285,7 +288,7 @@ its phase arrives.
 | Phase                                            | Scope                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **2O — Staff Management**                        | **In progress.** API core **merged** (PR #24, `docs/staff/staff-management-core.md`): membership lifecycle + role/scope assignment + anti-escalation + last-admin lockout; Add Staff links an existing account resolved by **exact email lookup only** (no global identity-directory browsing, no Clerk invite flow, no raw-UUID workflow). Completion patch **implemented / PR pending** on `phase/2o-staff-assignment-catalogs`: canonical read-only `GET /staff/assignable-roles` + `GET /staff/assignable-scopes` as the single source of selectable assignment options (replacing derivation from other members' assignments); role/scope/target **authoring stays deferred to 2R or later**; SDK `0.11.0`. **Remaining:** merge the catalogs patch, then Admin Mobile staff UI integration and runtime acceptance. |
-| **2P — Vouchers / Discounts / Promotions**       | Discount semantics where the pricing/order model permits; must extend immutable pricing allocation safely.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| **2P — Vouchers / Discounts / Promotions**       | **API/core merged as PR #28.** Shared deterministic quotes/redemption, immutable discount allocation, net Returns basis, Promotion management, OpenAPI and SDK `0.12.x`; Admin Mobile integration remains.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | **2Q — Reporting & Analytics**                   | Sales/orders/inventory/channel/period reporting; owner dashboard; exports.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | **2R — Business & Operational Settings**         | Tenant/brand/branch/tax/currency config; POS operational settings.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | **2S — Whole-System Acceptance / Stabilization** | End-to-end acceptance, hardening.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |

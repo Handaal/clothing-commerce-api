@@ -12,6 +12,9 @@ import { z } from "zod";
  * visibility rules); the resource arrays are metadata hydrated only for scopes the caller actually
  * holds. Raw RolePermission / AccessScope / permissionKey / scopeTarget internals are never returned.
  *
+ * Tenant-wide management domains expose independent `canRead` / `canManage` guidance. These booleans
+ * are derived from effective permissions and never imply one another.
+ *
  * `access.inventory.write` additionally reports inventory write capability (receive / adjust / transfer)
  * derived from the caller's write permissions, authorization scope, and each location's operational
  * flags. It is UX guidance ONLY: it lets a client avoid offering an action that would 403, but every
@@ -94,6 +97,11 @@ export const OrdersAccessSchema = z.object({
   branches: z.array(BranchRefSchema),
 });
 
+export const ManagementCapabilitySchema = z.object({
+  canRead: z.boolean(),
+  canManage: z.boolean(),
+});
+
 export const MeContextResponseSchema = z.object({
   tenant: z.object({
     id: UuidSchema,
@@ -102,8 +110,9 @@ export const MeContextResponseSchema = z.object({
   }),
   membership: z.object({ id: UuidSchema }),
   access: z.object({
-    suppliers: z.object({ canRead: z.boolean(), canManage: z.boolean() }).optional(),
-    staff: z.object({ canRead: z.boolean(), canManage: z.boolean() }).optional(),
+    suppliers: ManagementCapabilitySchema.optional(),
+    staff: ManagementCapabilitySchema.optional(),
+    promotions: ManagementCapabilitySchema.optional(),
     catalog: CatalogAccessSchema,
     inventory: InventoryAccessSchema,
     orders: OrdersAccessSchema,
