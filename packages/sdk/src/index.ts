@@ -114,6 +114,58 @@ export type {
   OrderCommerceDetails,
 } from "../../../src/contracts/storefront/checkout";
 import {
+  StorefrontQuoteResponseSchema,
+  PosQuoteResponseSchema,
+  PromotionDetailSchema,
+  PromotionListResponseSchema,
+  type StorefrontQuoteRequest,
+  type StorefrontQuoteResponse,
+  type PosQuoteRequest,
+  type PosQuoteResponse,
+  type PromotionDetail,
+  type PromotionListResponse,
+  type CreatePromotionRequest,
+  type UpdatePromotionRequest,
+  type CreatePromotionCodeRequest,
+} from "../../../src/contracts";
+export type {
+  StorefrontQuoteRequest,
+  StorefrontQuoteResponse,
+  PosQuoteRequest,
+  PosQuoteResponse,
+  PricingBreakdown,
+  AppliedPromotion,
+  PromotionDetail,
+  PromotionSummary,
+  PromotionListResponse,
+  CreatePromotionRequest,
+  UpdatePromotionRequest,
+  CreatePromotionCodeRequest,
+} from "../../../src/contracts";
+export interface PromotionListQueryInput {
+  limit?: number;
+  offset?: number;
+}
+export type CreatePromotionInput = CreatePromotionRequest & { idempotencyKey: string };
+export type UpdatePromotionInput = UpdatePromotionRequest & {
+  promotionId: string;
+  idempotencyKey: string;
+};
+export interface SetPromotionStatusInput {
+  promotionId: string;
+  status: "active" | "inactive";
+  idempotencyKey: string;
+}
+export type CreatePromotionCodeInput = CreatePromotionCodeRequest & {
+  promotionId: string;
+  idempotencyKey: string;
+};
+export interface SetPromotionCodeStatusInput {
+  codeId: string;
+  status: "active" | "disabled";
+  idempotencyKey: string;
+}
+import {
   AdjustInventoryResponseSchema,
   ApiErrorSchema,
   HealthResponseSchema,
@@ -395,7 +447,15 @@ export interface TenantCommerceClient {
   createReturn(input: CreateReturnInput): Promise<ReturnDetailResponse>;
   settleRefund(input: SettleRefundInput): Promise<ReturnDetailResponse>;
   getPosContext(): Promise<PosContextResponse>;
+  posQuote(input: PosQuoteRequest): Promise<PosQuoteResponse>;
   createPosSale(input: CreatePosSaleInput): Promise<CreatePosSaleResponse>;
+  listPromotions(query?: PromotionListQueryInput): Promise<PromotionListResponse>;
+  getPromotion(promotionId: string): Promise<PromotionDetail>;
+  createPromotion(input: CreatePromotionInput): Promise<PromotionDetail>;
+  updatePromotion(input: UpdatePromotionInput): Promise<PromotionDetail>;
+  setPromotionStatus(input: SetPromotionStatusInput): Promise<PromotionDetail>;
+  createPromotionCode(input: CreatePromotionCodeInput): Promise<PromotionDetail>;
+  setPromotionCodeStatus(input: SetPromotionCodeStatusInput): Promise<PromotionDetail>;
   enrollPosDevice(input: EnrollPosDeviceInput): Promise<PosDeviceResponse>;
   rotatePosDeviceCredential(input: RotatePosDeviceCredentialInput): Promise<PosDeviceResponse>;
   revokePosDevice(input: RevokePosDeviceInput): Promise<PosDeviceResponse>;
@@ -405,6 +465,8 @@ export interface TenantCommerceClient {
 
 export interface CommerceClient {
   checkout(input: CheckoutRequest & { idempotencyKey: string }): Promise<CheckoutResult>;
+  /** Non-consuming Storefront pricing quote (no order, no reservation, no redemption). */
+  quote(input: StorefrontQuoteRequest): Promise<StorefrontQuoteResponse>;
   getHealth(): Promise<HealthResponse>;
   /** Identity bootstrap: the caller's own selectable tenants (no tenant context required). */
   getMyTenants(): Promise<MeTenantsResponse>;
@@ -803,6 +865,8 @@ export function createCommerceClient({
           ReturnDetailResponseSchema,
           { tenantId, method: "POST", body, idempotencyKey },
         ),
+      posQuote: (body: PosQuoteRequest) =>
+        request("/api/v1/pos/quote", PosQuoteResponseSchema, { tenantId, method: "POST", body }),
       createPosSale: ({ idempotencyKey, ...body }: CreatePosSaleInput) =>
         request("/api/v1/pos/sales", CreatePosSaleResponseSchema, {
           tenantId,
@@ -810,6 +874,48 @@ export function createCommerceClient({
           body,
           idempotencyKey,
         }),
+      listPromotions: (query: PromotionListQueryInput = {}) =>
+        request(
+          `/api/v1/promotions${buildQuery({ limit: query.limit, offset: query.offset })}`,
+          PromotionListResponseSchema,
+          { tenantId },
+        ),
+      getPromotion: (promotionId: string) =>
+        request(`/api/v1/promotions/${encodeURIComponent(promotionId)}`, PromotionDetailSchema, {
+          tenantId,
+        }),
+      createPromotion: ({ idempotencyKey, ...body }: CreatePromotionInput) =>
+        request("/api/v1/promotions", PromotionDetailSchema, {
+          tenantId,
+          method: "POST",
+          body,
+          idempotencyKey,
+        }),
+      updatePromotion: ({ promotionId, idempotencyKey, ...body }: UpdatePromotionInput) =>
+        request(`/api/v1/promotions/${encodeURIComponent(promotionId)}`, PromotionDetailSchema, {
+          tenantId,
+          method: "PATCH",
+          body,
+          idempotencyKey,
+        }),
+      setPromotionStatus: ({ promotionId, idempotencyKey, ...body }: SetPromotionStatusInput) =>
+        request(
+          `/api/v1/promotions/${encodeURIComponent(promotionId)}/status`,
+          PromotionDetailSchema,
+          { tenantId, method: "POST", body, idempotencyKey },
+        ),
+      createPromotionCode: ({ promotionId, idempotencyKey, ...body }: CreatePromotionCodeInput) =>
+        request(
+          `/api/v1/promotions/${encodeURIComponent(promotionId)}/codes`,
+          PromotionDetailSchema,
+          { tenantId, method: "POST", body, idempotencyKey },
+        ),
+      setPromotionCodeStatus: ({ codeId, idempotencyKey, ...body }: SetPromotionCodeStatusInput) =>
+        request(
+          `/api/v1/promotions/codes/${encodeURIComponent(codeId)}/status`,
+          PromotionDetailSchema,
+          { tenantId, method: "POST", body, idempotencyKey },
+        ),
       enrollPosDevice: ({ idempotencyKey, ...body }: EnrollPosDeviceInput) =>
         request("/api/v1/pos/devices", PosDeviceResponseSchema, {
           tenantId,
@@ -856,6 +962,11 @@ export function createCommerceClient({
         method: "POST",
         body: intent,
         idempotencyKey,
+      }),
+    quote: (body: StorefrontQuoteRequest) =>
+      request("/api/v1/storefront/quote", StorefrontQuoteResponseSchema, {
+        method: "POST",
+        body,
       }),
     getHealth: () => request("/api/v1/health", HealthResponseSchema),
     getMyTenants: () => request("/api/v1/me/tenants", MeTenantsResponseSchema),

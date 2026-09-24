@@ -4,12 +4,22 @@ const UuidSchema = z.string().uuid();
 const MoneySchema = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 const QuantitySchema = z.number().int().positive().max(Number.MAX_SAFE_INTEGER);
 
+const PromotionCodeSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(64)
+  .regex(/^[A-Za-z0-9_-]+$/)
+  .nullable()
+  .optional();
+
 export const CreatePosSaleInputSchema = z
   .object({
     registerId: UuidSchema,
     expectedTotalMinor: MoneySchema,
     cashReceivedMinor: MoneySchema,
     lines: z.array(z.object({ variantId: UuidSchema, quantity: QuantitySchema }).strict()).min(1),
+    promotionCode: PromotionCodeSchema,
   })
   .strict()
   .superRefine((value, ctx) => {
@@ -102,6 +112,13 @@ export interface PosSaleIntent {
   readonly expectedTotalMinor: number;
   readonly cashReceivedMinor: number;
   readonly lines: readonly { readonly variantId: string; readonly quantity: number }[];
+  readonly promotionCode: string | null;
+}
+
+export interface PosQuoteInput {
+  readonly registerId: string;
+  readonly lines: readonly { readonly variantId: string; readonly quantity: number }[];
+  readonly promotionCode: string | null;
 }
 
 export type PosSaleReplayTarget =

@@ -8,11 +8,13 @@ import type {
 import type { OrderRepository } from "../orders/repository";
 import { mintPosSaleExecutionProof } from "./execution-proof";
 import { PosSaleError } from "./errors";
+import type { PosQuoteResponse } from "../contracts/pos";
 import {
   CreatePosSaleInputSchema,
   PosPermission,
   type CreatePosSaleInput,
   type PosContextResult,
+  type PosQuoteInput,
   type PosRegisterContext,
   type PosSaleIntent,
   type PosSaleResult,
@@ -68,10 +70,12 @@ export class PosSaleService {
     const parsed = CreatePosSaleInputSchema.safeParse(input);
     if (!parsed.success) throw new PosSaleError("INVALID_POS_SALE");
     const command = parsed.data;
+    const promotionCode = command.promotionCode ?? null;
     const intent: PosSaleIntent = {
       registerId: command.registerId,
       expectedTotalMinor: command.expectedTotalMinor,
       cashReceivedMinor: command.cashReceivedMinor,
+      promotionCode,
       lines: command.lines.map((line) => ({ ...line })),
     };
 
@@ -114,10 +118,19 @@ export class PosSaleService {
     );
     if (!commercialProof) throw new AuthorizationError("PERMISSION_DENIED");
 
-    const lines = await this.resolveLines(commercialProof, context.tenant.id, register, command);
-    const total = this.total(lines);
-    if (total !== command.expectedTotalMinor) throw new PosSaleError("PRICE_CHANGED", total);
-    if (command.cashReceivedMinor < total) throw new PosSaleError("CASH_RECEIVED_INSUFFICIENT");
+    const lines = await this.resolveLines(
+      commercialProof,
+      context.tenant.id,
+      register,
+      command.lines,
+    );
+    // With a promotion the expected total is the NET; the server (record_sale) is authoritative and
+    // re-derives/validates it. Only the plain (no-promotion) path can be short-circuited client-locally.
+    if (promotionCode === null) {
+      const total = this.total(lines);
+      if (total !== command.expectedTotalMinor) throw new PosSaleError("PRICE_CHANGED", total);
+      if (command.cashReceivedMinor < total) throw new PosSaleError("CASH_RECEIVED_INSUFFICIENT");
+    }
 
     const brandId = lines[0]?.brandId;
     if (!brandId) throw new PosSaleError("INVALID_POS_SALE");
@@ -137,6 +150,7 @@ export class PosSaleService {
       brandId,
       expectedTotalMinor: command.expectedTotalMinor,
       cashReceivedMinor: command.cashReceivedMinor,
+      promotionCode,
       lines,
     });
     const sale = await this.repository.getSale(executionProof, context.tenant.id, saleId);
@@ -196,15 +210,54 @@ export class PosSaleService {
     ]);
   }
 
+  async quote(context: AuthorizationContext, input: PosQuoteInput): Promise<PosQuoteResponse> {
+    const register = await this.repository.getRegisterContext(context.tenant.id, input.registerId);
+    if (register === null) throw new PosSaleError("REGISTER_NOT_FOUND");
+    this.assertOperational(register);
+    const proofs = await this.authorizeSale(context, register);
+    const commercialProof = proofs.find((p) => p.permissionKey === PosPermission.createOrder);
+    if (!commercialProof) throw new AuthorizationError("PERMISSION_DENIED");
+    const lines = await this.resolveLines(
+      commercialProof,
+      context.tenant.id,
+      register,
+      input.lines,
+    );
+    const brandId = lines[0]?.brandId;
+    if (!brandId) throw new PosSaleError("INVALID_POS_SALE");
+    const gross = this.total(lines);
+    const evaluation = await this.repository.evaluatePromotion({
+      tenantId: context.tenant.id,
+      currency: register.sellingCurrency,
+      brandId,
+      branchId: register.branchId,
+      promotionCode: input.promotionCode,
+      lines: lines.map((line) => ({
+        variantId: line.variantId,
+        productId: line.productId,
+        quantity: line.quantity,
+        lineTotalMinor: line.quantity * line.unitPriceMinor,
+      })),
+    });
+    return {
+      currency: register.sellingCurrency,
+      grossSubtotalMinor: gross,
+      discountTotalMinor: evaluation.discountTotalMinor,
+      totalMinor: gross - evaluation.discountTotalMinor,
+      codeStatus: evaluation.codeStatus,
+      promotion: evaluation.promotion,
+    };
+  }
+
   private async resolveLines(
     proof: AuthorizedOperationContext,
     tenantId: string,
     register: PosRegisterContext,
-    command: CreatePosSaleInput,
+    requestedLines: readonly { readonly variantId: string; readonly quantity: number }[],
   ): Promise<readonly ResolvedPosSaleLine[]> {
     let brandId: string | null = null;
     const result: ResolvedPosSaleLine[] = [];
-    for (const requested of command.lines) {
+    for (const requested of requestedLines) {
       const catalog = await this.orderRepository.getOrderLineCatalogState(
         proof,
         tenantId,

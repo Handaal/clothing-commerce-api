@@ -86,8 +86,15 @@ describe("OpenAPI management surface", () => {
         "/api/v1/products/{productId}/media/{mediaId}",
         "/api/v1/variants/{variantId}/price",
         "/api/v1/storefront/checkout",
+        "/api/v1/storefront/quote",
         "/api/v1/storefront/products",
         "/api/v1/storefront/products/{slug}",
+        "/api/v1/pos/quote",
+        "/api/v1/promotions",
+        "/api/v1/promotions/{promotionId}",
+        "/api/v1/promotions/{promotionId}/status",
+        "/api/v1/promotions/{promotionId}/codes",
+        "/api/v1/promotions/codes/{codeId}/status",
       ].sort(),
     );
   });

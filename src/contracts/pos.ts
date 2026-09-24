@@ -6,6 +6,7 @@ import {
   NonNegativeIntegerSchema,
   PositiveIntegerSchema,
 } from "./common/serialization";
+import { PricingBreakdownSchema, PromotionCodeInputSchema } from "./common/promotion-pricing";
 
 const UuidSchema = z.string().uuid();
 const Base64Schema = z.string().regex(/^[A-Za-z0-9+/]+={0,2}$/);
@@ -28,6 +29,7 @@ export const PosContextResponseSchema = z.object({
 export const CreatePosSaleRequestSchema = z
   .object({
     registerId: UuidSchema,
+    // The expected NET total after any promotion; the server re-derives and rejects a stale value.
     expectedTotalMinor: NonNegativeIntegerSchema,
     cashReceivedMinor: NonNegativeIntegerSchema,
     lines: z
@@ -38,8 +40,19 @@ export const CreatePosSaleRequestSchema = z
         }),
       )
       .min(1),
+    promotionCode: PromotionCodeInputSchema.nullable().optional(),
   })
   .strict();
+
+// Non-consuming connected-POS pricing quote over the same engine (register context resolves currency).
+export const PosQuoteRequestSchema = z
+  .object({
+    registerId: UuidSchema,
+    lines: z.array(z.object({ variantId: UuidSchema, quantity: PositiveIntegerSchema })).min(1),
+    promotionCode: PromotionCodeInputSchema.nullable().optional(),
+  })
+  .strict();
+export const PosQuoteResponseSchema = PricingBreakdownSchema;
 
 const PosOrderLineSchema = z.object({
   id: UuidSchema,
@@ -287,6 +300,8 @@ export const IngestOfflineSaleResponseSchema = z.object({
 });
 
 export type PosContextResponse = z.infer<typeof PosContextResponseSchema>;
+export type PosQuoteRequest = z.infer<typeof PosQuoteRequestSchema>;
+export type PosQuoteResponse = z.infer<typeof PosQuoteResponseSchema>;
 export type CreatePosSaleRequest = z.infer<typeof CreatePosSaleRequestSchema>;
 export type CreatePosSaleResponse = z.infer<typeof CreatePosSaleResponseSchema>;
 export type EnrollPosDeviceRequest = z.infer<typeof EnrollPosDeviceRequestSchema>;

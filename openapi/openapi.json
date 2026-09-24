@@ -25,9 +25,352 @@
       "description": "Tenant staff (membership) management: list/detail, lifecycle, and role/scope assignment over the existing identity + RBAC model. Not an HR/payroll domain."
     },
     { "name": "orders", "description": "Read-only orders and fulfillment progress." },
-    { "name": "pos", "description": "Authorized register context and atomic POS checkout." }
+    { "name": "pos", "description": "Authorized register context and atomic POS checkout." },
+    {
+      "name": "promotions",
+      "description": "Tenant-owned promotion and code management, and non-consuming pricing quotes. Money is server-authoritative; one promotion per order (best eligible saving)."
+    }
   ],
   "paths": {
+    "/api/v1/storefront/quote": {
+      "post": {
+        "operationId": "quoteCheckout",
+        "summary": "Non-consuming Storefront pricing quote with the best-eligible promotion.",
+        "description": "Public configured tenant/brand context. Evaluates one automatic promotion and one optional entered code and returns the server-authoritative gross/discount/net breakdown. Never creates a Customer or Order, reserves stock, or consumes a redemption.",
+        "tags": ["promotions"],
+        "security": [],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "description": "Basket lines and optional promotion code",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/StorefrontQuoteRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Server-authoritative pricing breakdown",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/PricingBreakdown" } }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/v1/pos/quote": {
+      "post": {
+        "operationId": "posQuote",
+        "summary": "Non-consuming connected-POS pricing quote.",
+        "description": "Resolves the register selling context and evaluates the best-eligible promotion over the same engine as the sale. Never consumes a redemption. No Idempotency-Key (no durable state change).",
+        "tags": ["promotions"],
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/TenantIdHeader" }],
+        "requestBody": {
+          "required": true,
+          "description": "Register, basket lines and optional promotion code",
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/PosQuoteRequest" } }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Server-authoritative pricing breakdown",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/PricingBreakdown" } }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "409": { "$ref": "#/components/responses/Error409" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/v1/promotions": {
+      "get": {
+        "operationId": "listPromotions",
+        "summary": "listPromotions",
+        "description": "Requires a tenant-wide promotions.read grant.",
+        "tags": ["promotions"],
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": { "type": "integer", "minimum": 1, "maximum": 200, "default": 50 }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": { "type": "integer", "minimum": 0, "default": 0 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PromotionListResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "409": { "$ref": "#/components/responses/Error409" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      },
+      "post": {
+        "operationId": "createPromotion",
+        "summary": "createPromotion",
+        "description": "Requires a tenant-wide promotions.manage grant and Idempotency-Key. Exact replay returns the original promotion.",
+        "tags": ["promotions"],
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          { "$ref": "#/components/parameters/IdempotencyKeyHeader" }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Promotion configuration (optionally with targets and codes)",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreatePromotionRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Promotion detail",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/PromotionDetail" } }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "409": { "$ref": "#/components/responses/Error409" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/v1/promotions/{promotionId}": {
+      "get": {
+        "operationId": "getPromotion",
+        "summary": "getPromotion",
+        "description": "Requires a tenant-wide promotions.read grant.",
+        "tags": ["promotions"],
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          {
+            "name": "promotionId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Promotion detail",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/PromotionDetail" } }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "409": { "$ref": "#/components/responses/Error409" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      },
+      "patch": {
+        "operationId": "updatePromotion",
+        "summary": "updatePromotion",
+        "description": "Requires a tenant-wide promotions.manage grant and Idempotency-Key. Economic fields are rejected after the first redemption.",
+        "tags": ["promotions"],
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          { "$ref": "#/components/parameters/IdempotencyKeyHeader" },
+          {
+            "name": "promotionId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Editable fields",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdatePromotionRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Promotion detail",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/PromotionDetail" } }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "409": { "$ref": "#/components/responses/Error409" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/v1/promotions/{promotionId}/status": {
+      "post": {
+        "operationId": "setPromotionStatus",
+        "summary": "setPromotionStatus",
+        "description": "Requires a tenant-wide promotions.manage grant and Idempotency-Key.",
+        "tags": ["promotions"],
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          { "$ref": "#/components/parameters/IdempotencyKeyHeader" },
+          {
+            "name": "promotionId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Target lifecycle status",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SetPromotionStatusRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Promotion detail",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/PromotionDetail" } }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "409": { "$ref": "#/components/responses/Error409" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/v1/promotions/{promotionId}/codes": {
+      "post": {
+        "operationId": "createPromotionCode",
+        "summary": "createPromotionCode",
+        "description": "Requires a tenant-wide promotions.manage grant and Idempotency-Key.",
+        "tags": ["promotions"],
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          { "$ref": "#/components/parameters/IdempotencyKeyHeader" },
+          {
+            "name": "promotionId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Code and optional maxRedemptions (1 = single-use voucher)",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreatePromotionCodeRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Promotion detail",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/PromotionDetail" } }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "409": { "$ref": "#/components/responses/Error409" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/v1/promotions/codes/{codeId}/status": {
+      "post": {
+        "operationId": "setPromotionCodeStatus",
+        "summary": "setPromotionCodeStatus",
+        "description": "Requires a tenant-wide promotions.manage grant and Idempotency-Key.",
+        "tags": ["promotions"],
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          { "$ref": "#/components/parameters/IdempotencyKeyHeader" },
+          {
+            "name": "codeId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Target code status",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SetPromotionCodeStatusRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Promotion detail",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/PromotionDetail" } }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "409": { "$ref": "#/components/responses/Error409" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
     "/api/v1/suppliers": {
       "get": {
         "operationId": "listSuppliers",
@@ -3615,7 +3958,13 @@
           },
           "paymentMethod": { "type": "string", "const": "cash_on_delivery" },
           "expectedTotalMinor": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
-          "expectedCurrency": { "type": "string", "pattern": "^[A-Z]{3}$" }
+          "expectedCurrency": { "type": "string", "pattern": "^[A-Z]{3}$" },
+          "promotionCode": {
+            "anyOf": [
+              { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[A-Za-z0-9_-]+$" },
+              { "type": "null" }
+            ]
+          }
         },
         "required": [
           "tenantId",
@@ -3638,6 +3987,41 @@
           "status": { "type": "string", "const": "placed" },
           "totalMinor": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
           "currency": { "type": "string", "pattern": "^[A-Z]{3}$" },
+          "grossSubtotalMinor": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+          "discountTotalMinor": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+          "promotion": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "promotionId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "name": { "type": "string" },
+                  "benefitType": { "type": "string", "enum": ["percentage", "fixed_amount"] },
+                  "activation": { "type": "string", "enum": ["automatic", "code"] },
+                  "code": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                  "discountTotalMinor": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "promotionId",
+                  "name",
+                  "benefitType",
+                  "activation",
+                  "code",
+                  "discountTotalMinor"
+                ],
+                "additionalProperties": false
+              },
+              { "type": "null" }
+            ]
+          },
           "payment": {
             "type": "object",
             "properties": {
@@ -3661,9 +4045,608 @@
           "status",
           "totalMinor",
           "currency",
+          "grossSubtotalMinor",
+          "discountTotalMinor",
+          "promotion",
           "payment",
           "fulfillmentStatus"
         ],
+        "additionalProperties": false
+      },
+      "StorefrontQuoteRequest": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "tenantId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "brandId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "lines": {
+            "minItems": 1,
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "variantId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "quantity": { "type": "integer", "minimum": 1, "maximum": 10000 }
+              },
+              "required": ["variantId", "quantity"],
+              "additionalProperties": false
+            }
+          },
+          "promotionCode": {
+            "anyOf": [
+              { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[A-Za-z0-9_-]+$" },
+              { "type": "null" }
+            ]
+          }
+        },
+        "required": ["tenantId", "brandId", "lines"],
+        "additionalProperties": false
+      },
+      "PosQuoteRequest": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "registerId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "lines": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "variantId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "quantity": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 }
+              },
+              "required": ["variantId", "quantity"],
+              "additionalProperties": false
+            }
+          },
+          "promotionCode": {
+            "anyOf": [
+              { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[A-Za-z0-9_-]+$" },
+              { "type": "null" }
+            ]
+          }
+        },
+        "required": ["registerId", "lines"],
+        "additionalProperties": false
+      },
+      "PricingBreakdown": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "currency": { "type": "string", "pattern": "^[A-Z]{3}$" },
+          "grossSubtotalMinor": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+          "discountTotalMinor": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+          "totalMinor": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+          "codeStatus": { "type": "string", "enum": ["none", "valid", "invalid"] },
+          "promotion": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "promotionId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "name": { "type": "string" },
+                  "benefitType": { "type": "string", "enum": ["percentage", "fixed_amount"] },
+                  "activation": { "type": "string", "enum": ["automatic", "code"] },
+                  "code": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                  "discountTotalMinor": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "promotionId",
+                  "name",
+                  "benefitType",
+                  "activation",
+                  "code",
+                  "discountTotalMinor"
+                ],
+                "additionalProperties": false
+              },
+              { "type": "null" }
+            ]
+          }
+        },
+        "required": [
+          "currency",
+          "grossSubtotalMinor",
+          "discountTotalMinor",
+          "totalMinor",
+          "codeStatus",
+          "promotion"
+        ],
+        "additionalProperties": false
+      },
+      "PromotionListResponse": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "total": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "name": { "type": "string" },
+                "status": { "type": "string", "enum": ["active", "inactive"] },
+                "benefitType": { "type": "string", "enum": ["percentage", "fixed_amount"] },
+                "targetType": { "type": "string", "enum": ["order", "variant_scope"] },
+                "activationType": { "type": "string", "enum": ["automatic", "code"] },
+                "channel": {
+                  "anyOf": [{ "type": "string", "enum": ["pos", "online"] }, { "type": "null" }]
+                },
+                "redemptionCount": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+                "globalRedemptionLimit": {
+                  "anyOf": [
+                    { "type": "integer", "exclusiveMinimum": 0, "maximum": 9007199254740991 },
+                    { "type": "null" }
+                  ]
+                },
+                "economicsLocked": { "type": "boolean" },
+                "createdAt": { "type": "string" }
+              },
+              "required": [
+                "id",
+                "name",
+                "status",
+                "benefitType",
+                "targetType",
+                "activationType",
+                "channel",
+                "redemptionCount",
+                "globalRedemptionLimit",
+                "economicsLocked",
+                "createdAt"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["total", "items"],
+        "additionalProperties": false
+      },
+      "PromotionDetail": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "name": { "type": "string" },
+          "status": { "type": "string", "enum": ["active", "inactive"] },
+          "benefitType": { "type": "string", "enum": ["percentage", "fixed_amount"] },
+          "targetType": { "type": "string", "enum": ["order", "variant_scope"] },
+          "activationType": { "type": "string", "enum": ["automatic", "code"] },
+          "channel": {
+            "anyOf": [{ "type": "string", "enum": ["pos", "online"] }, { "type": "null" }]
+          },
+          "redemptionCount": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+          "globalRedemptionLimit": {
+            "anyOf": [
+              { "type": "integer", "exclusiveMinimum": 0, "maximum": 9007199254740991 },
+              { "type": "null" }
+            ]
+          },
+          "economicsLocked": { "type": "boolean" },
+          "createdAt": { "type": "string" },
+          "description": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+          "benefitPercentBp": {
+            "anyOf": [
+              { "type": "integer", "minimum": -9007199254740991, "maximum": 9007199254740991 },
+              { "type": "null" }
+            ]
+          },
+          "benefitAmountMinor": {
+            "anyOf": [
+              { "type": "integer", "minimum": -9007199254740991, "maximum": 9007199254740991 },
+              { "type": "null" }
+            ]
+          },
+          "benefitCurrency": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+          "minSubtotalMinor": {
+            "anyOf": [
+              { "type": "integer", "minimum": -9007199254740991, "maximum": 9007199254740991 },
+              { "type": "null" }
+            ]
+          },
+          "maxDiscountMinor": {
+            "anyOf": [
+              { "type": "integer", "minimum": -9007199254740991, "maximum": 9007199254740991 },
+              { "type": "null" }
+            ]
+          },
+          "startsAt": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+          "endsAt": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+          "brandId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              { "type": "null" }
+            ]
+          },
+          "branchId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              { "type": "null" }
+            ]
+          },
+          "remainingRedemptions": {
+            "anyOf": [
+              { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+              { "type": "null" }
+            ]
+          },
+          "targets": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "productId": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "variantId": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    { "type": "null" }
+                  ]
+                }
+              },
+              "required": ["productId", "variantId"],
+              "additionalProperties": false
+            }
+          },
+          "codes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "code": { "type": "string" },
+                "status": { "type": "string", "enum": ["active", "disabled"] },
+                "maxRedemptions": {
+                  "anyOf": [
+                    { "type": "integer", "exclusiveMinimum": 0, "maximum": 9007199254740991 },
+                    { "type": "null" }
+                  ]
+                },
+                "redemptionCount": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+                "remainingRedemptions": {
+                  "anyOf": [
+                    { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+                    { "type": "null" }
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "code",
+                "status",
+                "maxRedemptions",
+                "redemptionCount",
+                "remainingRedemptions"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "status",
+          "benefitType",
+          "targetType",
+          "activationType",
+          "channel",
+          "redemptionCount",
+          "globalRedemptionLimit",
+          "economicsLocked",
+          "createdAt",
+          "description",
+          "benefitPercentBp",
+          "benefitAmountMinor",
+          "benefitCurrency",
+          "minSubtotalMinor",
+          "maxDiscountMinor",
+          "startsAt",
+          "endsAt",
+          "brandId",
+          "branchId",
+          "remainingRedemptions",
+          "targets",
+          "codes"
+        ],
+        "additionalProperties": false
+      },
+      "CreatePromotionRequest": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "description": {
+            "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 2000 }, { "type": "null" }]
+          },
+          "benefitType": { "type": "string", "enum": ["percentage", "fixed_amount"] },
+          "benefitPercentBp": { "type": "integer", "minimum": 1, "maximum": 10000 },
+          "benefitAmountMinor": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+          "benefitCurrency": { "type": "string", "pattern": "^[A-Z]{3}$" },
+          "targetType": { "type": "string", "enum": ["order", "variant_scope"] },
+          "activationType": { "type": "string", "enum": ["automatic", "code"] },
+          "minSubtotalMinor": {
+            "anyOf": [
+              { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+              { "type": "null" }
+            ]
+          },
+          "maxDiscountMinor": {
+            "anyOf": [
+              { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+              { "type": "null" }
+            ]
+          },
+          "startsAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              { "type": "null" }
+            ]
+          },
+          "endsAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              { "type": "null" }
+            ]
+          },
+          "channel": {
+            "anyOf": [{ "type": "string", "enum": ["pos", "online"] }, { "type": "null" }]
+          },
+          "brandId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              { "type": "null" }
+            ]
+          },
+          "branchId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              { "type": "null" }
+            ]
+          },
+          "globalRedemptionLimit": {
+            "anyOf": [
+              { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+              { "type": "null" }
+            ]
+          },
+          "status": { "type": "string", "enum": ["active", "inactive"] },
+          "targets": {
+            "maxItems": 500,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "productId": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "variantId": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    { "type": "null" }
+                  ]
+                }
+              },
+              "required": ["productId", "variantId"],
+              "additionalProperties": false
+            }
+          },
+          "codes": {
+            "maxItems": 50,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64,
+                  "pattern": "^[A-Za-z0-9_-]+$"
+                },
+                "maxRedemptions": {
+                  "anyOf": [
+                    { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+                    { "type": "null" }
+                  ]
+                }
+              },
+              "required": ["code"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["name", "benefitType", "targetType", "activationType"],
+        "additionalProperties": false
+      },
+      "UpdatePromotionRequest": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "description": {
+            "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 2000 }, { "type": "null" }]
+          },
+          "startsAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              { "type": "null" }
+            ]
+          },
+          "endsAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              { "type": "null" }
+            ]
+          },
+          "benefitPercentBp": { "type": "integer", "minimum": 1, "maximum": 10000 },
+          "benefitAmountMinor": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+          "minSubtotalMinor": {
+            "anyOf": [
+              { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+              { "type": "null" }
+            ]
+          },
+          "maxDiscountMinor": {
+            "anyOf": [
+              { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+              { "type": "null" }
+            ]
+          },
+          "channel": {
+            "anyOf": [{ "type": "string", "enum": ["pos", "online"] }, { "type": "null" }]
+          },
+          "brandId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              { "type": "null" }
+            ]
+          },
+          "branchId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              { "type": "null" }
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "SetPromotionStatusRequest": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": { "status": { "type": "string", "enum": ["active", "inactive"] } },
+        "required": ["status"],
+        "additionalProperties": false
+      },
+      "CreatePromotionCodeRequest": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[A-Za-z0-9_-]+$"
+          },
+          "maxRedemptions": {
+            "anyOf": [
+              { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+              { "type": "null" }
+            ]
+          }
+        },
+        "required": ["code"],
+        "additionalProperties": false
+      },
+      "SetPromotionCodeStatusRequest": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": { "status": { "type": "string", "enum": ["active", "disabled"] } },
+        "required": ["status"],
         "additionalProperties": false
       },
       "HealthResponse": {
@@ -5388,6 +6371,12 @@
               "required": ["variantId", "quantity"],
               "additionalProperties": false
             }
+          },
+          "promotionCode": {
+            "anyOf": [
+              { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[A-Za-z0-9_-]+$" },
+              { "type": "null" }
+            ]
           }
         },
         "required": ["registerId", "expectedTotalMinor", "cashReceivedMinor", "lines"],

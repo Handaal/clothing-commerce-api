@@ -89,21 +89,42 @@ select is(
 );
 
 -- Exact internal allowlist: Fulfillment reads Order and lines, Payment reads Order total/currency,
--- connected/offline POS read created lines; online composition reads orders and lines.
-select ok(
+-- connected POS reads the committed net Order total and created lines, offline POS reads created
+-- lines, online composition reads orders and lines, Returns reads both for return validation, and
+-- Promotions reads both to redeem against committed order facts.
+select is(
   (
-    select bool_and(cmd = 'SELECT')
-      and count(*) = 9
-      and count(*) filter (where roles = array['fulfillments_writer']::name[]) = 2
-      and count(*) filter (where roles = array['payments_writer']::name[]) = 1
-      and count(*) filter (where roles = array['pos_sales_writer']::name[]) = 1
-      and count(*) filter (where roles = array['offline_pos_writer']::name[]) = 1
-      and count(*) filter (where roles = array['online_writer']::name[]) = 2
-      and count(*) filter (where roles = array['returns_writer']::name[]) = 2
+    select array_agg(
+      format(
+        '%s|%s|%s|%s|%s|%s|%s',
+        tablename,
+        policyname,
+        permissive,
+        array_to_string(roles, ','),
+        cmd,
+        coalesce(qual, ''),
+        coalesce(with_check, '')
+      )
+      order by tablename, policyname
+    )
     from pg_catalog.pg_policies
     where schemaname = 'public'
       and tablename in ('orders', 'order_lines', 'order_number_sequences')
   ),
+  array[
+    'order_lines|fulfillments_writer_order_line_read|PERMISSIVE|fulfillments_writer|SELECT|true|',
+    'order_lines|offline_writer_order_lines|PERMISSIVE|offline_pos_writer|SELECT|true|',
+    'order_lines|online_writer_read|PERMISSIVE|online_writer|SELECT|true|',
+    'order_lines|pos_sales_writer_order_line_read|PERMISSIVE|pos_sales_writer|SELECT|true|',
+    'order_lines|promotions_writer_read|PERMISSIVE|promotions_writer|SELECT|true|',
+    'order_lines|returns_writer_read|PERMISSIVE|returns_writer|SELECT|true|',
+    'orders|fulfillments_writer_order_read|PERMISSIVE|fulfillments_writer|SELECT|true|',
+    'orders|online_writer_read|PERMISSIVE|online_writer|SELECT|true|',
+    'orders|payments_writer_order_read|PERMISSIVE|payments_writer|SELECT|true|',
+    'orders|pos_sales_writer_order_read|PERMISSIVE|pos_sales_writer|SELECT|true|',
+    'orders|promotions_writer_read|PERMISSIVE|promotions_writer|SELECT|true|',
+    'orders|returns_writer_read|PERMISSIVE|returns_writer|SELECT|true|'
+  ]::text[],
   'the only order-table policies are the sanctioned internal SELECT-only reads'
 );
 

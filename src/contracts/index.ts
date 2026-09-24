@@ -176,7 +176,30 @@ export {
   type IngestOfflineSaleRequest,
   type IngestOfflineSaleResponse,
 } from "./pos";
+export {
+  PosQuoteRequestSchema,
+  PosQuoteResponseSchema,
+  type PosQuoteRequest,
+  type PosQuoteResponse,
+} from "./pos";
 export { canonicalizeOfflineSaleCommand } from "./offline-signing";
+
+export {
+  PromotionCodeInputSchema,
+  PromotionActivationSchema,
+  PromotionBenefitTypeSchema,
+  AppliedPromotionSchema,
+  PricingBreakdownSchema,
+  type AppliedPromotion,
+  type PricingBreakdown,
+} from "./common/promotion-pricing";
+export {
+  StorefrontQuoteRequestSchema,
+  StorefrontQuoteResponseSchema,
+  type StorefrontQuoteRequest,
+  type StorefrontQuoteResponse,
+} from "./storefront/quote";
+export * from "./management/promotions";
 
 export * from "./storefront/checkout";
 export * from "./management/returns";

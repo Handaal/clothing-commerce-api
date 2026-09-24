@@ -54,6 +54,9 @@ describe("online checkout intent", () => {
       place: () => {
         throw new Error("must not call persistence");
       },
+      quote: () => {
+        throw new Error("must not call persistence");
+      },
     });
     expect(() =>
       service.place("key", { ...intent, lines: [...intent.lines, ...intent.lines] }),

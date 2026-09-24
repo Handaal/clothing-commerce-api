@@ -289,23 +289,23 @@ select pg_temp.assert_raises(
 
 -- channel provenance CHECK (direct insert bypassing the function)
 select pg_temp.assert_raises(
-  $$insert into public.orders (tenant_id, brand_id, order_number, channel, currency, total_minor)
-    values ('10000000-0000-4000-8000-000000000001','20000000-0000-4000-8000-000000000001','900','pos','USD',0)$$,
+  $$insert into public.orders (tenant_id, brand_id, order_number, channel, currency, total_minor, gross_subtotal_minor)
+    values ('10000000-0000-4000-8000-000000000001','20000000-0000-4000-8000-000000000001','900','pos','USD',0,0)$$,
   '23514',
   'pos order without a branch/register violates the provenance CHECK'
 );
 
 select pg_temp.assert_raises(
-  $$insert into public.orders (tenant_id, brand_id, branch_id, order_number, channel, currency, total_minor)
-    values ('10000000-0000-4000-8000-000000000001','20000000-0000-4000-8000-000000000001','b0000000-0000-4000-8000-000000000001','901','online','USD',0)$$,
+  $$insert into public.orders (tenant_id, brand_id, branch_id, order_number, channel, currency, total_minor, gross_subtotal_minor)
+    values ('10000000-0000-4000-8000-000000000001','20000000-0000-4000-8000-000000000001','b0000000-0000-4000-8000-000000000001','901','online','USD',0,0)$$,
   '23514',
   'online order carrying a branch violates the provenance CHECK'
 );
 
 -- order number uniqueness within a tenant; reuse across tenants is allowed
 select pg_temp.assert_raises(
-  $$insert into public.orders (tenant_id, brand_id, order_number, channel, currency, total_minor)
-    values ('10000000-0000-4000-8000-000000000001','20000000-0000-4000-8000-000000000001','1','online','USD',0)$$,
+  $$insert into public.orders (tenant_id, brand_id, order_number, channel, currency, total_minor, gross_subtotal_minor)
+    values ('10000000-0000-4000-8000-000000000001','20000000-0000-4000-8000-000000000001','1','online','USD',0,0)$$,
   '23505',
   'duplicate order number within a tenant is rejected'
 );

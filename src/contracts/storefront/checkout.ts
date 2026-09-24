@@ -4,6 +4,7 @@ import {
   NonNegativeIntegerSchema,
   PositiveIntegerSchema,
 } from "../common/serialization";
+import { AppliedPromotionSchema, PromotionCodeInputSchema } from "../common/promotion-pricing";
 
 export const CustomerContactSchema = z.strictObject({
   name: z.string().trim().min(1).max(200),
@@ -36,8 +37,12 @@ export const CheckoutRequestSchema = z.strictObject({
   customer: CustomerContactSchema,
   delivery: DeliveryAddressSchema,
   paymentMethod: z.literal("cash_on_delivery"),
+  // expectedTotalMinor is the NET total the client last previewed (after any promotion). A stale value
+  // (price OR promotion changed) deterministically re-quotes via PRICE_CHANGED.
   expectedTotalMinor: NonNegativeIntegerSchema,
   expectedCurrency: CurrencySchema,
+  // At most one entered code. A code that does not apply fails the checkout with PROMOTION_UNAVAILABLE.
+  promotionCode: PromotionCodeInputSchema.nullable().optional(),
 });
 export type CheckoutRequest = z.infer<typeof CheckoutRequestSchema>;
 export const PaymentStatusSchema = z.enum([
@@ -61,6 +66,10 @@ export const CheckoutResultSchema = z.object({
   status: z.literal("placed"),
   totalMinor: NonNegativeIntegerSchema,
   currency: CurrencySchema,
+  // Promotion breakdown (additive; existing non-strict consumers ignore these). totalMinor is the net.
+  grossSubtotalMinor: NonNegativeIntegerSchema,
+  discountTotalMinor: NonNegativeIntegerSchema,
+  promotion: AppliedPromotionSchema.nullable(),
   payment: PaymentSummarySchema,
   fulfillmentStatus: z.literal("unfulfilled"),
 });
