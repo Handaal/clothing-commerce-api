@@ -731,8 +731,9 @@ select ok(
 -- migration (1 more, 'orders.fulfill'), the Phase 2F migration (1 more, 'catalog.read'), Phase 2H
 -- (1 more, 'payments.capture'), Phase 2J (2 more, 'catalog.author' and 'catalog.publish'), Phase 2N
 -- (2 more, 'suppliers.read' and 'suppliers.manage'), and Phase 2O (2 more, 'staff.read' and
--- 'staff.manage'), and Phase 2P (2 more, 'promotions.read' and 'promotions.manage'); this
--- transaction-local fixture adds 'test.read', for the exact 23-key visible catalog below.
+-- 'staff.manage'), and Phase 2P (2 more, 'promotions.read' and 'promotions.manage'), and Phase 2Q
+-- (1 more, 'reports.read'); this transaction-local fixture adds 'test.read', for the exact 24-key
+-- visible catalog below.
 select is(
   (select array_agg(key order by key) from public.permissions),
   array[
@@ -752,6 +753,7 @@ select is(
     'payments.refund',
     'promotions.manage',
     'promotions.read',
+    'reports.read',
     'returns.create',
     'returns.read',
     'staff.manage',
