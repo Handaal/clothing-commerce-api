@@ -208,11 +208,17 @@ $f$;
 -- owns every function; PUBLIC/anon/authenticated get nothing; service_role may only EXECUTE the sanctioned
 -- export RPCs. (The reporting_private schema usage grant for service_role already exists.)
 -- ============================================================================================
+-- Transferring ownership of a function in reporting_private to reporting_reader requires the target role
+-- to hold CREATE on that schema (Phase 2Q-A used the same temporary grant/revoke window). The grant is
+-- opened only for the ownership transfers below and revoked immediately afterward, so reporting_reader
+-- never retains persistent schema-CREATE authority.
+grant create on schema reporting_private to reporting_reader;
 alter function reporting_private.export_assert_within_bound(bigint, integer) owner to reporting_reader;
 alter function reporting_private.export_sales_products(uuid, date, date, text, integer) owner to reporting_reader;
 alter function reporting_private.export_inventory_movements(uuid, date, date, integer) owner to reporting_reader;
 alter function reporting_private.export_returns(uuid, date, date, integer) owner to reporting_reader;
 alter function reporting_private.export_supplier_receipts(uuid, date, date, integer) owner to reporting_reader;
+revoke create on schema reporting_private from reporting_reader;
 
 revoke all on function
   reporting_private.export_assert_within_bound(bigint, integer),
