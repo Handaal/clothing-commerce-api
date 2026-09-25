@@ -209,3 +209,5 @@ export * from "./management/suppliers";
 export * from "./management/staff";
 
 export * from "./management/reporting";
+
+export * from "./management/reporting-export";

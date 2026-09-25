@@ -61,5 +61,18 @@ Frozen V1 reporting definitions:
 - Reports are always explainable from canonical rows and immutable snapshots.
 - The surface is compact: `summary`, `sales`, `products`, `inventory`, `returns`, `promotions`,
   `suppliers` (see `docs/reporting/reporting-core.md`), delivered in SDK `0.13.0`.
-- Profitability, exports, scheduled reports, scoped/branch-local reporting, and any as-of historical
-  inventory remain deferred.
+- Profitability, scheduled reports, scoped/branch-local reporting, and any as-of historical inventory
+  remain deferred.
+
+## Addendum (Phase 2Q-C): bounded CSV export
+
+A read-only CSV export was added for four bounded datasets (`sales-products`, `inventory-movements`,
+`returns`, `supplier-receipts`) at `GET /api/v1/reports/export`, delivered in SDK `0.13.1`. It reuses
+every definition above unchanged — the same `reports.read` tenant-wide authorization (no separate export
+permission), the same tenant-timezone date resolution and echoed `period`, the same per-currency /
+never-combined rule, the same net-discounted return basis (gross never reconstructed), and the same "no
+supplier cost/spend/value" rule. Additional export-only decisions: exports are **bounded** (≤ 366 days →
+`422`; ≤ 50 000 rows → `413`) and **never silently truncate**; CSV is UTF-8 / RFC 4180 / deterministic
+with spreadsheet formula-injection neutralization on string cells beginning with `= + - @`, TAB, or CR.
+PDF/XLSX, a generic/scheduled/emailed export, and arbitrary-SQL export remain out of scope. See
+`docs/reporting/reporting-core.md`.

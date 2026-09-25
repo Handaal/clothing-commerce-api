@@ -258,6 +258,53 @@ export async function runTenantManagementRoute<T>(options: {
   }
 }
 
+/** Builds a downloadable document response (e.g. CSV) with the standard headers plus Content-Disposition. */
+function documentResponse(
+  document: { readonly body: string; readonly filename: string; readonly mediaType: string },
+  requestId: string,
+  request?: Request,
+): Response {
+  return new Response(document.body, {
+    status: 200,
+    headers: {
+      ...corsHeaders(request),
+      // Let browser clients read the filename cross-origin (native clients read it unconditionally).
+      "Access-Control-Expose-Headers": "X-Request-Id, Content-Disposition",
+      "Content-Type": `${document.mediaType}; charset=utf-8`,
+      "Content-Disposition": `attachment; filename="${document.filename}"`,
+      "X-Request-Id": requestId,
+    },
+  });
+}
+
+/**
+ * Runs a tenant-scoped management route that streams a generated DOCUMENT (e.g. a CSV export) rather than
+ * a JSON DTO: it requires and validates X-Tenant-Id, resolves the full AuthorizationContext, invokes the
+ * handler, and returns the document with the correct Content-Type/Content-Disposition. Errors map to the
+ * SAME frozen JSON envelope as every other route, so a failed export is a normal typed API error.
+ */
+export async function runTenantManagementDocumentRoute(options: {
+  readonly request: Request;
+  readonly contextResolver: AuthorizationContextResolver;
+  readonly handler: (
+    context: AuthorizationContext,
+    requestId: string,
+  ) => Promise<{ readonly body: string; readonly filename: string; readonly mediaType: string }>;
+}): Promise<Response> {
+  const requestId = crypto.randomUUID();
+  try {
+    const requestedTenantId = requireTenantId(options.request);
+    const context = await options.contextResolver.resolve({
+      request: options.request,
+      requestedTenantId,
+    });
+    const document = await options.handler(context, requestId);
+    return documentResponse(document, requestId, options.request);
+  } catch (error) {
+    return mapError(error, requestId, options.request);
+  }
+}
+
 /**
  * Runs a tenant-scoped management WRITE route: requires and validates X-Tenant-Id and the
  * Idempotency-Key header, resolves the full AuthorizationContext, parses and validates the JSON body,

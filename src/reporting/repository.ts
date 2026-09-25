@@ -11,6 +11,8 @@ import {
 import { assertAuthorizedOperationProof, type AuthorizedOperationContext } from "../authorization";
 import { InvalidCursorError } from "../management/cursor";
 import { reportingDatabaseError } from "./errors";
+import { EXPORT_DATASETS } from "./export";
+import type { ReportExportDataset } from "../contracts/management/reporting-export";
 import type {
   InventoryQuery,
   ProductsQuery,
@@ -182,6 +184,34 @@ export class ReportingRepository {
         }),
       ),
     );
+  }
+
+  /**
+   * Fetches one bounded export dataset. Delegates to the dataset's sanctioned reporting_private RPC, which
+   * derives its own currency/period math, enforces the row bound (RP413 on overflow — never truncates),
+   * and returns `{ period, rows }`. The rows are validated against the dataset's row contract here.
+   */
+  async export(
+    proof: AuthorizedOperationContext,
+    query: {
+      dataset: ReportExportDataset;
+      startDate: string;
+      endDate: string;
+      level: string;
+      maxRows: number;
+    },
+  ) {
+    const config = EXPORT_DATASETS[query.dataset];
+    const args: Record<string, unknown> = {
+      p_tenant: this.tenant(proof),
+      p_from: query.startDate,
+      p_to: query.endDate,
+      p_max_rows: query.maxRows,
+    };
+    if (config.usesLevel) {
+      args.p_level = query.level;
+    }
+    return config.parse(await this.call(config.rpc, args));
   }
 }
 

@@ -7,6 +7,7 @@ import {
   SalesBucketSchema,
   SalesViewSchema,
 } from "../contracts/management/reporting";
+import { ReportExportDatasetSchema } from "../contracts/management/reporting-export";
 
 /**
  * Reporting query schemas. Dates are inclusive tenant-local calendar dates (YYYY-MM-DD); the server
@@ -68,6 +69,19 @@ export const SuppliersQuerySchema = z
   .object({ ...dateRange, limit: LimitSchema, cursor: CursorSchema })
   .strict();
 
+/**
+ * CSV export query. The bounded `dataset` selector chooses the canonical dataset; `startDate`/`endDate`
+ * carry the SAME inclusive tenant-local calendar-date semantics as the JSON reports. `level` is only
+ * meaningful for the sales-products dataset (product vs variant grain) and is ignored by the others.
+ */
+export const ExportQuerySchema = z
+  .object({
+    dataset: ReportExportDatasetSchema,
+    ...dateRange,
+    level: ProductLevelSchema.default("variant"),
+  })
+  .strict();
+
 export type SummaryQuery = z.infer<typeof SummaryQuerySchema>;
 export type SalesQuery = z.infer<typeof SalesQuerySchema>;
 export type ProductsQuery = z.infer<typeof ProductsQuerySchema>;
@@ -75,3 +89,4 @@ export type InventoryQuery = z.infer<typeof InventoryQuerySchema>;
 export type ReturnsQuery = z.infer<typeof ReturnsQuerySchema>;
 export type PromotionsQuery = z.infer<typeof PromotionsQuerySchema>;
 export type SuppliersQuery = z.infer<typeof SuppliersQuerySchema>;
+export type ExportQuery = z.infer<typeof ExportQuerySchema>;

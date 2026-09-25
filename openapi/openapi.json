@@ -769,6 +769,61 @@
         }
       }
     },
+    "/api/v1/reports/export": {
+      "get": {
+        "operationId": "exportReport",
+        "tags": ["reports"],
+        "summary": "exportReport",
+        "description": "Bounded CSV export of one canonical dataset (sales-products, inventory-movements, returns, supplier-receipts). Same tenant-wide reports.read authorization, tenant-timezone date resolution, and never-combined currency semantics as the JSON reports. UTF-8, RFC 4180, with spreadsheet formula-injection neutralization. Bounded to at most 366 days and 50000 rows; exceeding the row bound returns 413 and the date bound 422 — never a silent truncation. No PDF/XLSX and no generic/scheduled export.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          {
+            "name": "dataset",
+            "in": "query",
+            "required": true,
+            "description": "The canonical export dataset.",
+            "schema": {
+              "type": "string",
+              "enum": ["sales-products", "inventory-movements", "returns", "supplier-receipts"]
+            }
+          },
+          {
+            "name": "startDate",
+            "in": "query",
+            "required": true,
+            "description": "Inclusive tenant-local calendar date (YYYY-MM-DD); resolved to a UTC range via the tenant timezone.",
+            "schema": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" }
+          },
+          {
+            "name": "endDate",
+            "in": "query",
+            "required": true,
+            "description": "Inclusive tenant-local calendar date (YYYY-MM-DD); resolved to a UTC range via the tenant timezone.",
+            "schema": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" }
+          },
+          {
+            "name": "level",
+            "in": "query",
+            "required": false,
+            "description": "Aggregation level for the sales-products dataset; ignored by other datasets.",
+            "schema": { "type": "string", "enum": ["product", "variant"], "default": "variant" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The generated CSV document.",
+            "content": { "text/csv": { "schema": { "type": "string" } } }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "413": { "$ref": "#/components/responses/Error413" },
+          "422": { "$ref": "#/components/responses/Error422" }
+        }
+      }
+    },
     "/api/v1/suppliers": {
       "get": {
         "operationId": "listSuppliers",
@@ -2799,6 +2854,10 @@
       },
       "Error409": {
         "description": "The request conflicts with current state.",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } }
+      },
+      "Error413": {
+        "description": "The export exceeds the maximum row count.",
         "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } }
       },
       "Error422": {
