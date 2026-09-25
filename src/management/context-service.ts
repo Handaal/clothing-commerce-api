@@ -1,6 +1,7 @@
 import { supplierCapabilities } from "../suppliers/service";
 import { staffCapabilities } from "../staff/service";
 import { promotionCapabilities } from "../promotions/service";
+import { reportCapabilities } from "../reporting/service";
 import type { AuthorizationContext } from "../authorization";
 import type { MeContextResponse } from "../contracts";
 import type { IdSelector, OrganizationReadRepository } from "./organization-read-repository";
@@ -127,6 +128,7 @@ export class ManagementContextService {
         suppliers: supplierCapabilities(context),
         staff: staffCapabilities(context),
         promotions: promotionCapabilities(context),
+        reports: reportCapabilities(context),
         catalog: {
           canRead: catalog.canRead,
           tenantWide: catalog.tenantWide,

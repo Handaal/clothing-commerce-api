@@ -1,0 +1,26 @@
+import { SuppliersReportResponseSchema } from "../../../../../src/contracts";
+import {
+  managementOptionsResponse,
+  parseRequest,
+  runTenantManagementRoute,
+} from "../../../../../src/http/management-route";
+import { SuppliersQuerySchema } from "../../../../../src/reporting/request";
+import { getManagementApiBoundary } from "../../../../../src/management/server-management-boundary";
+
+export async function GET(request: Request) {
+  const boundary = getManagementApiBoundary();
+  return runTenantManagementRoute({
+    request,
+    contextResolver: boundary.contextResolver,
+    responseSchema: SuppliersReportResponseSchema,
+    handler: (context) =>
+      boundary.reportingService.suppliers(
+        context,
+        parseRequest(SuppliersQuerySchema, Object.fromEntries(new URL(request.url).searchParams)),
+      ),
+  });
+}
+
+export function OPTIONS(request: Request) {
+  return managementOptionsResponse(request);
+}

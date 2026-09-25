@@ -95,6 +95,13 @@ describe("OpenAPI management surface", () => {
         "/api/v1/promotions/{promotionId}/status",
         "/api/v1/promotions/{promotionId}/codes",
         "/api/v1/promotions/codes/{codeId}/status",
+        "/api/v1/reports/summary",
+        "/api/v1/reports/sales",
+        "/api/v1/reports/products",
+        "/api/v1/reports/inventory",
+        "/api/v1/reports/returns",
+        "/api/v1/reports/promotions",
+        "/api/v1/reports/suppliers",
       ].sort(),
     );
   });

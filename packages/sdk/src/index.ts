@@ -165,6 +165,84 @@ export interface SetPromotionCodeStatusInput {
   status: "active" | "disabled";
   idempotencyKey: string;
 }
+// ---- Phase 2Q reporting (read-only, tenant-wide, reports.read) ----
+import {
+  ReportSummaryResponseSchema,
+  SalesReportResponseSchema,
+  ProductsReportResponseSchema,
+  InventoryReportResponseSchema,
+  ReturnsReportResponseSchema,
+  PromotionsReportResponseSchema,
+  SuppliersReportResponseSchema,
+  type ReportSummaryResponse,
+  type SalesReportResponse,
+  type ProductsReportResponse,
+  type InventoryReportResponse,
+  type ReturnsReportResponse,
+  type PromotionsReportResponse,
+  type SuppliersReportResponse,
+  type SalesView,
+  type SalesBucket,
+  type ProductLevel,
+  type ProductView,
+  type InventoryView,
+  type ReturnsView,
+} from "../../../src/contracts/management/reporting";
+export type {
+  ReportPeriod,
+  ReportSummaryResponse,
+  SalesReportResponse,
+  SalesReportItem,
+  ProductsReportResponse,
+  ProductReportItem,
+  InventoryReportResponse,
+  InventoryReportItem,
+  ReturnsReportResponse,
+  ReturnsReportItem,
+  PromotionsReportResponse,
+  PromotionsReportItem,
+  SuppliersReportResponse,
+  SuppliersReportItem,
+  SalesView,
+  SalesBucket,
+  ProductLevel,
+  ProductView,
+  InventoryView,
+  ReturnsView,
+} from "../../../src/contracts/management/reporting";
+/** Inclusive tenant-local calendar dates (YYYY-MM-DD); the server resolves them to a UTC range. */
+export interface ReportPeriodQuery {
+  startDate: string;
+  endDate: string;
+}
+export interface SalesReportQuery extends ReportPeriodQuery {
+  view?: SalesView;
+  bucket?: SalesBucket;
+}
+export interface ProductsReportQuery extends ReportPeriodQuery {
+  level?: ProductLevel;
+  view?: ProductView;
+  limit?: number;
+  cursor?: string;
+}
+export interface InventoryReportQuery {
+  view?: InventoryView;
+  /** Required for every view except `balances` (current state, no period). */
+  startDate?: string;
+  endDate?: string;
+  limit?: number;
+  cursor?: string;
+}
+export interface ReturnsReportQuery extends ReportPeriodQuery {
+  view?: ReturnsView;
+  limit?: number;
+  cursor?: string;
+}
+export type PromotionsReportQuery = ReportPeriodQuery;
+export interface SuppliersReportQuery extends ReportPeriodQuery {
+  limit?: number;
+  cursor?: string;
+}
 import {
   AdjustInventoryResponseSchema,
   ApiErrorSchema,
@@ -458,6 +536,14 @@ export interface TenantCommerceClient {
   setPromotionStatus(input: SetPromotionStatusInput): Promise<PromotionDetail>;
   createPromotionCode(input: CreatePromotionCodeInput): Promise<PromotionDetail>;
   setPromotionCodeStatus(input: SetPromotionCodeStatusInput): Promise<PromotionDetail>;
+  /** Operational reporting (read-only, tenant-wide, requires reports.read). */
+  getReportSummary(query: ReportPeriodQuery): Promise<ReportSummaryResponse>;
+  getSalesReport(query: SalesReportQuery): Promise<SalesReportResponse>;
+  getProductsReport(query: ProductsReportQuery): Promise<ProductsReportResponse>;
+  getInventoryReport(query?: InventoryReportQuery): Promise<InventoryReportResponse>;
+  getReturnsReport(query: ReturnsReportQuery): Promise<ReturnsReportResponse>;
+  getPromotionsReport(query: PromotionsReportQuery): Promise<PromotionsReportResponse>;
+  getSuppliersReport(query: SuppliersReportQuery): Promise<SuppliersReportResponse>;
   enrollPosDevice(input: EnrollPosDeviceInput): Promise<PosDeviceResponse>;
   rotatePosDeviceCredential(input: RotatePosDeviceCredentialInput): Promise<PosDeviceResponse>;
   revokePosDevice(input: RevokePosDeviceInput): Promise<PosDeviceResponse>;
@@ -917,6 +1003,77 @@ export function createCommerceClient({
           `/api/v1/promotions/codes/${encodeURIComponent(codeId)}/status`,
           PromotionDetailSchema,
           { tenantId, method: "POST", body, idempotencyKey },
+        ),
+      getReportSummary: (query: ReportPeriodQuery) =>
+        request(
+          `/api/v1/reports/summary${buildQuery({ startDate: query.startDate, endDate: query.endDate })}`,
+          ReportSummaryResponseSchema,
+          { tenantId },
+        ),
+      getSalesReport: (query: SalesReportQuery) =>
+        request(
+          `/api/v1/reports/sales${buildQuery({
+            startDate: query.startDate,
+            endDate: query.endDate,
+            view: query.view,
+            bucket: query.bucket,
+          })}`,
+          SalesReportResponseSchema,
+          { tenantId },
+        ),
+      getProductsReport: (query: ProductsReportQuery) =>
+        request(
+          `/api/v1/reports/products${buildQuery({
+            startDate: query.startDate,
+            endDate: query.endDate,
+            level: query.level,
+            view: query.view,
+            limit: query.limit,
+            cursor: query.cursor,
+          })}`,
+          ProductsReportResponseSchema,
+          { tenantId },
+        ),
+      getInventoryReport: (query: InventoryReportQuery = {}) =>
+        request(
+          `/api/v1/reports/inventory${buildQuery({
+            view: query.view,
+            startDate: query.startDate,
+            endDate: query.endDate,
+            limit: query.limit,
+            cursor: query.cursor,
+          })}`,
+          InventoryReportResponseSchema,
+          { tenantId },
+        ),
+      getReturnsReport: (query: ReturnsReportQuery) =>
+        request(
+          `/api/v1/reports/returns${buildQuery({
+            startDate: query.startDate,
+            endDate: query.endDate,
+            view: query.view,
+            limit: query.limit,
+            cursor: query.cursor,
+          })}`,
+          ReturnsReportResponseSchema,
+          { tenantId },
+        ),
+      getPromotionsReport: (query: PromotionsReportQuery) =>
+        request(
+          `/api/v1/reports/promotions${buildQuery({ startDate: query.startDate, endDate: query.endDate })}`,
+          PromotionsReportResponseSchema,
+          { tenantId },
+        ),
+      getSuppliersReport: (query: SuppliersReportQuery) =>
+        request(
+          `/api/v1/reports/suppliers${buildQuery({
+            startDate: query.startDate,
+            endDate: query.endDate,
+            limit: query.limit,
+            cursor: query.cursor,
+          })}`,
+          SuppliersReportResponseSchema,
+          { tenantId },
         ),
       enrollPosDevice: ({ idempotencyKey, ...body }: EnrollPosDeviceInput) =>
         request("/api/v1/pos/devices", PosDeviceResponseSchema, {

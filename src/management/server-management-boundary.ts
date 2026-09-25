@@ -25,6 +25,8 @@ import { StaffService } from "../staff/service";
 import { createStaffRepository } from "../staff/repository";
 import { PromotionsService } from "../promotions/service";
 import { createPromotionsRepository } from "../promotions/repository";
+import { ReportingService } from "../reporting/service";
+import { createReportingRepository } from "../reporting/repository";
 import { ReturnsService } from "../returns/service";
 import { createReturnsRepository } from "../returns/repository";
 import { createSupabaseOrdersReadRepository } from "../orders/supabase-orders-read-repository";
@@ -140,6 +142,10 @@ export function createManagementApiBoundary(
     promotionsService: new PromotionsService(
       authorizationService,
       createPromotionsRepository(supabaseConfiguration),
+    ),
+    reportingService: new ReportingService(
+      authorizationService,
+      createReportingRepository(supabaseConfiguration),
     ),
     posSaleService,
     offlinePosService,
