@@ -272,7 +272,7 @@ describe("Commerce SDK", () => {
   });
 
   it("exposes semantic SDK version metadata", () => {
-    expect(SDK_VERSION).toBe("0.12.0");
+    expect(SDK_VERSION).toBe("0.12.1");
   });
 });
 
@@ -283,6 +283,43 @@ const MEMBERSHIP = "b0000000-0000-4000-8000-000000000002";
 const REQUEST_ID = "c0000000-0000-4000-8000-000000000003";
 
 describe("Commerce SDK management surface", () => {
+  it("parses independent Promotion capabilities while accepting legacy context responses", async () => {
+    const baseContext = {
+      tenant: { id: TENANT, name: "Acme", status: "active" },
+      membership: { id: MEMBERSHIP },
+      access: {
+        catalog: { canRead: false, tenantWide: false, brands: [] },
+        inventory: {
+          canRead: false,
+          tenantWide: false,
+          locations: [],
+          write: { canReceive: false, canAdjust: false, canTransfer: false, locations: [] },
+        },
+        orders: { canRead: false, tenantWide: false, brands: [], branches: [] },
+      },
+    } as const;
+    const responses = [
+      baseContext,
+      {
+        ...baseContext,
+        access: {
+          ...baseContext.access,
+          promotions: { canRead: true, canManage: false },
+        },
+      },
+    ];
+    const client = createCommerceClient({
+      baseUrl: "https://api.example.test",
+      getToken: () => "session-token",
+      fetch: async () => new Response(JSON.stringify(responses.shift())),
+    }).withTenant(TENANT);
+
+    await expect(client.getContext()).resolves.not.toHaveProperty("access.promotions");
+    await expect(client.getContext()).resolves.toMatchObject({
+      access: { promotions: { canRead: true, canManage: false } },
+    });
+  });
+
   it("injects the token, tenant header, and client metadata on tenant-scoped calls", async () => {
     const fetchImplementation = vi.fn<typeof globalThis.fetch>(async () =>
       Promise.resolve(
