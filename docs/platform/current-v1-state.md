@@ -1,8 +1,8 @@
 # Clothing Commerce Platform — Canonical V1 State
 
-**Status as of:** 2026-09-24 (Phase 2P Promotions API/core **merged** as API PR #28. The narrow
-Promotion `/me/context` guidance compatibility patch and SDK `0.12.1` are implemented in this branch.
-Admin Mobile Promotion integration remains gated on that patch merging.)
+**Status as of:** 2026-09-25 (Phase 2P Promotions API/core **merged** (PRs #28–#30, SDK `0.12.2`).
+Phase **2Q-A Reporting Core + SDK `0.13.0`** is implemented on branch `phase/2q-reporting-core`, PR
+pending. Admin Mobile Promotion and Reporting integration remain.)
 **Audience:** Any engineering agent (Claude, Codex, or human) starting a new phase.
 **Authority:** This document describes the **actual merged state** verified against Git and source,
 not planned or remembered state. Where a claim could not be verified it is marked
@@ -27,10 +27,11 @@ truth lives on `origin/main`. All feature branches below were confirmed merged i
 > **Caution for future agents:** the local `main` branch in each repo may lag `origin/main`.
 > Always `git fetch` and inspect `origin/main` before branching. Do not trust local `main`.
 
-**Current SDK:** `@shifted/clothing-commerce-sdk@0.12.1`
-(deterministic pack SHA-256 `4fcd8076052cac6b4717b6eaa030a91f054398578cbbde9ceb69e7cfc819c7a0`, artifact
-`artifacts/shifted-clothing-commerce-sdk-0.12.1.tgz`). It is a compatible PATCH over merged Promotion
-SDK `0.12.0`, adding only the optional `getContext().access.promotions` response guidance.
+**Current SDK:** `@shifted/clothing-commerce-sdk@0.13.0`
+(deterministic pack SHA-256 `a141fb881752b64625bc1519b92fcf4f7aafd6c83eb81f0eb9b737fec2fb5e90`, artifact
+`artifacts/shifted-clothing-commerce-sdk-0.13.0.tgz`, identical across two independent packs). It is a
+backward-compatible MINOR over merged `0.12.2`, adding the read-only reporting methods/DTOs and the
+optional `getContext().access.reports` guidance.
 
 **SDK consumed by clients (staggered — not all on latest):**
 
@@ -158,7 +159,13 @@ plus `docs/development/phase-2l-validation.md` and `docs/development/phase-2m-va
 
 ## F. SDK state
 
-- **Package version:** `0.12.1` (`packages/sdk/package.json`).
+- **Package version:** `0.13.0` (`packages/sdk/package.json`).
+- **0.13.0 additions (MINOR — backward-compatible):** read-only reporting on the tenant client —
+  `getReportSummary`, `getSalesReport`, `getProductsReport`, `getInventoryReport`, `getReturnsReport`,
+  `getPromotionsReport`, `getSuppliersReport` — with typed filters, currency-grouped DTOs, period
+  metadata, and cursor types; plus optional `getContext().access.reports { canRead }` UI guidance. All
+  require a tenant-wide `reports.read` grant.
+- **Package version (historical):** `0.12.1`.
 - **Artifact:** `artifacts/shifted-clothing-commerce-sdk-0.12.1.tgz`.
 - **Deterministic pack SHA-256:**
   `4fcd8076052cac6b4717b6eaa030a91f054398578cbbde9ceb69e7cfc819c7a0` (identical across two
@@ -277,7 +284,14 @@ its phase arrives.
   changing Promotion authorization or money behavior.
   Proven by `pnpm test:promotions:persistence` (46), `pnpm test:promotions:concurrency` (12 — final
   voucher race), and the SDK consumer gates.
-- **Reporting / export expectations** — exact report and export list undecided.
+- **Reporting** — Phase **2Q-A** delivers the operational reporting **core + SDK `0.13.0`** (branch
+  `phase/2q-reporting-core`): tenant-wide read-only `summary`/`sales`/`products`/`inventory`/`returns`/
+  `promotions`/`suppliers` over canonical tables via the `reporting_reader` role + `reporting_private`
+  SECURITY DEFINER RPCs, with frozen financial/time/currency definitions
+  ([ADR-038](../decisions/ADR-038-operational-reporting-definitions.md),
+  [reporting core](../reporting/reporting-core.md)), proven by `pnpm test:reporting:persistence` (twice
+  from empty). **Still deferred:** exports/downloads, scheduled reports, scoped/branch-local reporting,
+  as-of historical inventory, and any profitability (no cost basis exists).
 - **Operational POS settings** — register/receipt/cash-drawer/session configuration pending.
 - **Admin / business settings** — tenant/brand/branch/tax/currency configuration pending.
 
@@ -289,7 +303,7 @@ its phase arrives.
 | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **2O — Staff Management**                        | **In progress.** API core **merged** (PR #24, `docs/staff/staff-management-core.md`): membership lifecycle + role/scope assignment + anti-escalation + last-admin lockout; Add Staff links an existing account resolved by **exact email lookup only** (no global identity-directory browsing, no Clerk invite flow, no raw-UUID workflow). Completion patch **implemented / PR pending** on `phase/2o-staff-assignment-catalogs`: canonical read-only `GET /staff/assignable-roles` + `GET /staff/assignable-scopes` as the single source of selectable assignment options (replacing derivation from other members' assignments); role/scope/target **authoring stays deferred to 2R or later**; SDK `0.11.0`. **Remaining:** merge the catalogs patch, then Admin Mobile staff UI integration and runtime acceptance. |
 | **2P — Vouchers / Discounts / Promotions**       | **API/core merged as PR #28.** Shared deterministic quotes/redemption, immutable discount allocation, net Returns basis, Promotion management, OpenAPI and SDK `0.12.x`; Admin Mobile integration remains.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| **2Q — Reporting & Analytics**                   | Sales/orders/inventory/channel/period reporting; owner dashboard; exports.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| **2Q — Reporting & Analytics**                   | **2Q-A API core + SDK `0.13.0` implemented (branch `phase/2q-reporting-core`, PR pending):** tenant-wide read-only summary/sales/products/inventory/returns/promotions/suppliers with frozen currency/time/financial definitions. Remaining: owner dashboard (Admin Mobile), exports, scheduled reports.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | **2R — Business & Operational Settings**         | Tenant/brand/branch/tax/currency config; POS operational settings.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | **2S — Whole-System Acceptance / Stabilization** | End-to-end acceptance, hardening.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 

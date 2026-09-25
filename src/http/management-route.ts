@@ -16,6 +16,7 @@ import { SupplierError } from "../suppliers/errors";
 import { StaffError } from "../staff/errors";
 import { ReturnError } from "../returns/errors";
 import { PromotionError } from "../promotions/errors";
+import { ReportingError } from "../reporting/errors";
 import { corsHeaders } from "./cors";
 
 /**
@@ -183,7 +184,8 @@ function mapError(error: unknown, requestId: string, request?: Request): Respons
     error instanceof ReturnError ||
     error instanceof SupplierError ||
     error instanceof StaffError ||
-    error instanceof PromotionError
+    error instanceof PromotionError ||
+    error instanceof ReportingError
   ) {
     const details =
       error instanceof PosSaleError &&

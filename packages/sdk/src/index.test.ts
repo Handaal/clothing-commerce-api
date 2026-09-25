@@ -272,7 +272,7 @@ describe("Commerce SDK", () => {
   });
 
   it("exposes semantic SDK version metadata", () => {
-    expect(SDK_VERSION).toBe("0.12.2");
+    expect(SDK_VERSION).toBe("0.13.0");
   });
 });
 

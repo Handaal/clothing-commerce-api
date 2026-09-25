@@ -43,6 +43,15 @@ import {
   CreatePromotionCodeRequestSchema,
   SetPromotionCodeStatusRequestSchema,
 } from "../contracts/management/promotions";
+import {
+  ReportSummaryResponseSchema,
+  SalesReportResponseSchema,
+  ProductsReportResponseSchema,
+  InventoryReportResponseSchema,
+  ReturnsReportResponseSchema,
+  PromotionsReportResponseSchema,
+  SuppliersReportResponseSchema,
+} from "../contracts/management/reporting";
 import { z } from "zod";
 
 import packageMetadata from "../../package.json";
@@ -145,6 +154,68 @@ function uuidQueryParameter(name: string, description: string) {
   };
 }
 
+function calendarDateParameter(name: string, required: boolean) {
+  return {
+    name,
+    in: "query",
+    required,
+    description:
+      "Inclusive tenant-local calendar date (YYYY-MM-DD); resolved to a UTC range via the tenant timezone.",
+    schema: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+  };
+}
+
+function enumQueryParameter(
+  name: string,
+  values: string[],
+  defaultValue: string | undefined,
+  description: string,
+) {
+  return {
+    name,
+    in: "query",
+    required: false,
+    description,
+    schema: {
+      type: "string",
+      enum: values,
+      ...(defaultValue !== undefined ? { default: defaultValue } : {}),
+    },
+  };
+}
+
+function reportLimitParameter() {
+  return {
+    name: "limit",
+    in: "query",
+    required: false,
+    description: "Maximum items per page (1-200, default 50).",
+    schema: { type: "integer", minimum: 1, maximum: 200, default: 50 },
+  };
+}
+
+function reportGet(
+  operationId: string,
+  description: string,
+  parameters: unknown[],
+  schemaRef: string,
+) {
+  return {
+    get: {
+      operationId,
+      tags: ["reports"],
+      summary: operationId,
+      description,
+      security: clerkSecurity,
+      parameters: [tenantHeaderParameter, ...parameters],
+      responses: {
+        "200": jsonResponse("Success", schemaRef),
+        ...errorResponses(400, 401, 403, 404),
+      },
+    },
+  };
+}
+
 function jsonResponse(description: string, schemaRef: string) {
   return {
     description,
@@ -202,6 +273,13 @@ export function generateOpenApiDocument() {
         description:
           "Tenant-owned promotion and code management, and non-consuming pricing quotes. " +
           "Money is server-authoritative; one promotion per order (best eligible saving).",
+      },
+      {
+        name: "reports",
+        description:
+          "Read-only, tenant-wide operational reporting (reports.read). Monetary results are grouped " +
+          "by currency and never combined; sales KPIs cover placed Orders and are not rewritten by " +
+          "later cancellations/returns.",
       },
     ],
     paths: {
@@ -417,6 +495,102 @@ export function generateOpenApiDocument() {
           },
         },
       },
+      "/api/v1/reports/summary": reportGet(
+        "getReportSummary",
+        "Tenant-wide operational summary. Requires a tenant-wide reports.read grant. Monetary KPIs are grouped by currency and never combined.",
+        [calendarDateParameter("startDate", true), calendarDateParameter("endDate", true)],
+        "#/components/schemas/ReportSummaryResponse",
+      ),
+      "/api/v1/reports/sales": reportGet(
+        "getSalesReport",
+        "Currency-grouped sales over placed Orders by a bounded view. 'sales by branch' means POS sales by branch; ONLINE orders carry no branch/register/operator. Requires a tenant-wide reports.read grant.",
+        [
+          calendarDateParameter("startDate", true),
+          calendarDateParameter("endDate", true),
+          enumQueryParameter(
+            "view",
+            ["trend", "channel", "brand", "pos_branch", "pos_register", "pos_operator"],
+            "trend",
+            "Sales breakdown dimension.",
+          ),
+          enumQueryParameter(
+            "bucket",
+            ["day", "week", "month"],
+            "day",
+            "Trend bucket (weeks start Monday).",
+          ),
+        ],
+        "#/components/schemas/SalesReportResponse",
+      ),
+      "/api/v1/reports/products": reportGet(
+        "getProductsReport",
+        "Product/variant sales metrics or the precise no_sales_with_current_stock non-moving signal. Requires a tenant-wide reports.read grant.",
+        [
+          calendarDateParameter("startDate", true),
+          calendarDateParameter("endDate", true),
+          enumQueryParameter("level", ["product", "variant"], "variant", "Aggregation level."),
+          enumQueryParameter(
+            "view",
+            ["sales", "no_sales_with_current_stock"],
+            "sales",
+            "Sales ranking or the current-stock non-moving signal.",
+          ),
+          reportLimitParameter(),
+          cursorParameter(),
+        ],
+        "#/components/schemas/ProductsReportResponse",
+      ),
+      "/api/v1/reports/inventory": reportGet(
+        "getInventoryReport",
+        "Current balances (current state, not as-of) or event-period movement/receipt/transfer/adjustment views. Requires a tenant-wide reports.read grant. startDate/endDate are required for every view except balances.",
+        [
+          enumQueryParameter(
+            "view",
+            ["balances", "movements", "receipts", "transfers", "adjustments"],
+            "balances",
+            "Inventory report view.",
+          ),
+          calendarDateParameter("startDate", false),
+          calendarDateParameter("endDate", false),
+          reportLimitParameter(),
+          cursorParameter(),
+        ],
+        "#/components/schemas/InventoryReportResponse",
+      ),
+      "/api/v1/reports/returns": reportGet(
+        "getReturnsReport",
+        "Return/refund KPIs by currency and disposition, or product/variant breakdown, over the return-event period. No return-rate KPI in V1. Requires a tenant-wide reports.read grant.",
+        [
+          calendarDateParameter("startDate", true),
+          calendarDateParameter("endDate", true),
+          enumQueryParameter(
+            "view",
+            ["summary", "products", "variants"],
+            "summary",
+            "Returns report view.",
+          ),
+          reportLimitParameter(),
+          cursorParameter(),
+        ],
+        "#/components/schemas/ReturnsReportResponse",
+      ),
+      "/api/v1/reports/promotions": reportGet(
+        "getPromotionsReport",
+        "Per-promotion redemption/discount/order metrics from immutable redemption + adjustment data, grouped by currency. No ROI/profitability. Requires a tenant-wide reports.read grant.",
+        [calendarDateParameter("startDate", true), calendarDateParameter("endDate", true)],
+        "#/components/schemas/PromotionsReportResponse",
+      ),
+      "/api/v1/reports/suppliers": reportGet(
+        "getSuppliersReport",
+        "Per-supplier receipt count, units received, and last receipt over the period. No supplier spend/value (no acquisition cost basis). Requires a tenant-wide reports.read grant.",
+        [
+          calendarDateParameter("startDate", true),
+          calendarDateParameter("endDate", true),
+          reportLimitParameter(),
+          cursorParameter(),
+        ],
+        "#/components/schemas/SuppliersReportResponse",
+      ),
       "/api/v1/suppliers": {
         get: {
           operationId: "listSuppliers",
@@ -2272,6 +2446,13 @@ export function generateOpenApiDocument() {
         SetPromotionStatusRequest: jsonSchema(SetPromotionStatusRequestSchema),
         CreatePromotionCodeRequest: jsonSchema(CreatePromotionCodeRequestSchema),
         SetPromotionCodeStatusRequest: jsonSchema(SetPromotionCodeStatusRequestSchema),
+        ReportSummaryResponse: jsonSchema(ReportSummaryResponseSchema),
+        SalesReportResponse: jsonSchema(SalesReportResponseSchema),
+        ProductsReportResponse: jsonSchema(ProductsReportResponseSchema),
+        InventoryReportResponse: jsonSchema(InventoryReportResponseSchema),
+        ReturnsReportResponse: jsonSchema(ReturnsReportResponseSchema),
+        PromotionsReportResponse: jsonSchema(PromotionsReportResponseSchema),
+        SuppliersReportResponse: jsonSchema(SuppliersReportResponseSchema),
         HealthResponse: jsonSchema(HealthResponseSchema),
         ApiError: jsonSchema(ApiErrorSchema),
         PageInfo: jsonSchema(PageInfoSchema),

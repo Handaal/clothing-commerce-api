@@ -102,6 +102,11 @@ export const ManagementCapabilitySchema = z.object({
   canManage: z.boolean(),
 });
 
+/** Reporting is read-only and tenant-wide, so it exposes only a single `canRead` capability. */
+export const ReportsAccessSchema = z.object({
+  canRead: z.boolean(),
+});
+
 export const MeContextResponseSchema = z.object({
   tenant: z.object({
     id: UuidSchema,
@@ -113,6 +118,7 @@ export const MeContextResponseSchema = z.object({
     suppliers: ManagementCapabilitySchema.optional(),
     staff: ManagementCapabilitySchema.optional(),
     promotions: ManagementCapabilitySchema.optional(),
+    reports: ReportsAccessSchema.optional(),
     catalog: CatalogAccessSchema,
     inventory: InventoryAccessSchema,
     orders: OrdersAccessSchema,
