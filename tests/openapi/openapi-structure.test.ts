@@ -102,6 +102,7 @@ describe("OpenAPI management surface", () => {
         "/api/v1/reports/returns",
         "/api/v1/reports/promotions",
         "/api/v1/reports/suppliers",
+        "/api/v1/reports/export",
       ].sort(),
     );
   });
@@ -304,6 +305,32 @@ describe("OpenAPI management surface", () => {
     expect(access.properties.orders).toBeDefined();
     expect(access.properties.suppliers).toBeDefined();
     expect(access.properties.staff).toBeDefined();
+  });
+
+  it("publishes the bounded CSV export as a tenant-scoped text/csv GET with the row/date bounds", () => {
+    const route = "/api/v1/reports/export";
+    expect(operationOf(route).security).toEqual([{ clerkSessionToken: [] }]);
+    expect(hasTenantHeader(route)).toBe(true);
+    expect(hasIdempotencyHeader(route)).toBe(false);
+
+    const get = (
+      paths[route] as { get: { parameters: unknown[]; responses: Record<string, unknown> } }
+    ).get;
+    const dataset = (
+      get.parameters as Array<{ name?: string; required?: boolean; schema?: { enum?: string[] } }>
+    ).find((parameter) => parameter.name === "dataset");
+    expect(dataset?.required).toBe(true);
+    expect(dataset?.schema?.enum).toEqual([
+      "sales-products",
+      "inventory-movements",
+      "returns",
+      "supplier-receipts",
+    ]);
+
+    const ok = get.responses["200"] as { content: Record<string, unknown> };
+    expect(Object.keys(ok.content)).toEqual(["text/csv"]);
+    // The row bound surfaces as an explicit 413, never a silent truncation.
+    expect(get.responses["413"]).toEqual({ $ref: "#/components/responses/Error413" });
   });
 
   it("keeps the health operation unchanged (no security, no tenant header)", () => {

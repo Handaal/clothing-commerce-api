@@ -244,6 +244,26 @@ export interface SuppliersReportQuery extends ReportPeriodQuery {
   cursor?: string;
 }
 import {
+  ReportExportDatasetSchema,
+  type ReportExportDataset,
+} from "../../../src/contracts/management/reporting-export";
+export { ReportExportDatasetSchema };
+export type { ReportExportDataset } from "../../../src/contracts/management/reporting-export";
+/**
+ * Bounded CSV export request. `dataset` selects the canonical dataset; `startDate`/`endDate` are the SAME
+ * inclusive tenant-local calendar dates as the JSON reports; `level` applies only to sales-products.
+ */
+export interface ReportExportQuery extends ReportPeriodQuery {
+  dataset: ReportExportDataset;
+  level?: "product" | "variant";
+}
+/** A downloaded export: the CSV body plus the metadata Admin needs to save it (no URL construction). */
+export interface ReportExportResult {
+  body: string;
+  mediaType: string;
+  filename: string;
+}
+import {
   AdjustInventoryResponseSchema,
   ApiErrorSchema,
   HealthResponseSchema,
@@ -544,6 +564,11 @@ export interface TenantCommerceClient {
   getReturnsReport(query: ReturnsReportQuery): Promise<ReturnsReportResponse>;
   getPromotionsReport(query: PromotionsReportQuery): Promise<PromotionsReportResponse>;
   getSuppliersReport(query: SuppliersReportQuery): Promise<SuppliersReportResponse>;
+  /**
+   * Downloads a bounded CSV export of one canonical dataset (reports.read). Returns the CSV body plus its
+   * media type and filename; the caller saves it directly and never constructs a URL or parses the body.
+   */
+  exportReport(query: ReportExportQuery): Promise<ReportExportResult>;
   enrollPosDevice(input: EnrollPosDeviceInput): Promise<PosDeviceResponse>;
   rotatePosDeviceCredential(input: RotatePosDeviceCredentialInput): Promise<PosDeviceResponse>;
   revokePosDevice(input: RevokePosDeviceInput): Promise<PosDeviceResponse>;
@@ -700,6 +725,48 @@ export function createCommerceClient({
     } catch (error) {
       throw new ApiContractError("Response violated the API contract", { cause: error });
     }
+  }
+
+  /**
+   * Fetches a downloadable document (e.g. a CSV export). Unlike `request`, the successful body is opaque
+   * text; the media type and download filename are read from the response headers. Errors still flow
+   * through the standard typed error envelope.
+   */
+  async function requestDocument(
+    path: string,
+    tenantId: string,
+    accept: string,
+  ): Promise<ReportExportResult> {
+    const headers: Record<string, string> = {
+      ...clientHeaders(client),
+      ...(await authHeaders()),
+      "X-Tenant-Id": tenantId,
+      Accept: accept,
+    };
+
+    let response: Response;
+    try {
+      response = await fetchImplementation(`${normalizedBaseUrl}${path}`, {
+        method: "GET",
+        headers,
+      });
+    } catch (error) {
+      throw new ApiNetworkError("Unable to reach the Commerce API", { cause: error });
+    }
+
+    if (!response.ok) {
+      throw await parseHttpError(response);
+    }
+
+    const contentType = response.headers.get("Content-Type") ?? accept;
+    const mediaType = contentType.split(";", 1)[0]!.trim();
+    const disposition = response.headers.get("Content-Disposition") ?? "";
+    const filenameMatch = /filename="?([^"]+)"?/u.exec(disposition);
+    return {
+      body: await response.text(),
+      mediaType,
+      filename: filenameMatch?.[1] ?? "",
+    };
   }
 
   function withTenant(tenantId: string): TenantCommerceClient {
@@ -1074,6 +1141,17 @@ export function createCommerceClient({
           })}`,
           SuppliersReportResponseSchema,
           { tenantId },
+        ),
+      exportReport: (query: ReportExportQuery) =>
+        requestDocument(
+          `/api/v1/reports/export${buildQuery({
+            dataset: query.dataset,
+            startDate: query.startDate,
+            endDate: query.endDate,
+            level: query.level,
+          })}`,
+          tenantId,
+          "text/csv",
         ),
       enrollPosDevice: ({ idempotencyKey, ...body }: EnrollPosDeviceInput) =>
         request("/api/v1/pos/devices", PosDeviceResponseSchema, {

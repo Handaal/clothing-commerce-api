@@ -46,6 +46,42 @@ All require a tenant-wide `reports.read` grant and the `X-Tenant-Id` header. `li
 | `GET /reports/promotions` | `startDate,endDate`                         | per-promotion, per-currency redemptionCount / discountAmount / order/gross/net / cancelledOrderCount, from immutable redemption + adjustment snapshots. No ROI                                                        |
 | `GET /reports/suppliers`  | `startDate,endDate,limit,cursor`            | per-supplier receiptCount / unitsReceived / lastReceiptAt + current name and immutable snapshot label. No spend/value                                                                                                 |
 
+## CSV export (Phase 2Q-C)
+
+`GET /api/v1/reports/export` streams a bounded CSV document for one canonical dataset. It reuses the JSON
+reports' authorization, timezone, and currency semantics exactly — there is **no** separate export
+permission, no cross-currency total, and no divergent date handling.
+
+- **Authorization:** the SAME tenant-wide `reports.read` grant + `X-Tenant-Id` header as the JSON reports.
+- **Datasets** (`dataset` query param, required):
+
+  | `dataset`             | Grain / columns                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+  | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | `sales-products`      | product- or variant-level (`level` ∈ product/variant, default variant): `productId,productName,variantId,sku,level,currency,unitsSold,grossSalesMinor,allocatedDiscountsMinor,netSalesMinor` (same definitions as the JSON products report)                                                                                                                                                                                                               |
+  | `inventory-movements` | one row per movement: `occurredAt,operationType,operationId,productId,productName,variantId,sku,inventoryLocationId,locationName,quantityDelta,notes,supplierId,supplierName`. No valuation/cost. `InventoryLocation` is not a Branch                                                                                                                                                                                                                     |
+  | `returns`             | one row per return line with its 1:1 refund: `returnId,orderId,returnCreatedAt,productId,productName,variantId,sku,currency,returnedQuantity,acceptedNetReturnAmountMinor,disposition,refundId,refundStatus,refundAmountMinor,refundSettledAt`. Returns and refunds stay distinct; the accepted amount is the immutable net-discounted per-line basis (gross is never reconstructed); refund columns are return-level and are empty when no refund exists |
+  | `supplier-receipts`   | one row per received unit line on supplier-attributed receipts: `operationId,occurredAt,supplierId,supplierName,supplierNameSnapshot,productId,productName,variantId,sku,unitsReceived,inventoryLocationId,locationName`. **No** spend/acquisition value/COGS — there is no reliable cost basis                                                                                                                                                           |
+
+- **Dates:** `startDate`/`endDate` are the same inclusive tenant-local calendar dates resolved via
+  `tenants.default_timezone`; every export echoes the resolved `period`.
+- **Bounds:** at most **366 calendar days** (`422 EXPORT_RANGE_TOO_LARGE`) and **50 000 rows**
+  (`413 EXPORT_TOO_MANY_ROWS`). Exceeding either is an explicit error — the server **never** silently
+  truncates. An unsupported `dataset` is rejected (`400`).
+- **CSV correctness:** UTF-8, RFC 4180-compatible, deterministic. Records are CRLF-separated with a
+  trailing CRLF. A field is quoted (with internal quotes doubled) exactly when it contains a comma,
+  double quote, CR, or LF. All timestamps are the canonical `…Z` UTC form; every monetary row carries its
+  own `currency`.
+- **Formula-injection mitigation:** any **string** cell whose first character is `=`, `+`, `-`, `@`, TAB,
+  or CR is prefixed with a single quote (`'`) so spreadsheets treat it as text. Numeric columns are
+  emitted verbatim and are never neutralized (a legitimate negative `quantityDelta` stays exact).
+- **Response:** `Content-Type: text/csv; charset=utf-8` and `Content-Disposition: attachment;
+filename="<dataset>_<startDate>_<endDate>.csv"`.
+- **Not supported:** PDF, XLSX, dashboard/promotion export, generic report/table builder, scheduled or
+  emailed exports, arbitrary SQL. These are deliberately out of scope for V1.
+- Migration: `supabase/migrations/20260926120000_create_reporting_exports.sql` (four
+  `reporting_private.export_*` SECURITY DEFINER RPCs in the same boundary; the row bound is enforced in
+  SQL via `RP413`).
+
 ## Attribution rules
 
 Brand: all Orders. Branch/Register/Operator: POS only (ONLINE Orders carry none; never inferred from
@@ -54,10 +90,12 @@ discounted Orders. Missing legacy attribution is handled safely, never fabricate
 
 ## SDK
 
-`@shifted/clothing-commerce-sdk@0.13.0` exposes `getReportSummary`, `getSalesReport`,
+`@shifted/clothing-commerce-sdk@0.13.1` exposes `getReportSummary`, `getSalesReport`,
 `getProductsReport`, `getInventoryReport`, `getReturnsReport`, `getPromotionsReport`,
-`getSuppliersReport` on the tenant client, with typed filters, DTOs, period metadata, and cursor types.
-`getContext().access.reports?.canRead` is UI guidance only.
+`getSuppliersReport` on the tenant client, with typed filters, DTOs, period metadata, and cursor types
+(all unchanged from 0.13.0). It adds `exportReport({ dataset, startDate, endDate, level? })`, which
+returns `{ body, mediaType, filename }` — the CSV body plus the metadata needed to save it, so Admin
+never constructs a URL or parses the payload. `getContext().access.reports?.canRead` is UI guidance only.
 
 ## Tests
 
@@ -69,4 +107,11 @@ discounted Orders. Missing legacy attribution is handled safely, never fabricate
   signal, cursor bounds, empty periods.
 - Authorization/validation: `tests/reporting/service.test.ts` (reports.read required; scoped grant is
   not tenant-wide; query validation).
-- OpenAPI drift/structure and the SDK consumer gate cover the surface.
+- Export persistence: `pnpm test:reporting:export:persistence`
+  (`supabase/tests/phase_2q_c_reporting_export_persistence.sql`, twice from an empty schema) — per-row
+  currency, net-discounted return basis with the 1:1 refund, supplier receipts without cost, tenant
+  isolation, the explicit `RP413` row bound, and invalid-bound/end-before-start rejection.
+- Export CSV + service: `tests/reporting/csv.test.ts` (RFC 4180 quoting, formula-injection neutralization,
+  determinism) and `tests/reporting/export.test.ts` (reports.read required, unsupported dataset rejected,
+  date-range bound, per-currency projection, no supplier cost columns).
+- OpenAPI drift/structure and the SDK consumer gate cover the surface (including the `text/csv` export).

@@ -272,7 +272,7 @@ describe("Commerce SDK", () => {
   });
 
   it("exposes semantic SDK version metadata", () => {
-    expect(SDK_VERSION).toBe("0.13.0");
+    expect(SDK_VERSION).toBe("0.13.1");
   });
 });
 
@@ -726,6 +726,90 @@ describe("Commerce SDK Connected POS surface", () => {
     expect(calls[2]?.url).toBe("https://api.example.test/api/v1/pos/sales");
     expect(JSON.parse(calls[2]?.init?.body as string)).toMatchObject({ promotionCode: "SAVE20" });
     expect(JSON.parse(calls[2]?.init?.body as string)).not.toHaveProperty("idempotencyKey");
+  });
+});
+
+describe("Commerce SDK reporting export surface", () => {
+  it("downloads a CSV export with its media type and filename, preserving JSON report methods", async () => {
+    const csv = "productId,level\r\n11111111-1111-4111-8111-111111111111,variant\r\n";
+    const fetchImplementation = vi.fn<typeof globalThis.fetch>(async (url) => {
+      if (String(url).includes("/reports/export")) {
+        return new Response(csv, {
+          headers: {
+            "Content-Type": "text/csv; charset=utf-8",
+            "Content-Disposition":
+              'attachment; filename="sales-products_2026-06-01_2026-06-30.csv"',
+          },
+        });
+      }
+      // A JSON report method must remain a validated JSON call, unaffected by the export addition.
+      return new Response(
+        JSON.stringify({
+          period: {
+            timezone: "UTC",
+            fromInclusive: "2026-06-01T00:00:00.000Z",
+            toExclusive: "2026-07-01T00:00:00.000Z",
+          },
+          items: [],
+          pageInfo: { hasMore: false, nextCursor: null },
+        }),
+      );
+    });
+    const client = createCommerceClient({
+      baseUrl: "https://api.example.test",
+      getToken: () => "session",
+      fetch: fetchImplementation,
+    }).withTenant(TENANT);
+
+    const result = await client.exportReport({
+      dataset: "sales-products",
+      startDate: "2026-06-01",
+      endDate: "2026-06-30",
+      level: "variant",
+    });
+    expect(result).toEqual({
+      body: csv,
+      mediaType: "text/csv",
+      filename: "sales-products_2026-06-01_2026-06-30.csv",
+    });
+    const [url, init] = fetchImplementation.mock.calls[0]!;
+    expect(url).toBe(
+      "https://api.example.test/api/v1/reports/export?dataset=sales-products&startDate=2026-06-01&endDate=2026-06-30&level=variant",
+    );
+    const headers = init!.headers as Record<string, string>;
+    expect(headers).toMatchObject({ "X-Tenant-Id": TENANT, Accept: "text/csv" });
+    expect(init!.method).toBe("GET");
+
+    // Old JSON reporting method still round-trips through validated JSON, not the document path.
+    await expect(
+      client.getSuppliersReport({ startDate: "2026-06-01", endDate: "2026-06-30" }),
+    ).resolves.toMatchObject({ items: [] });
+  });
+
+  it("surfaces the explicit row-limit 413 as a typed HTTP error", async () => {
+    const client = createCommerceClient({
+      baseUrl: "https://api.example.test",
+      getToken: () => "session",
+      fetch: async () =>
+        new Response(
+          JSON.stringify({
+            error: {
+              code: "EXPORT_TOO_MANY_ROWS",
+              message: "The export exceeds the maximum row count; narrow the date range.",
+              requestId: REQUEST_ID,
+            },
+          }),
+          { status: 413, headers: { "X-Request-Id": REQUEST_ID } },
+        ),
+    }).withTenant(TENANT);
+
+    const request = client.exportReport({
+      dataset: "inventory-movements",
+      startDate: "2026-01-01",
+      endDate: "2026-12-31",
+    });
+    await expect(request).rejects.toBeInstanceOf(ApiHttpError);
+    await expect(request).rejects.toMatchObject({ status: 413, code: "EXPORT_TOO_MANY_ROWS" });
   });
 });
 

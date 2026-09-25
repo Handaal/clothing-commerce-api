@@ -591,6 +591,49 @@ export function generateOpenApiDocument() {
         ],
         "#/components/schemas/SuppliersReportResponse",
       ),
+      "/api/v1/reports/export": {
+        get: {
+          operationId: "exportReport",
+          tags: ["reports"],
+          summary: "exportReport",
+          description:
+            "Bounded CSV export of one canonical dataset (sales-products, inventory-movements, returns, " +
+            "supplier-receipts). Same tenant-wide reports.read authorization, tenant-timezone date " +
+            "resolution, and never-combined currency semantics as the JSON reports. UTF-8, RFC 4180, " +
+            "with spreadsheet formula-injection neutralization. Bounded to at most 366 days and 50000 " +
+            "rows; exceeding the row bound returns 413 and the date bound 422 — never a silent truncation. " +
+            "No PDF/XLSX and no generic/scheduled export.",
+          security: clerkSecurity,
+          parameters: [
+            tenantHeaderParameter,
+            {
+              name: "dataset",
+              in: "query",
+              required: true,
+              description: "The canonical export dataset.",
+              schema: {
+                type: "string",
+                enum: ["sales-products", "inventory-movements", "returns", "supplier-receipts"],
+              },
+            },
+            calendarDateParameter("startDate", true),
+            calendarDateParameter("endDate", true),
+            enumQueryParameter(
+              "level",
+              ["product", "variant"],
+              "variant",
+              "Aggregation level for the sales-products dataset; ignored by other datasets.",
+            ),
+          ],
+          responses: {
+            "200": {
+              description: "The generated CSV document.",
+              content: { "text/csv": { schema: { type: "string" } } },
+            },
+            ...errorResponses(400, 401, 403, 404, 413, 422),
+          },
+        },
+      },
       "/api/v1/suppliers": {
         get: {
           operationId: "listSuppliers",
@@ -2396,6 +2439,10 @@ export function generateOpenApiDocument() {
         Error404: jsonResponse("The resource was not found.", "#/components/schemas/ApiError"),
         Error409: jsonResponse(
           "The request conflicts with current state.",
+          "#/components/schemas/ApiError",
+        ),
+        Error413: jsonResponse(
+          "The export exceeds the maximum row count.",
           "#/components/schemas/ApiError",
         ),
         Error422: jsonResponse(
