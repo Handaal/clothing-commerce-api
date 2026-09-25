@@ -316,6 +316,8 @@ export interface CreatePosSaleInput extends IdempotentWrite {
   expectedTotalMinor: number;
   cashReceivedMinor: number;
   lines: ReadonlyArray<{ variantId: string; quantity: number }>;
+  // Optional entered promotion code (trimmed, uppercased server-side); mirrors CreatePosSaleRequestSchema.
+  promotionCode?: string | null;
 }
 
 export interface EnrollPosDeviceInput extends EnrollPosDeviceRequest, IdempotentWrite {}
