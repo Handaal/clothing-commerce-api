@@ -272,7 +272,7 @@ describe("Commerce SDK", () => {
   });
 
   it("exposes semantic SDK version metadata", () => {
-    expect(SDK_VERSION).toBe("0.12.1");
+    expect(SDK_VERSION).toBe("0.12.2");
   });
 });
 
@@ -709,6 +709,23 @@ describe("Commerce SDK Connected POS surface", () => {
       "Idempotency-Key": "sale-1",
     });
     expect(JSON.parse(calls[1]?.init?.body as string)).not.toHaveProperty("idempotencyKey");
+    // An input without promotionCode omits it from the forwarded body entirely.
+    expect(JSON.parse(calls[1]?.init?.body as string)).not.toHaveProperty("promotionCode");
+
+    // A typed CreatePosSaleInput may carry an optional promotionCode, forwarded verbatim in the body.
+    await expect(
+      scoped.createPosSale({
+        idempotencyKey: "sale-2",
+        registerId: "77777777-7777-4777-8777-777777777718",
+        expectedTotalMinor: 2500,
+        cashReceivedMinor: 3000,
+        lines: [{ variantId: VARIANT, quantity: 1 }],
+        promotionCode: "SAVE20",
+      }),
+    ).resolves.toMatchObject({ saleStatus: "completed" });
+    expect(calls[2]?.url).toBe("https://api.example.test/api/v1/pos/sales");
+    expect(JSON.parse(calls[2]?.init?.body as string)).toMatchObject({ promotionCode: "SAVE20" });
+    expect(JSON.parse(calls[2]?.init?.body as string)).not.toHaveProperty("idempotencyKey");
   });
 });
 
