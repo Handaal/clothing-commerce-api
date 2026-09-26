@@ -93,6 +93,7 @@ describe("Promotion /me/context capability guidance", () => {
     );
 
     expect(result.access).toEqual({
+      settings: { canRead: false, canManage: false },
       suppliers: { canRead: false, canManage: false },
       staff: { canRead: false, canManage: false },
       promotions: { canRead: true, canManage: false },

@@ -17,7 +17,10 @@ export async function GET(request: Request, route: RouteContext) {
     contextResolver: boundary.contextResolver,
     responseSchema: BrandSchema,
     handler: async (context) =>
-      boundary.settingsService.getBrand(context, parseRequest(BrandPathSchema, await route.params).brandId),
+      boundary.settingsService.getBrand(
+        context,
+        parseRequest(BrandPathSchema, await route.params).brandId,
+      ),
   });
 }
 

@@ -375,7 +375,8 @@ export type CreateBranchInput = CreateBranchRequest & IdempotentWrite;
 export type UpdateBranchInput = UpdateBranchRequest & IdempotentWrite & { branchId: string };
 export type SetBranchBrandsInput = SetBranchBrandsRequest & IdempotentWrite & { branchId: string };
 export type CreateWarehouseInput = CreateWarehouseRequest & IdempotentWrite;
-export type UpdateWarehouseInput = UpdateWarehouseRequest & IdempotentWrite & { warehouseId: string };
+export type UpdateWarehouseInput = UpdateWarehouseRequest &
+  IdempotentWrite & { warehouseId: string };
 export type CreateInventoryLocationInput = CreateInventoryLocationRequest & IdempotentWrite;
 export type UpdateInventoryLocationInput = UpdateInventoryLocationRequest &
   IdempotentWrite & { locationId: string };
@@ -1327,7 +1328,9 @@ export function createCommerceClient({
           { tenantId },
         ),
       getBrand: (brandId: string) =>
-        request(`/api/v1/settings/brands/${encodeURIComponent(brandId)}`, BrandSchema, { tenantId }),
+        request(`/api/v1/settings/brands/${encodeURIComponent(brandId)}`, BrandSchema, {
+          tenantId,
+        }),
       createBrand: ({ idempotencyKey, ...body }: CreateBrandInput) =>
         request("/api/v1/settings/brands", BrandSchema, {
           tenantId,
@@ -1458,7 +1461,11 @@ export function createCommerceClient({
           StorefrontSettingsSchema,
           { tenantId },
         ),
-      upsertStorefrontSettings: ({ brandId, idempotencyKey, ...body }: UpsertStorefrontSettingsInput) =>
+      upsertStorefrontSettings: ({
+        brandId,
+        idempotencyKey,
+        ...body
+      }: UpsertStorefrontSettingsInput) =>
         request(
           `/api/v1/settings/storefront/${encodeURIComponent(brandId)}`,
           StorefrontSettingsSchema,

@@ -21,7 +21,10 @@ export async function GET(request: Request) {
     handler: (context) =>
       boundary.settingsService.listRegisters(
         context,
-        parseRequest(RegisterListQuerySchema, Object.fromEntries(new URL(request.url).searchParams)),
+        parseRequest(
+          RegisterListQuerySchema,
+          Object.fromEntries(new URL(request.url).searchParams),
+        ),
       ),
   });
 }

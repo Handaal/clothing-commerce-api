@@ -21,7 +21,10 @@ export async function GET(request: Request) {
     handler: (context) =>
       boundary.settingsService.listWarehouses(
         context,
-        parseRequest(WarehouseListQuerySchema, Object.fromEntries(new URL(request.url).searchParams)),
+        parseRequest(
+          WarehouseListQuerySchema,
+          Object.fromEntries(new URL(request.url).searchParams),
+        ),
       ),
   });
 }

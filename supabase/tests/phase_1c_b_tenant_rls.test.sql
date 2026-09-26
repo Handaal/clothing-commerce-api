@@ -732,8 +732,8 @@ select ok(
 -- (1 more, 'payments.capture'), Phase 2J (2 more, 'catalog.author' and 'catalog.publish'), Phase 2N
 -- (2 more, 'suppliers.read' and 'suppliers.manage'), and Phase 2O (2 more, 'staff.read' and
 -- 'staff.manage'), and Phase 2P (2 more, 'promotions.read' and 'promotions.manage'), and Phase 2Q
--- (1 more, 'reports.read'); this transaction-local fixture adds 'test.read', for the exact 24-key
--- visible catalog below.
+-- (1 more, 'reports.read'), and Phase 2R (2 more, 'settings.read' and 'settings.manage'); this
+-- transaction-local fixture adds 'test.read', for the exact 26-key visible catalog below.
 select is(
   (select array_agg(key order by key) from public.permissions),
   array[
@@ -756,13 +756,15 @@ select is(
     'reports.read',
     'returns.create',
     'returns.read',
+    'settings.manage',
+    'settings.read',
     'staff.manage',
     'staff.read',
     'suppliers.manage',
     'suppliers.read',
     'test.read'
   ]::text[],
-  'active member can read the exact Permission catalog including returns/refunds, suppliers, staff and promotions'
+  'active member can read the exact Permission catalog including returns/refunds, suppliers, staff, promotions and settings'
 );
 
 select is(

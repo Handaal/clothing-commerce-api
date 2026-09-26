@@ -1,4 +1,8 @@
-import { BrandSchema, BrandListResponseSchema, CreateBrandRequestSchema } from "../../../../../src/contracts";
+import {
+  BrandSchema,
+  BrandListResponseSchema,
+  CreateBrandRequestSchema,
+} from "../../../../../src/contracts";
 import {
   managementOptionsResponse,
   parseRequest,

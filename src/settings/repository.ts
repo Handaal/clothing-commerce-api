@@ -1,9 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
-import {
-  assertAuthorizedOperationProof,
-  type AuthorizedOperationContext,
-} from "../authorization";
+import { assertAuthorizedOperationProof, type AuthorizedOperationContext } from "../authorization";
 import {
   BusinessSettingsSchema,
   BrandSchema,
@@ -71,7 +68,11 @@ export class SettingsRepository {
     return this.client.schema("settings_private");
   }
 
-  private async rpc<T>(fn: string, args: Record<string, unknown>, schema: z.ZodType<T>): Promise<T> {
+  private async rpc<T>(
+    fn: string,
+    args: Record<string, unknown>,
+    schema: z.ZodType<T>,
+  ): Promise<T> {
     const { data, error } = await this.schema().rpc(fn, args);
     if (error) throw settingsDatabaseError(error);
     return schema.parse(data);
@@ -127,10 +128,21 @@ export class SettingsRepository {
   async getBrand(proof: AuthorizedOperationContext, id: string) {
     return this.rpc("get_brand", { p_tenant: this.tenant(proof), p_brand: id }, BrandSchema);
   }
-  async writeBrand(proof: AuthorizedOperationContext, id: string | null, key: string, input: unknown) {
+  async writeBrand(
+    proof: AuthorizedOperationContext,
+    id: string | null,
+    key: string,
+    input: unknown,
+  ) {
     return this.rpc(
       "write_brand",
-      { p_tenant: this.tenant(proof), p_brand: id, p_actor: this.actor(proof), p_key: key, p_input: input },
+      {
+        p_tenant: this.tenant(proof),
+        p_brand: id,
+        p_actor: this.actor(proof),
+        p_key: key,
+        p_input: input,
+      },
       BrandSchema,
     );
   }
@@ -149,17 +161,39 @@ export class SettingsRepository {
   async getBranch(proof: AuthorizedOperationContext, id: string) {
     return this.rpc("get_branch", { p_tenant: this.tenant(proof), p_branch: id }, BranchSchema);
   }
-  async writeBranch(proof: AuthorizedOperationContext, id: string | null, key: string, input: unknown) {
+  async writeBranch(
+    proof: AuthorizedOperationContext,
+    id: string | null,
+    key: string,
+    input: unknown,
+  ) {
     return this.rpc(
       "write_branch",
-      { p_tenant: this.tenant(proof), p_branch: id, p_actor: this.actor(proof), p_key: key, p_input: input },
+      {
+        p_tenant: this.tenant(proof),
+        p_branch: id,
+        p_actor: this.actor(proof),
+        p_key: key,
+        p_input: input,
+      },
       BranchSchema,
     );
   }
-  async setBranchBrands(proof: AuthorizedOperationContext, id: string, key: string, brandIds: string[]) {
+  async setBranchBrands(
+    proof: AuthorizedOperationContext,
+    id: string,
+    key: string,
+    brandIds: string[],
+  ) {
     return this.rpc(
       "set_branch_brands",
-      { p_tenant: this.tenant(proof), p_branch: id, p_actor: this.actor(proof), p_key: key, p_brand_ids: brandIds },
+      {
+        p_tenant: this.tenant(proof),
+        p_branch: id,
+        p_actor: this.actor(proof),
+        p_key: key,
+        p_brand_ids: brandIds,
+      },
       BranchSchema,
     );
   }
@@ -176,18 +210,36 @@ export class SettingsRepository {
     );
   }
   async getWarehouse(proof: AuthorizedOperationContext, id: string) {
-    return this.rpc("get_warehouse", { p_tenant: this.tenant(proof), p_warehouse: id }, WarehouseSchema);
+    return this.rpc(
+      "get_warehouse",
+      { p_tenant: this.tenant(proof), p_warehouse: id },
+      WarehouseSchema,
+    );
   }
-  async writeWarehouse(proof: AuthorizedOperationContext, id: string | null, key: string, input: unknown) {
+  async writeWarehouse(
+    proof: AuthorizedOperationContext,
+    id: string | null,
+    key: string,
+    input: unknown,
+  ) {
     return this.rpc(
       "write_warehouse",
-      { p_tenant: this.tenant(proof), p_warehouse: id, p_actor: this.actor(proof), p_key: key, p_input: input },
+      {
+        p_tenant: this.tenant(proof),
+        p_warehouse: id,
+        p_actor: this.actor(proof),
+        p_key: key,
+        p_input: input,
+      },
       WarehouseSchema,
     );
   }
 
   // ---- Inventory locations ----
-  async listInventoryLocations(proof: AuthorizedOperationContext, query: InventoryLocationListQuery) {
+  async listInventoryLocations(
+    proof: AuthorizedOperationContext,
+    query: InventoryLocationListQuery,
+  ) {
     return this.paginate(
       "list_inventory_locations",
       {
@@ -217,7 +269,13 @@ export class SettingsRepository {
   ) {
     return this.rpc(
       "write_inventory_location",
-      { p_tenant: this.tenant(proof), p_location: id, p_actor: this.actor(proof), p_key: key, p_input: input },
+      {
+        p_tenant: this.tenant(proof),
+        p_location: id,
+        p_actor: this.actor(proof),
+        p_key: key,
+        p_input: input,
+      },
       InventoryLocationSchema,
     );
   }
@@ -226,7 +284,11 @@ export class SettingsRepository {
   async listRegisters(proof: AuthorizedOperationContext, query: RegisterListQuery) {
     return this.paginate(
       "list_registers",
-      { p_tenant: this.tenant(proof), p_branch: query.branchId ?? null, p_status: query.status ?? null },
+      {
+        p_tenant: this.tenant(proof),
+        p_branch: query.branchId ?? null,
+        p_status: query.status ?? null,
+      },
       query,
       "settings_registers_id_asc",
       RegisterSchema,
@@ -234,12 +296,27 @@ export class SettingsRepository {
     );
   }
   async getRegister(proof: AuthorizedOperationContext, id: string) {
-    return this.rpc("get_register", { p_tenant: this.tenant(proof), p_register: id }, RegisterSchema);
+    return this.rpc(
+      "get_register",
+      { p_tenant: this.tenant(proof), p_register: id },
+      RegisterSchema,
+    );
   }
-  async writeRegister(proof: AuthorizedOperationContext, id: string | null, key: string, input: unknown) {
+  async writeRegister(
+    proof: AuthorizedOperationContext,
+    id: string | null,
+    key: string,
+    input: unknown,
+  ) {
     return this.rpc(
       "write_register",
-      { p_tenant: this.tenant(proof), p_register: id, p_actor: this.actor(proof), p_key: key, p_input: input },
+      {
+        p_tenant: this.tenant(proof),
+        p_register: id,
+        p_actor: this.actor(proof),
+        p_key: key,
+        p_input: input,
+      },
       RegisterSchema,
     );
   }
@@ -260,10 +337,21 @@ export class SettingsRepository {
       StorefrontSettingsSchema,
     );
   }
-  async upsertStorefront(proof: AuthorizedOperationContext, brandId: string, key: string, input: unknown) {
+  async upsertStorefront(
+    proof: AuthorizedOperationContext,
+    brandId: string,
+    key: string,
+    input: unknown,
+  ) {
     return this.rpc(
       "write_storefront",
-      { p_tenant: this.tenant(proof), p_brand: brandId, p_actor: this.actor(proof), p_key: key, p_input: input },
+      {
+        p_tenant: this.tenant(proof),
+        p_brand: brandId,
+        p_actor: this.actor(proof),
+        p_key: key,
+        p_input: input,
+      },
       StorefrontSettingsSchema,
     );
   }
@@ -294,10 +382,21 @@ export class SettingsRepository {
   async getDevice(proof: AuthorizedOperationContext, id: string) {
     return this.rpc("get_device", { p_tenant: this.tenant(proof), p_device: id }, DeviceSchema);
   }
-  async revokeDevice(proof: AuthorizedOperationContext, id: string, key: string, reason: string | null) {
+  async revokeDevice(
+    proof: AuthorizedOperationContext,
+    id: string,
+    key: string,
+    reason: string | null,
+  ) {
     return this.rpc(
       "revoke_device",
-      { p_tenant: this.tenant(proof), p_device: id, p_actor: this.actor(proof), p_key: key, p_reason: reason },
+      {
+        p_tenant: this.tenant(proof),
+        p_device: id,
+        p_actor: this.actor(proof),
+        p_key: key,
+        p_reason: reason,
+      },
       DeviceSchema,
     );
   }

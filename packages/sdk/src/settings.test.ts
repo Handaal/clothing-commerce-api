@@ -72,7 +72,10 @@ describe("Settings SDK", () => {
       eligibleBrandIds: [id],
     };
     const fetcher = vi.fn<typeof fetch>(async () => new Response(JSON.stringify(branch)));
-    const client = createCommerceClient({ baseUrl: "https://example.test", fetch: fetcher }).withTenant(id);
+    const client = createCommerceClient({
+      baseUrl: "https://example.test",
+      fetch: fetcher,
+    }).withTenant(id);
 
     await client.setBranchBrands({ branchId: id, brandIds: [id], idempotencyKey: "elig" });
     const [path, init] = fetcher.mock.calls[0];
@@ -86,7 +89,10 @@ describe("Settings SDK", () => {
       async () =>
         new Response(JSON.stringify({ items: [], pageInfo: { nextCursor: null, hasMore: false } })),
     );
-    const client = createCommerceClient({ baseUrl: "https://example.test", fetch: fetcher }).withTenant(id);
+    const client = createCommerceClient({
+      baseUrl: "https://example.test",
+      fetch: fetcher,
+    }).withTenant(id);
 
     await client.listInventoryLocations({ status: "active", branchId: id, limit: 5 });
     const query = new URL(String(fetcher.mock.calls[0][0])).searchParams;
@@ -116,7 +122,10 @@ describe("Settings SDK", () => {
       currentAssignment: { assignmentId: id, registerId: id, registerName: "R1", assignedAt: ts },
     };
     const fetcher = vi.fn<typeof fetch>(async () => new Response(JSON.stringify(device)));
-    const client = createCommerceClient({ baseUrl: "https://example.test", fetch: fetcher }).withTenant(id);
+    const client = createCommerceClient({
+      baseUrl: "https://example.test",
+      fetch: fetcher,
+    }).withTenant(id);
 
     await client.assignDevice({ deviceId: id, registerId: id, idempotencyKey: "assign" });
     const [path, init] = fetcher.mock.calls[0];

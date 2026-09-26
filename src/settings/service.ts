@@ -109,7 +109,10 @@ export class SettingsService {
 
   // ---- Branches ----
   async listBranches(context: AuthorizationContext, query: BranchListQuery) {
-    return this.repository.listBranches(await this.read(context), parse(BranchListQuerySchema, query));
+    return this.repository.listBranches(
+      await this.read(context),
+      parse(BranchListQuerySchema, query),
+    );
   }
   async getBranch(context: AuthorizationContext, id: string) {
     return this.repository.getBranch(await this.read(context), parse(z.uuid(), id));
@@ -132,7 +135,12 @@ export class SettingsService {
   }
   async setBranchBrands(context: AuthorizationContext, id: string, key: string, input: unknown) {
     const body = parse(SetBranchBrandsRequestSchema, input);
-    return this.repository.setBranchBrands(await this.manage(context), parse(z.uuid(), id), key, body.brandIds);
+    return this.repository.setBranchBrands(
+      await this.manage(context),
+      parse(z.uuid(), id),
+      key,
+      body.brandIds,
+    );
   }
 
   // ---- Warehouses ----
@@ -180,7 +188,12 @@ export class SettingsService {
       parse(CreateInventoryLocationRequestSchema, input),
     );
   }
-  async updateInventoryLocation(context: AuthorizationContext, id: string, key: string, input: unknown) {
+  async updateInventoryLocation(
+    context: AuthorizationContext,
+    id: string,
+    key: string,
+    input: unknown,
+  ) {
     return this.repository.writeInventoryLocation(
       await this.manage(context),
       parse(z.uuid(), id),
@@ -191,7 +204,10 @@ export class SettingsService {
 
   // ---- Registers ----
   async listRegisters(context: AuthorizationContext, query: RegisterListQuery) {
-    return this.repository.listRegisters(await this.read(context), parse(RegisterListQuerySchema, query));
+    return this.repository.listRegisters(
+      await this.read(context),
+      parse(RegisterListQuerySchema, query),
+    );
   }
   async getRegister(context: AuthorizationContext, id: string) {
     return this.repository.getRegister(await this.read(context), parse(z.uuid(), id));
@@ -220,7 +236,12 @@ export class SettingsService {
   async getStorefront(context: AuthorizationContext, brandId: string) {
     return this.repository.getStorefront(await this.read(context), parse(z.uuid(), brandId));
   }
-  async upsertStorefront(context: AuthorizationContext, brandId: string, key: string, input: unknown) {
+  async upsertStorefront(
+    context: AuthorizationContext,
+    brandId: string,
+    key: string,
+    input: unknown,
+  ) {
     return this.repository.upsertStorefront(
       await this.manage(context),
       parse(z.uuid(), brandId),
@@ -243,14 +264,22 @@ export class SettingsService {
 
   // ---- Devices ----
   async listDevices(context: AuthorizationContext, query: DeviceListQuery) {
-    return this.repository.listDevices(await this.read(context), parse(DeviceListQuerySchema, query));
+    return this.repository.listDevices(
+      await this.read(context),
+      parse(DeviceListQuerySchema, query),
+    );
   }
   async getDevice(context: AuthorizationContext, id: string) {
     return this.repository.getDevice(await this.read(context), parse(z.uuid(), id));
   }
   async revokeDevice(context: AuthorizationContext, id: string, key: string, input: unknown) {
     const body = parse(RevokeDeviceRequestSchema, input);
-    return this.repository.revokeDevice(await this.manage(context), parse(z.uuid(), id), key, body.reason ?? null);
+    return this.repository.revokeDevice(
+      await this.manage(context),
+      parse(z.uuid(), id),
+      key,
+      body.reason ?? null,
+    );
   }
   async assignDevice(context: AuthorizationContext, id: string, key: string, input: unknown) {
     const body = parse(AssignDeviceRequestSchema, input);

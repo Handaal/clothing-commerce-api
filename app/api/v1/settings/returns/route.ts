@@ -1,4 +1,7 @@
-import { ReturnSettingsSchema, UpdateReturnSettingsRequestSchema } from "../../../../../src/contracts";
+import {
+  ReturnSettingsSchema,
+  UpdateReturnSettingsRequestSchema,
+} from "../../../../../src/contracts";
 import {
   managementOptionsResponse,
   runTenantManagementRoute,
