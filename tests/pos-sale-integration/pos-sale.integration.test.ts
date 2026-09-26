@@ -163,6 +163,17 @@ describe.sequential("Connected POS Sale V1 real HTTP boundary", () => {
     const response = await getContext("pos-full");
     expect(response.status).toBe(200);
     expect(await json(response)).toEqual({
+      // Phase 2R enriched /pos/context with server-owned receipt identity: a top-level
+      // business.tenant block and a per-register branch identity. These are additive; every
+      // pre-existing register field below is unchanged. The seed leaves the new identity
+      // columns unset, so they resolve to null.
+      business: {
+        tenant: {
+          displayName: "POS Test",
+          legalName: null,
+          taxIdentifier: null,
+        },
+      },
       registers: [
         {
           registerId: REGISTER,
@@ -173,11 +184,34 @@ describe.sequential("Connected POS Sale V1 real HTTP boundary", () => {
           defaultInventoryLocationName: "Selling Floor",
           sellingCurrency: "USD",
           canSell: true,
+          branch: {
+            displayName: "Main Branch",
+            addressLine1: null,
+            addressLine2: null,
+            city: null,
+            region: null,
+            postalCode: null,
+            countryCode: null,
+            contactEmail: null,
+            contactPhone: null,
+            receiptFooter: null,
+          },
         },
       ],
     });
+    // Business identity is server-owned and returned regardless of register eligibility;
+    // only the register list narrows to empty for an operator who cannot sell.
     const denied = await getContext("pos-no-payment");
-    expect(await json(denied)).toEqual({ registers: [] });
+    expect(await json(denied)).toEqual({
+      business: {
+        tenant: {
+          displayName: "POS Test",
+          legalName: null,
+          taxIdentifier: null,
+        },
+      },
+      registers: [],
+    });
   });
 
   it("atomically creates order, cash payment, full fulfillment, and stock issue", async () => {
