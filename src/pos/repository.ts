@@ -1,5 +1,6 @@
 import type { PosSaleExecutionProof } from "./execution-proof";
 import type {
+  PosBusinessIdentity,
   PosRegisterContext,
   PosSaleIntent,
   PosSaleReplayTarget,
@@ -43,6 +44,7 @@ export interface PosSaleRepository {
     intent: PosSaleIntent,
   ): Promise<PosSaleReplayTarget>;
   listRegisterContexts(tenantId: string): Promise<readonly PosRegisterContext[]>;
+  getBusinessIdentity(tenantId: string): Promise<PosBusinessIdentity>;
   getRegisterContext(tenantId: string, registerId: string): Promise<PosRegisterContext | null>;
   recordSale(proof: PosSaleExecutionProof, command: RecordPosSaleCommand): Promise<string>;
   getSale(

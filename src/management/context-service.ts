@@ -1,3 +1,4 @@
+import { settingsCapabilities } from "../settings/service";
 import { supplierCapabilities } from "../suppliers/service";
 import { staffCapabilities } from "../staff/service";
 import { promotionCapabilities } from "../promotions/service";
@@ -125,6 +126,7 @@ export class ManagementContextService {
       tenant: { id: tenant.id, name: tenant.name, status: tenant.status },
       membership: { id: context.membership.id },
       access: {
+        settings: settingsCapabilities(context),
         suppliers: supplierCapabilities(context),
         staff: staffCapabilities(context),
         promotions: promotionCapabilities(context),

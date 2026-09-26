@@ -8,6 +8,7 @@ import { assertPosSaleExecutionProof, type PosSaleExecutionProof } from "./execu
 import { PosSaleError } from "./errors";
 import type {
   PaymentResult,
+  PosBusinessIdentity,
   PosRegisterContext,
   PosSaleIntent,
   PosSaleReplayTarget,
@@ -55,6 +56,21 @@ const BranchSchema = z.object({
   id: z.string().uuid(),
   display_name: z.string(),
   status: z.enum(["active", "inactive", "archived"]),
+  address_line_1: z.string().nullable(),
+  address_line_2: z.string().nullable(),
+  city: z.string().nullable(),
+  region: z.string().nullable(),
+  postal_code: z.string().nullable(),
+  country_code: z.string().nullable(),
+  contact_email: z.string().nullable(),
+  contact_phone: z.string().nullable(),
+  receipt_footer: z.string().nullable(),
+});
+
+const BusinessIdentitySchema = z.object({
+  display_name: z.string(),
+  legal_name: z.string().nullable(),
+  tax_identifier: z.string().nullable(),
 });
 
 const LocationSchema = z.object({
@@ -219,6 +235,21 @@ export class SupabasePosSaleRepository implements PosSaleRepository {
     return this.hydrateRegisters(tenantId, registers);
   }
 
+  async getBusinessIdentity(tenantId: string): Promise<PosBusinessIdentity> {
+    const { data, error } = await this.client
+      .from("tenants")
+      .select("display_name,legal_name,tax_identifier")
+      .eq("id", tenantId)
+      .maybeSingle();
+    if (error) throw mapError(error);
+    const row = BusinessIdentitySchema.parse(data);
+    return {
+      displayName: row.display_name,
+      legalName: row.legal_name,
+      taxIdentifier: row.tax_identifier,
+    };
+  }
+
   async getRegisterContext(
     tenantId: string,
     registerId: string,
@@ -359,7 +390,9 @@ export class SupabasePosSaleRepository implements PosSaleRepository {
       await Promise.all([
         this.client
           .from("branches")
-          .select("id,display_name,status")
+          .select(
+            "id,display_name,status,address_line_1,address_line_2,city,region,postal_code,country_code,contact_email,contact_phone,receipt_footer",
+          )
           .eq("tenant_id", tenantId)
           .in("id", branchIds),
         this.client
@@ -400,6 +433,18 @@ export class SupabasePosSaleRepository implements PosSaleRepository {
         inventoryLocationStatus: foundLocation.status,
         fulfillmentEnabled: foundLocation.is_fulfillment_enabled,
         sellingCurrency: register.selling_currency,
+        branch: {
+          displayName: foundBranch.display_name,
+          addressLine1: foundBranch.address_line_1,
+          addressLine2: foundBranch.address_line_2,
+          city: foundBranch.city,
+          region: foundBranch.region,
+          postalCode: foundBranch.postal_code,
+          countryCode: foundBranch.country_code,
+          contactEmail: foundBranch.contact_email,
+          contactPhone: foundBranch.contact_phone,
+          receiptFooter: foundBranch.receipt_footer,
+        },
       };
     });
   }

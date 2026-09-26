@@ -11,6 +11,27 @@ import { PricingBreakdownSchema, PromotionCodeInputSchema } from "./common/promo
 const UuidSchema = z.string().uuid();
 const Base64Schema = z.string().regex(/^[A-Za-z0-9+/]+={0,2}$/);
 
+/** Server-owned branch identity for receipt rendering. Not a receipt template. */
+export const PosBranchIdentitySchema = z.object({
+  displayName: z.string().min(1),
+  addressLine1: z.string().nullable(),
+  addressLine2: z.string().nullable(),
+  city: z.string().nullable(),
+  region: z.string().nullable(),
+  postalCode: z.string().nullable(),
+  countryCode: z.string().nullable(),
+  contactEmail: z.string().nullable(),
+  contactPhone: z.string().nullable(),
+  receiptFooter: z.string().nullable(),
+});
+
+/** Server-owned tenant business identity for receipt rendering. */
+export const PosBusinessIdentitySchema = z.object({
+  displayName: z.string().min(1),
+  legalName: z.string().nullable(),
+  taxIdentifier: z.string().nullable(),
+});
+
 export const PosContextRegisterSchema = z.object({
   registerId: UuidSchema,
   registerName: z.string().min(1),
@@ -20,9 +41,11 @@ export const PosContextRegisterSchema = z.object({
   defaultInventoryLocationName: z.string().min(1),
   sellingCurrency: CurrencySchema,
   canSell: z.literal(true),
+  branch: PosBranchIdentitySchema,
 });
 
 export const PosContextResponseSchema = z.object({
+  business: z.object({ tenant: PosBusinessIdentitySchema }),
   registers: z.array(PosContextRegisterSchema),
 });
 

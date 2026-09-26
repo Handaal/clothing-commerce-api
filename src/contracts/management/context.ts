@@ -115,6 +115,7 @@ export const MeContextResponseSchema = z.object({
   }),
   membership: z.object({ id: UuidSchema }),
   access: z.object({
+    settings: ManagementCapabilitySchema.optional(),
     suppliers: ManagementCapabilitySchema.optional(),
     staff: ManagementCapabilitySchema.optional(),
     promotions: ManagementCapabilitySchema.optional(),
