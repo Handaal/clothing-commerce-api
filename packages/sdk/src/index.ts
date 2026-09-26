@@ -263,6 +263,129 @@ export interface ReportExportResult {
   mediaType: string;
   filename: string;
 }
+// ---- Phase 2R operational settings (tenant-wide, settings.read / settings.manage) ----
+import {
+  BusinessSettingsSchema,
+  BrandSchema,
+  BrandListResponseSchema,
+  BranchSchema,
+  BranchListResponseSchema,
+  WarehouseSchema,
+  WarehouseListResponseSchema,
+  InventoryLocationSchema,
+  InventoryLocationListResponseSchema,
+  RegisterSchema,
+  RegisterListResponseSchema,
+  StorefrontSettingsSchema,
+  StorefrontSettingsListResponseSchema,
+  ReturnSettingsSchema,
+  DeviceSchema,
+  DeviceListResponseSchema,
+  type BusinessSettings,
+  type Brand,
+  type BrandListResponse,
+  type Branch,
+  type BranchListResponse,
+  type Warehouse,
+  type WarehouseListResponse,
+  type InventoryLocation,
+  type InventoryLocationListResponse,
+  type Register,
+  type RegisterListResponse,
+  type StorefrontSettings,
+  type StorefrontSettingsListResponse,
+  type ReturnSettings,
+  type Device,
+  type DeviceListResponse,
+  type LifecycleStatus,
+  type CreateBrandRequest,
+  type UpdateBrandRequest,
+  type CreateBranchRequest,
+  type UpdateBranchRequest,
+  type SetBranchBrandsRequest,
+  type CreateWarehouseRequest,
+  type UpdateWarehouseRequest,
+  type CreateInventoryLocationRequest,
+  type UpdateInventoryLocationRequest,
+  type CreateRegisterRequest,
+  type UpdateRegisterRequest,
+  type UpsertStorefrontSettingsRequest,
+  type UpdateBusinessRequest,
+  type UpdateReturnSettingsRequest,
+  type RevokeDeviceRequest,
+  type AssignDeviceRequest,
+} from "../../../src/contracts/management/settings";
+export type {
+  BusinessSettings,
+  UpdateBusinessRequest,
+  Brand,
+  CreateBrandRequest,
+  UpdateBrandRequest,
+  BrandListResponse,
+  Branch,
+  CreateBranchRequest,
+  UpdateBranchRequest,
+  SetBranchBrandsRequest,
+  BranchListResponse,
+  Warehouse,
+  CreateWarehouseRequest,
+  UpdateWarehouseRequest,
+  WarehouseListResponse,
+  InventoryLocation,
+  CreateInventoryLocationRequest,
+  UpdateInventoryLocationRequest,
+  InventoryLocationListResponse,
+  Register,
+  CreateRegisterRequest,
+  UpdateRegisterRequest,
+  RegisterListResponse,
+  StorefrontSettings,
+  UpsertStorefrontSettingsRequest,
+  StorefrontSettingsListResponse,
+  ReturnSettings,
+  UpdateReturnSettingsRequest,
+  Device,
+  DeviceListResponse,
+  RevokeDeviceRequest,
+  AssignDeviceRequest,
+  LifecycleStatus,
+} from "../../../src/contracts/management/settings";
+
+export interface LifecycleListQuery {
+  status?: LifecycleStatus;
+  limit?: number;
+  cursor?: string;
+}
+export interface RegisterListQuery extends LifecycleListQuery {
+  branchId?: string;
+}
+export interface InventoryLocationListQuery extends LifecycleListQuery {
+  branchId?: string;
+  warehouseId?: string;
+}
+export interface DeviceListQuery {
+  status?: "enrolled" | "active" | "revoked";
+  limit?: number;
+  cursor?: string;
+}
+export type UpdateBusinessInput = UpdateBusinessRequest & IdempotentWrite;
+export type CreateBrandInput = CreateBrandRequest & IdempotentWrite;
+export type UpdateBrandInput = UpdateBrandRequest & IdempotentWrite & { brandId: string };
+export type CreateBranchInput = CreateBranchRequest & IdempotentWrite;
+export type UpdateBranchInput = UpdateBranchRequest & IdempotentWrite & { branchId: string };
+export type SetBranchBrandsInput = SetBranchBrandsRequest & IdempotentWrite & { branchId: string };
+export type CreateWarehouseInput = CreateWarehouseRequest & IdempotentWrite;
+export type UpdateWarehouseInput = UpdateWarehouseRequest & IdempotentWrite & { warehouseId: string };
+export type CreateInventoryLocationInput = CreateInventoryLocationRequest & IdempotentWrite;
+export type UpdateInventoryLocationInput = UpdateInventoryLocationRequest &
+  IdempotentWrite & { locationId: string };
+export type CreateRegisterInput = CreateRegisterRequest & IdempotentWrite;
+export type UpdateRegisterInput = UpdateRegisterRequest & IdempotentWrite & { registerId: string };
+export type UpsertStorefrontSettingsInput = UpsertStorefrontSettingsRequest &
+  IdempotentWrite & { brandId: string };
+export type UpdateReturnSettingsInput = UpdateReturnSettingsRequest & IdempotentWrite;
+export type RevokeDeviceInput = RevokeDeviceRequest & IdempotentWrite & { deviceId: string };
+export type AssignDeviceInput = AssignDeviceRequest & IdempotentWrite & { deviceId: string };
 import {
   AdjustInventoryResponseSchema,
   ApiErrorSchema,
@@ -569,6 +692,41 @@ export interface TenantCommerceClient {
    * media type and filename; the caller saves it directly and never constructs a URL or parses the body.
    */
   exportReport(query: ReportExportQuery): Promise<ReportExportResult>;
+  /** Operational settings (tenant-wide; reads require settings.read, writes settings.manage). */
+  getBusinessSettings(): Promise<BusinessSettings>;
+  updateBusinessSettings(input: UpdateBusinessInput): Promise<BusinessSettings>;
+  listBrands(query?: LifecycleListQuery): Promise<BrandListResponse>;
+  getBrand(brandId: string): Promise<Brand>;
+  createBrand(input: CreateBrandInput): Promise<Brand>;
+  updateBrand(input: UpdateBrandInput): Promise<Brand>;
+  listBranches(query?: LifecycleListQuery): Promise<BranchListResponse>;
+  getBranch(branchId: string): Promise<Branch>;
+  createBranch(input: CreateBranchInput): Promise<Branch>;
+  updateBranch(input: UpdateBranchInput): Promise<Branch>;
+  setBranchBrands(input: SetBranchBrandsInput): Promise<Branch>;
+  listWarehouses(query?: LifecycleListQuery): Promise<WarehouseListResponse>;
+  getWarehouse(warehouseId: string): Promise<Warehouse>;
+  createWarehouse(input: CreateWarehouseInput): Promise<Warehouse>;
+  updateWarehouse(input: UpdateWarehouseInput): Promise<Warehouse>;
+  listInventoryLocations(
+    query?: InventoryLocationListQuery,
+  ): Promise<InventoryLocationListResponse>;
+  getInventoryLocation(locationId: string): Promise<InventoryLocation>;
+  createInventoryLocation(input: CreateInventoryLocationInput): Promise<InventoryLocation>;
+  updateInventoryLocation(input: UpdateInventoryLocationInput): Promise<InventoryLocation>;
+  listRegisters(query?: RegisterListQuery): Promise<RegisterListResponse>;
+  getRegister(registerId: string): Promise<Register>;
+  createRegister(input: CreateRegisterInput): Promise<Register>;
+  updateRegister(input: UpdateRegisterInput): Promise<Register>;
+  listStorefrontSettings(): Promise<StorefrontSettingsListResponse>;
+  getStorefrontSettings(brandId: string): Promise<StorefrontSettings>;
+  upsertStorefrontSettings(input: UpsertStorefrontSettingsInput): Promise<StorefrontSettings>;
+  getReturnSettings(): Promise<ReturnSettings>;
+  updateReturnSettings(input: UpdateReturnSettingsInput): Promise<ReturnSettings>;
+  listDevices(query?: DeviceListQuery): Promise<DeviceListResponse>;
+  getDevice(deviceId: string): Promise<Device>;
+  revokeDevice(input: RevokeDeviceInput): Promise<Device>;
+  assignDevice(input: AssignDeviceInput): Promise<Device>;
   enrollPosDevice(input: EnrollPosDeviceInput): Promise<PosDeviceResponse>;
   rotatePosDeviceCredential(input: RotatePosDeviceCredentialInput): Promise<PosDeviceResponse>;
   revokePosDevice(input: RevokePosDeviceInput): Promise<PosDeviceResponse>;
@@ -1152,6 +1310,191 @@ export function createCommerceClient({
           })}`,
           tenantId,
           "text/csv",
+        ),
+      getBusinessSettings: () =>
+        request("/api/v1/settings/business", BusinessSettingsSchema, { tenantId }),
+      updateBusinessSettings: ({ idempotencyKey, ...body }: UpdateBusinessInput) =>
+        request("/api/v1/settings/business", BusinessSettingsSchema, {
+          tenantId,
+          method: "PATCH",
+          body,
+          idempotencyKey,
+        }),
+      listBrands: (query: LifecycleListQuery = {}) =>
+        request(
+          `/api/v1/settings/brands${buildQuery({ status: query.status, limit: query.limit, cursor: query.cursor })}`,
+          BrandListResponseSchema,
+          { tenantId },
+        ),
+      getBrand: (brandId: string) =>
+        request(`/api/v1/settings/brands/${encodeURIComponent(brandId)}`, BrandSchema, { tenantId }),
+      createBrand: ({ idempotencyKey, ...body }: CreateBrandInput) =>
+        request("/api/v1/settings/brands", BrandSchema, {
+          tenantId,
+          method: "POST",
+          body,
+          idempotencyKey,
+        }),
+      updateBrand: ({ brandId, idempotencyKey, ...body }: UpdateBrandInput) =>
+        request(`/api/v1/settings/brands/${encodeURIComponent(brandId)}`, BrandSchema, {
+          tenantId,
+          method: "PATCH",
+          body,
+          idempotencyKey,
+        }),
+      listBranches: (query: LifecycleListQuery = {}) =>
+        request(
+          `/api/v1/settings/branches${buildQuery({ status: query.status, limit: query.limit, cursor: query.cursor })}`,
+          BranchListResponseSchema,
+          { tenantId },
+        ),
+      getBranch: (branchId: string) =>
+        request(`/api/v1/settings/branches/${encodeURIComponent(branchId)}`, BranchSchema, {
+          tenantId,
+        }),
+      createBranch: ({ idempotencyKey, ...body }: CreateBranchInput) =>
+        request("/api/v1/settings/branches", BranchSchema, {
+          tenantId,
+          method: "POST",
+          body,
+          idempotencyKey,
+        }),
+      updateBranch: ({ branchId, idempotencyKey, ...body }: UpdateBranchInput) =>
+        request(`/api/v1/settings/branches/${encodeURIComponent(branchId)}`, BranchSchema, {
+          tenantId,
+          method: "PATCH",
+          body,
+          idempotencyKey,
+        }),
+      setBranchBrands: ({ branchId, idempotencyKey, ...body }: SetBranchBrandsInput) =>
+        request(`/api/v1/settings/branches/${encodeURIComponent(branchId)}/brands`, BranchSchema, {
+          tenantId,
+          method: "PUT",
+          body,
+          idempotencyKey,
+        }),
+      listWarehouses: (query: LifecycleListQuery = {}) =>
+        request(
+          `/api/v1/settings/warehouses${buildQuery({ status: query.status, limit: query.limit, cursor: query.cursor })}`,
+          WarehouseListResponseSchema,
+          { tenantId },
+        ),
+      getWarehouse: (warehouseId: string) =>
+        request(`/api/v1/settings/warehouses/${encodeURIComponent(warehouseId)}`, WarehouseSchema, {
+          tenantId,
+        }),
+      createWarehouse: ({ idempotencyKey, ...body }: CreateWarehouseInput) =>
+        request("/api/v1/settings/warehouses", WarehouseSchema, {
+          tenantId,
+          method: "POST",
+          body,
+          idempotencyKey,
+        }),
+      updateWarehouse: ({ warehouseId, idempotencyKey, ...body }: UpdateWarehouseInput) =>
+        request(`/api/v1/settings/warehouses/${encodeURIComponent(warehouseId)}`, WarehouseSchema, {
+          tenantId,
+          method: "PATCH",
+          body,
+          idempotencyKey,
+        }),
+      listInventoryLocations: (query: InventoryLocationListQuery = {}) =>
+        request(
+          `/api/v1/settings/inventory-locations${buildQuery({ status: query.status, branchId: query.branchId, warehouseId: query.warehouseId, limit: query.limit, cursor: query.cursor })}`,
+          InventoryLocationListResponseSchema,
+          { tenantId },
+        ),
+      getInventoryLocation: (locationId: string) =>
+        request(
+          `/api/v1/settings/inventory-locations/${encodeURIComponent(locationId)}`,
+          InventoryLocationSchema,
+          { tenantId },
+        ),
+      createInventoryLocation: ({ idempotencyKey, ...body }: CreateInventoryLocationInput) =>
+        request("/api/v1/settings/inventory-locations", InventoryLocationSchema, {
+          tenantId,
+          method: "POST",
+          body,
+          idempotencyKey,
+        }),
+      updateInventoryLocation: ({
+        locationId,
+        idempotencyKey,
+        ...body
+      }: UpdateInventoryLocationInput) =>
+        request(
+          `/api/v1/settings/inventory-locations/${encodeURIComponent(locationId)}`,
+          InventoryLocationSchema,
+          { tenantId, method: "PATCH", body, idempotencyKey },
+        ),
+      listRegisters: (query: RegisterListQuery = {}) =>
+        request(
+          `/api/v1/settings/registers${buildQuery({ status: query.status, branchId: query.branchId, limit: query.limit, cursor: query.cursor })}`,
+          RegisterListResponseSchema,
+          { tenantId },
+        ),
+      getRegister: (registerId: string) =>
+        request(`/api/v1/settings/registers/${encodeURIComponent(registerId)}`, RegisterSchema, {
+          tenantId,
+        }),
+      createRegister: ({ idempotencyKey, ...body }: CreateRegisterInput) =>
+        request("/api/v1/settings/registers", RegisterSchema, {
+          tenantId,
+          method: "POST",
+          body,
+          idempotencyKey,
+        }),
+      updateRegister: ({ registerId, idempotencyKey, ...body }: UpdateRegisterInput) =>
+        request(`/api/v1/settings/registers/${encodeURIComponent(registerId)}`, RegisterSchema, {
+          tenantId,
+          method: "PATCH",
+          body,
+          idempotencyKey,
+        }),
+      listStorefrontSettings: () =>
+        request("/api/v1/settings/storefront", StorefrontSettingsListResponseSchema, { tenantId }),
+      getStorefrontSettings: (brandId: string) =>
+        request(
+          `/api/v1/settings/storefront/${encodeURIComponent(brandId)}`,
+          StorefrontSettingsSchema,
+          { tenantId },
+        ),
+      upsertStorefrontSettings: ({ brandId, idempotencyKey, ...body }: UpsertStorefrontSettingsInput) =>
+        request(
+          `/api/v1/settings/storefront/${encodeURIComponent(brandId)}`,
+          StorefrontSettingsSchema,
+          { tenantId, method: "PUT", body, idempotencyKey },
+        ),
+      getReturnSettings: () =>
+        request("/api/v1/settings/returns", ReturnSettingsSchema, { tenantId }),
+      updateReturnSettings: ({ idempotencyKey, ...body }: UpdateReturnSettingsInput) =>
+        request("/api/v1/settings/returns", ReturnSettingsSchema, {
+          tenantId,
+          method: "PUT",
+          body,
+          idempotencyKey,
+        }),
+      listDevices: (query: DeviceListQuery = {}) =>
+        request(
+          `/api/v1/settings/devices${buildQuery({ status: query.status, limit: query.limit, cursor: query.cursor })}`,
+          DeviceListResponseSchema,
+          { tenantId },
+        ),
+      getDevice: (deviceId: string) =>
+        request(`/api/v1/settings/devices/${encodeURIComponent(deviceId)}`, DeviceSchema, {
+          tenantId,
+        }),
+      revokeDevice: ({ deviceId, idempotencyKey, ...body }: RevokeDeviceInput) =>
+        request(`/api/v1/settings/devices/${encodeURIComponent(deviceId)}/revoke`, DeviceSchema, {
+          tenantId,
+          method: "POST",
+          body,
+          idempotencyKey,
+        }),
+      assignDevice: ({ deviceId, idempotencyKey, ...body }: AssignDeviceInput) =>
+        request(
+          `/api/v1/settings/devices/${encodeURIComponent(deviceId)}/assignment`,
+          DeviceSchema,
+          { tenantId, method: "PUT", body, idempotencyKey },
         ),
       enrollPosDevice: ({ idempotencyKey, ...body }: EnrollPosDeviceInput) =>
         request("/api/v1/pos/devices", PosDeviceResponseSchema, {
