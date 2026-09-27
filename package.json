@@ -58,6 +58,7 @@
     "test:promotions:persistence": "node scripts/test-promotions-persistence.mjs",
     "test:promotions:concurrency": "node scripts/test-promotions-concurrency.mjs",
     "test:reporting:persistence": "node scripts/test-reporting-persistence.mjs",
+    "test:settings:persistence": "node scripts/test-settings-persistence.mjs",
     "test:reporting:export:persistence": "node scripts/test-reporting-export-persistence.mjs",
     "test:orders:rls": "node scripts/test-orders-rls.mjs",
     "test:pos:sale:integration": "node scripts/test-pos-sale-integration.mjs",

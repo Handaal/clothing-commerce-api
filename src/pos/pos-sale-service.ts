@@ -57,9 +57,12 @@ export class PosSaleService {
         defaultInventoryLocationName: candidate.inventoryLocationName,
         sellingCurrency: candidate.sellingCurrency,
         canSell: true,
+        branch: candidate.branch,
       });
     }
-    return { registers };
+    // Server-owned business identity for receipt rendering (never a receipt template).
+    const tenant = await this.repository.getBusinessIdentity(context.tenant.id);
+    return { business: { tenant }, registers };
   }
 
   async createSale(

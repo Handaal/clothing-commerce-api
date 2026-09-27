@@ -91,8 +91,10 @@ select is(
 -- Exact internal allowlist: Fulfillment reads Order and lines, Payment reads Order total/currency,
 -- connected POS reads the committed net Order total and created lines, offline POS reads created
 -- lines, online composition reads orders and lines, Returns reads both for return validation,
--- Promotions reads both to redeem against committed order facts, and Reporting reads both for the
--- read-only operational reports (reporting_reader, SELECT-only, no WITH CHECK).
+-- Promotions reads both to redeem against committed order facts, Reporting reads both for the
+-- read-only operational reports (reporting_reader, SELECT-only, no WITH CHECK), and Settings reads
+-- orders ONLY (never order_lines) to test currency locks against first-order existence per tenant /
+-- register / online brand (settings_writer, SELECT-only, no WITH CHECK).
 select is(
   (
     select array_agg(
@@ -126,7 +128,8 @@ select is(
     'orders|pos_sales_writer_order_read|PERMISSIVE|pos_sales_writer|SELECT|true|',
     'orders|promotions_writer_read|PERMISSIVE|promotions_writer|SELECT|true|',
     'orders|reporting_reader_read|PERMISSIVE|reporting_reader|SELECT|true|',
-    'orders|returns_writer_read|PERMISSIVE|returns_writer|SELECT|true|'
+    'orders|returns_writer_read|PERMISSIVE|returns_writer|SELECT|true|',
+    'orders|settings_writer_read|PERMISSIVE|settings_writer|SELECT|true|'
   ]::text[],
   'the only order-table policies are the sanctioned internal SELECT-only reads'
 );

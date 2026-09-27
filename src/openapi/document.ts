@@ -105,6 +105,40 @@ import {
   PublicProductListResponseSchema,
   PublicProductDetailResponseSchema,
 } from "../contracts";
+import {
+  BusinessSettingsSchema,
+  UpdateBusinessRequestSchema,
+  BrandSchema,
+  CreateBrandRequestSchema,
+  UpdateBrandRequestSchema,
+  BrandListResponseSchema,
+  BranchSchema,
+  CreateBranchRequestSchema,
+  UpdateBranchRequestSchema,
+  SetBranchBrandsRequestSchema,
+  BranchListResponseSchema,
+  WarehouseSchema,
+  CreateWarehouseRequestSchema,
+  UpdateWarehouseRequestSchema,
+  WarehouseListResponseSchema,
+  InventoryLocationSchema,
+  CreateInventoryLocationRequestSchema,
+  UpdateInventoryLocationRequestSchema,
+  InventoryLocationListResponseSchema,
+  RegisterSchema,
+  CreateRegisterRequestSchema,
+  UpdateRegisterRequestSchema,
+  RegisterListResponseSchema,
+  StorefrontSettingsSchema,
+  UpsertStorefrontSettingsRequestSchema,
+  StorefrontSettingsListResponseSchema,
+  ReturnSettingsSchema,
+  UpdateReturnSettingsRequestSchema,
+  DeviceSchema,
+  DeviceListResponseSchema,
+  RevokeDeviceRequestSchema,
+  AssignDeviceRequestSchema,
+} from "../contracts/management/settings";
 
 function jsonSchema(schema: z.ZodTypeAny) {
   return z.toJSONSchema(schema, { target: "draft-7" });
@@ -231,6 +265,58 @@ function jsonRequestBody(description: string, schemaRef: string) {
   };
 }
 
+function settingsPathParameter(name: string) {
+  return { name, in: "path", required: true, schema: { type: "string", format: "uuid" } };
+}
+
+function lifecycleStatusParameter() {
+  return enumQueryParameter(
+    "status",
+    ["active", "inactive", "archived"],
+    undefined,
+    "Filter by lifecycle status.",
+  );
+}
+
+/** A settings read operation (requires a tenant-wide settings.read grant). */
+function settingsRead(operationId: string, schemaRef: string, parameters: unknown[] = []) {
+  return {
+    operationId,
+    tags: ["settings"],
+    summary: operationId,
+    description: "Requires a tenant-wide settings.read grant.",
+    security: clerkSecurity,
+    parameters: [tenantHeaderParameter, ...parameters],
+    responses: {
+      "200": jsonResponse("Success", schemaRef),
+      ...errorResponses(400, 401, 403, 404, 422, 500),
+    },
+  };
+}
+
+/** A settings mutation (requires a tenant-wide settings.manage grant and an Idempotency-Key). */
+function settingsWrite(
+  operationId: string,
+  responseRef: string,
+  requestRef: string,
+  parameters: unknown[] = [],
+  description = "Requires a tenant-wide settings.manage grant and Idempotency-Key. Exact replay returns the original response; changed intent conflicts.",
+) {
+  return {
+    operationId,
+    tags: ["settings"],
+    summary: operationId,
+    description,
+    security: clerkSecurity,
+    parameters: [tenantHeaderParameter, idempotencyKeyHeaderParameter, ...parameters],
+    requestBody: jsonRequestBody("Settings mutation payload", requestRef),
+    responses: {
+      "200": jsonResponse("Success", responseRef),
+      ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+    },
+  };
+}
+
 export function generateOpenApiDocument() {
   return {
     openapi: "3.1.0",
@@ -281,8 +367,227 @@ export function generateOpenApiDocument() {
           "by currency and never combined; sales KPIs cover placed Orders and are not rewritten by " +
           "later cancellations/returns.",
       },
+      {
+        name: "settings",
+        description:
+          "Tenant-wide operational settings (settings.read / settings.manage): business profile, " +
+          "brands, branches, warehouses, inventory locations, registers, storefront checkout, return " +
+          "policy, and device governance. Codes/parents are immutable after creation; currencies lock " +
+          "once commercial history exists; deletion is lifecycle-only.",
+      },
     ],
     paths: {
+      "/api/v1/settings/business": {
+        get: settingsRead("getBusinessSettings", "#/components/schemas/BusinessSettings"),
+        patch: settingsWrite(
+          "updateBusinessSettings",
+          "#/components/schemas/BusinessSettings",
+          "#/components/schemas/UpdateBusinessRequest",
+          [],
+          "Requires settings.manage and Idempotency-Key. slug/status are read-only; defaultCurrency is rejected once the tenant has any order (same value is a no-op).",
+        ),
+      },
+      "/api/v1/settings/brands": {
+        get: settingsRead("listBrands", "#/components/schemas/BrandListResponse", [
+          lifecycleStatusParameter(),
+          limitParameter(),
+          cursorParameter(),
+        ]),
+        post: settingsWrite(
+          "createBrand",
+          "#/components/schemas/Brand",
+          "#/components/schemas/CreateBrandRequest",
+        ),
+      },
+      "/api/v1/settings/brands/{brandId}": {
+        get: settingsRead("getBrand", "#/components/schemas/Brand", [
+          settingsPathParameter("brandId"),
+        ]),
+        patch: settingsWrite(
+          "updateBrand",
+          "#/components/schemas/Brand",
+          "#/components/schemas/UpdateBrandRequest",
+          [settingsPathParameter("brandId")],
+          "Requires settings.manage and Idempotency-Key. code is immutable; status active/inactive/archived drives lifecycle. No DELETE exists.",
+        ),
+      },
+      "/api/v1/settings/branches": {
+        get: settingsRead("listBranches", "#/components/schemas/BranchListResponse", [
+          lifecycleStatusParameter(),
+          limitParameter(),
+          cursorParameter(),
+        ]),
+        post: settingsWrite(
+          "createBranch",
+          "#/components/schemas/Branch",
+          "#/components/schemas/CreateBranchRequest",
+        ),
+      },
+      "/api/v1/settings/branches/{branchId}": {
+        get: settingsRead("getBranch", "#/components/schemas/Branch", [
+          settingsPathParameter("branchId"),
+        ]),
+        patch: settingsWrite(
+          "updateBranch",
+          "#/components/schemas/Branch",
+          "#/components/schemas/UpdateBranchRequest",
+          [settingsPathParameter("branchId")],
+          "Requires settings.manage and Idempotency-Key. code is immutable; defaultInventoryLocationId must belong to this branch. No DELETE exists.",
+        ),
+      },
+      "/api/v1/settings/branches/{branchId}/brands": {
+        put: settingsWrite(
+          "setBranchBrands",
+          "#/components/schemas/Branch",
+          "#/components/schemas/SetBranchBrandsRequest",
+          [settingsPathParameter("branchId")],
+          "Requires settings.manage and Idempotency-Key. Replaces the branch's brand operating-eligibility set. Never models brand ownership of a branch.",
+        ),
+      },
+      "/api/v1/settings/warehouses": {
+        get: settingsRead("listWarehouses", "#/components/schemas/WarehouseListResponse", [
+          lifecycleStatusParameter(),
+          limitParameter(),
+          cursorParameter(),
+        ]),
+        post: settingsWrite(
+          "createWarehouse",
+          "#/components/schemas/Warehouse",
+          "#/components/schemas/CreateWarehouseRequest",
+        ),
+      },
+      "/api/v1/settings/warehouses/{warehouseId}": {
+        get: settingsRead("getWarehouse", "#/components/schemas/Warehouse", [
+          settingsPathParameter("warehouseId"),
+        ]),
+        patch: settingsWrite(
+          "updateWarehouse",
+          "#/components/schemas/Warehouse",
+          "#/components/schemas/UpdateWarehouseRequest",
+          [settingsPathParameter("warehouseId")],
+          "Requires settings.manage and Idempotency-Key. code is immutable. No DELETE exists.",
+        ),
+      },
+      "/api/v1/settings/inventory-locations": {
+        get: settingsRead(
+          "listInventoryLocations",
+          "#/components/schemas/InventoryLocationListResponse",
+          [
+            lifecycleStatusParameter(),
+            uuidQueryParameter("branchId", "Filter to a parent branch."),
+            uuidQueryParameter("warehouseId", "Filter to a parent warehouse."),
+            limitParameter(),
+            cursorParameter(),
+          ],
+        ),
+        post: settingsWrite(
+          "createInventoryLocation",
+          "#/components/schemas/InventoryLocation",
+          "#/components/schemas/CreateInventoryLocationRequest",
+          [],
+          "Requires settings.manage and Idempotency-Key. Exactly one parent (branchId XOR warehouseId).",
+        ),
+      },
+      "/api/v1/settings/inventory-locations/{locationId}": {
+        get: settingsRead("getInventoryLocation", "#/components/schemas/InventoryLocation", [
+          settingsPathParameter("locationId"),
+        ]),
+        patch: settingsWrite(
+          "updateInventoryLocation",
+          "#/components/schemas/InventoryLocation",
+          "#/components/schemas/UpdateInventoryLocationRequest",
+          [settingsPathParameter("locationId")],
+          "Requires settings.manage and Idempotency-Key. Parent, locationType and code are immutable (never re-parented). No DELETE exists.",
+        ),
+      },
+      "/api/v1/settings/registers": {
+        get: settingsRead("listRegisters", "#/components/schemas/RegisterListResponse", [
+          lifecycleStatusParameter(),
+          uuidQueryParameter("branchId", "Filter to a branch."),
+          limitParameter(),
+          cursorParameter(),
+        ]),
+        post: settingsWrite(
+          "createRegister",
+          "#/components/schemas/Register",
+          "#/components/schemas/CreateRegisterRequest",
+        ),
+      },
+      "/api/v1/settings/registers/{registerId}": {
+        get: settingsRead("getRegister", "#/components/schemas/Register", [
+          settingsPathParameter("registerId"),
+        ]),
+        patch: settingsWrite(
+          "updateRegister",
+          "#/components/schemas/Register",
+          "#/components/schemas/UpdateRegisterRequest",
+          [settingsPathParameter("registerId")],
+          "Requires settings.manage and Idempotency-Key. branchId and code are immutable; sellingCurrency is rejected once the register has a sale; a same-branch default location is enforced. No DELETE exists.",
+        ),
+      },
+      "/api/v1/settings/storefront": {
+        get: settingsRead(
+          "listStorefrontSettings",
+          "#/components/schemas/StorefrontSettingsListResponse",
+        ),
+      },
+      "/api/v1/settings/storefront/{brandId}": {
+        get: settingsRead("getStorefrontSettings", "#/components/schemas/StorefrontSettings", [
+          settingsPathParameter("brandId"),
+        ]),
+        put: settingsWrite(
+          "upsertStorefrontSettings",
+          "#/components/schemas/StorefrontSettings",
+          "#/components/schemas/UpsertStorefrontSettingsRequest",
+          [settingsPathParameter("brandId")],
+          "Requires settings.manage and Idempotency-Key. currency is rejected once the brand has an online order (same value is a no-op).",
+        ),
+      },
+      "/api/v1/settings/returns": {
+        get: settingsRead("getReturnSettings", "#/components/schemas/ReturnSettings"),
+        put: settingsWrite(
+          "updateReturnSettings",
+          "#/components/schemas/ReturnSettings",
+          "#/components/schemas/UpdateReturnSettingsRequest",
+          [],
+          "Requires settings.manage and Idempotency-Key. Hard integrity ceilings are enforced by the database; editing never rewrites existing return policy snapshots.",
+        ),
+      },
+      "/api/v1/settings/devices": {
+        get: settingsRead("listDevices", "#/components/schemas/DeviceListResponse", [
+          enumQueryParameter(
+            "status",
+            ["enrolled", "active", "revoked"],
+            undefined,
+            "Filter by device status.",
+          ),
+          limitParameter(),
+          cursorParameter(),
+        ]),
+      },
+      "/api/v1/settings/devices/{deviceId}": {
+        get: settingsRead("getDevice", "#/components/schemas/Device", [
+          settingsPathParameter("deviceId"),
+        ]),
+      },
+      "/api/v1/settings/devices/{deviceId}/revoke": {
+        post: settingsWrite(
+          "revokeDevice",
+          "#/components/schemas/Device",
+          "#/components/schemas/RevokeDeviceRequest",
+          [settingsPathParameter("deviceId")],
+          "Requires settings.manage and Idempotency-Key. Ends any current assignment and marks the device revoked. Never exposes or rotates key material.",
+        ),
+      },
+      "/api/v1/settings/devices/{deviceId}/assignment": {
+        put: settingsWrite(
+          "assignDevice",
+          "#/components/schemas/Device",
+          "#/components/schemas/AssignDeviceRequest",
+          [settingsPathParameter("deviceId")],
+          "Requires settings.manage and Idempotency-Key. Assigns/reassigns the device to a Register via the append-only interval model, preserving history and keeping one current assignment per side.",
+        ),
+      },
       "/api/v1/storefront/quote": {
         post: {
           operationId: "quoteCheckout",
@@ -2549,6 +2854,39 @@ export function generateOpenApiDocument() {
         OfflineBootstrapResponse: jsonSchema(OfflineBootstrapResponseSchema),
         IngestOfflineSaleRequest: jsonSchema(IngestOfflineSaleRequestSchema),
         IngestOfflineSaleResponse: jsonSchema(IngestOfflineSaleResponseSchema),
+
+        BusinessSettings: jsonSchema(BusinessSettingsSchema),
+        UpdateBusinessRequest: jsonSchema(UpdateBusinessRequestSchema),
+        Brand: jsonSchema(BrandSchema),
+        CreateBrandRequest: jsonSchema(CreateBrandRequestSchema),
+        UpdateBrandRequest: jsonSchema(UpdateBrandRequestSchema),
+        BrandListResponse: jsonSchema(BrandListResponseSchema),
+        Branch: jsonSchema(BranchSchema),
+        CreateBranchRequest: jsonSchema(CreateBranchRequestSchema),
+        UpdateBranchRequest: jsonSchema(UpdateBranchRequestSchema),
+        SetBranchBrandsRequest: jsonSchema(SetBranchBrandsRequestSchema),
+        BranchListResponse: jsonSchema(BranchListResponseSchema),
+        Warehouse: jsonSchema(WarehouseSchema),
+        CreateWarehouseRequest: jsonSchema(CreateWarehouseRequestSchema),
+        UpdateWarehouseRequest: jsonSchema(UpdateWarehouseRequestSchema),
+        WarehouseListResponse: jsonSchema(WarehouseListResponseSchema),
+        InventoryLocation: jsonSchema(InventoryLocationSchema),
+        CreateInventoryLocationRequest: jsonSchema(CreateInventoryLocationRequestSchema),
+        UpdateInventoryLocationRequest: jsonSchema(UpdateInventoryLocationRequestSchema),
+        InventoryLocationListResponse: jsonSchema(InventoryLocationListResponseSchema),
+        Register: jsonSchema(RegisterSchema),
+        CreateRegisterRequest: jsonSchema(CreateRegisterRequestSchema),
+        UpdateRegisterRequest: jsonSchema(UpdateRegisterRequestSchema),
+        RegisterListResponse: jsonSchema(RegisterListResponseSchema),
+        StorefrontSettings: jsonSchema(StorefrontSettingsSchema),
+        UpsertStorefrontSettingsRequest: jsonSchema(UpsertStorefrontSettingsRequestSchema),
+        StorefrontSettingsListResponse: jsonSchema(StorefrontSettingsListResponseSchema),
+        ReturnSettings: jsonSchema(ReturnSettingsSchema),
+        UpdateReturnSettingsRequest: jsonSchema(UpdateReturnSettingsRequestSchema),
+        Device: jsonSchema(DeviceSchema),
+        DeviceListResponse: jsonSchema(DeviceListResponseSchema),
+        RevokeDeviceRequest: jsonSchema(RevokeDeviceRequestSchema),
+        AssignDeviceRequest: jsonSchema(AssignDeviceRequestSchema),
       },
     },
   };

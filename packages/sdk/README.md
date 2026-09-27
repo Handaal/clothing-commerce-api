@@ -82,3 +82,25 @@ settles an electronic payment. Both refund initiation and manual settlement requ
 Returns require fulfilled merchandise and captured payment; unpaid COD is rejected. For policy,
 atomicity, staged electronic integration and error codes, see `docs/returns/returns-refunds-core.md`
 in the API repository. No server secret, provider SDK or database client is bundled.
+
+## Operational settings (0.14.0)
+
+The tenant client exposes the operational-settings surface (tenant-wide; reads require
+`settings.read`, writes `settings.manage`): `getBusinessSettings` / `updateBusinessSettings`;
+`listBrands` / `getBrand` / `createBrand` / `updateBrand`; `listBranches` / `getBranch` /
+`createBranch` / `updateBranch` / `setBranchBrands`; `listWarehouses` / `getWarehouse` /
+`createWarehouse` / `updateWarehouse`; `listInventoryLocations` / `getInventoryLocation` /
+`createInventoryLocation` / `updateInventoryLocation`; `listRegisters` / `getRegister` /
+`createRegister` / `updateRegister`; `listStorefrontSettings` / `getStorefrontSettings` /
+`upsertStorefrontSettings`; `getReturnSettings` / `updateReturnSettings`; and device governance
+`listDevices` / `getDevice` / `revokeDevice` / `assignDevice`. `getContext().access.settings`
+carries independent `{ canRead, canManage }` UI guidance.
+
+The server enforces every mutation-safety rule: tenant `slug`/`status` are read-only and
+`defaultCurrency` locks once orders exist; brand/branch/warehouse/register `code` and an inventory
+location's parent + `locationType` are immutable after creation; register `sellingCurrency` and a
+storefront's `currency` lock once the first POS / online order exists; deletion is lifecycle-only
+(activate/deactivate/archive). Device private-key material is never exposed — enrollment and key
+rotation stay device-side. The canonical POS context (`getPosContext`) now carries server-owned
+`business.tenant` and per-register `branch` identity (incl. tax identifier and receipt footer) for
+receipt rendering. See `docs/settings/operational-settings-core.md` in the API repository.

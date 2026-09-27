@@ -46,6 +46,27 @@ export const PosPermission = {
   capturePayment: "payments.capture",
 } as const;
 
+/** Server-owned branch identity for receipt rendering. Uses only real branch columns. */
+export interface PosBranchIdentity {
+  readonly displayName: string;
+  readonly addressLine1: string | null;
+  readonly addressLine2: string | null;
+  readonly city: string | null;
+  readonly region: string | null;
+  readonly postalCode: string | null;
+  readonly countryCode: string | null;
+  readonly contactEmail: string | null;
+  readonly contactPhone: string | null;
+  readonly receiptFooter: string | null;
+}
+
+/** Server-owned tenant business identity for receipt rendering. */
+export interface PosBusinessIdentity {
+  readonly displayName: string;
+  readonly legalName: string | null;
+  readonly taxIdentifier: string | null;
+}
+
 export interface PosRegisterContext {
   readonly registerId: string;
   readonly registerName: string;
@@ -58,9 +79,13 @@ export interface PosRegisterContext {
   readonly inventoryLocationStatus: "active" | "inactive" | "archived";
   readonly fulfillmentEnabled: boolean;
   readonly sellingCurrency: string;
+  readonly branch: PosBranchIdentity;
 }
 
 export interface PosContextResult {
+  readonly business: {
+    readonly tenant: PosBusinessIdentity;
+  };
   readonly registers: readonly {
     readonly registerId: string;
     readonly registerName: string;
@@ -70,6 +95,7 @@ export interface PosContextResult {
     readonly defaultInventoryLocationName: string;
     readonly sellingCurrency: string;
     readonly canSell: true;
+    readonly branch: PosBranchIdentity;
   }[];
 }
 

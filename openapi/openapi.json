@@ -33,9 +33,1236 @@
     {
       "name": "reports",
       "description": "Read-only, tenant-wide operational reporting (reports.read). Monetary results are grouped by currency and never combined; sales KPIs cover placed Orders and are not rewritten by later cancellations/returns."
+    },
+    {
+      "name": "settings",
+      "description": "Tenant-wide operational settings (settings.read / settings.manage): business profile, brands, branches, warehouses, inventory locations, registers, storefront checkout, return policy, and device governance. Codes/parents are immutable after creation; currencies lock once commercial history exists; deletion is lifecycle-only."
     }
   ],
   "paths": {
+    "/api/v1/settings/business": {
+      "get": {
+        "operationId": "getBusinessSettings",
+        "tags": ["settings"],
+        "summary": "getBusinessSettings",
+        "description": "Requires a tenant-wide settings.read grant.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/TenantIdHeader" }],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/BusinessSettings" } }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      },
+      "patch": {
+        "operationId": "updateBusinessSettings",
+        "tags": ["settings"],
+        "summary": "updateBusinessSettings",
+        "description": "Requires settings.manage and Idempotency-Key. slug/status are read-only; defaultCurrency is rejected once the tenant has any order (same value is a no-op).",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          { "$ref": "#/components/parameters/IdempotencyKeyHeader" }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Settings mutation payload",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateBusinessRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/BusinessSettings" } }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "409": { "$ref": "#/components/responses/Error409" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/v1/settings/brands": {
+      "get": {
+        "operationId": "listBrands",
+        "tags": ["settings"],
+        "summary": "listBrands",
+        "description": "Requires a tenant-wide settings.read grant.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "Filter by lifecycle status.",
+            "schema": { "type": "string", "enum": ["active", "inactive", "archived"] }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum items per page (1-100, default 25).",
+            "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 25 }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Opaque forward-pagination cursor from a previous page's nextCursor.",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/BrandListResponse" } }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      },
+      "post": {
+        "operationId": "createBrand",
+        "tags": ["settings"],
+        "summary": "createBrand",
+        "description": "Requires a tenant-wide settings.manage grant and Idempotency-Key. Exact replay returns the original response; changed intent conflicts.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          { "$ref": "#/components/parameters/IdempotencyKeyHeader" }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Settings mutation payload",
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/CreateBrandRequest" } }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Brand" } }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "409": { "$ref": "#/components/responses/Error409" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/v1/settings/brands/{brandId}": {
+      "get": {
+        "operationId": "getBrand",
+        "tags": ["settings"],
+        "summary": "getBrand",
+        "description": "Requires a tenant-wide settings.read grant.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          {
+            "name": "brandId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Brand" } }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      },
+      "patch": {
+        "operationId": "updateBrand",
+        "tags": ["settings"],
+        "summary": "updateBrand",
+        "description": "Requires settings.manage and Idempotency-Key. code is immutable; status active/inactive/archived drives lifecycle. No DELETE exists.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          { "$ref": "#/components/parameters/IdempotencyKeyHeader" },
+          {
+            "name": "brandId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Settings mutation payload",
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/UpdateBrandRequest" } }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Brand" } }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "409": { "$ref": "#/components/responses/Error409" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/v1/settings/branches": {
+      "get": {
+        "operationId": "listBranches",
+        "tags": ["settings"],
+        "summary": "listBranches",
+        "description": "Requires a tenant-wide settings.read grant.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "Filter by lifecycle status.",
+            "schema": { "type": "string", "enum": ["active", "inactive", "archived"] }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum items per page (1-100, default 25).",
+            "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 25 }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Opaque forward-pagination cursor from a previous page's nextCursor.",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/BranchListResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      },
+      "post": {
+        "operationId": "createBranch",
+        "tags": ["settings"],
+        "summary": "createBranch",
+        "description": "Requires a tenant-wide settings.manage grant and Idempotency-Key. Exact replay returns the original response; changed intent conflicts.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          { "$ref": "#/components/parameters/IdempotencyKeyHeader" }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Settings mutation payload",
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/CreateBranchRequest" } }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Branch" } }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "409": { "$ref": "#/components/responses/Error409" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/v1/settings/branches/{branchId}": {
+      "get": {
+        "operationId": "getBranch",
+        "tags": ["settings"],
+        "summary": "getBranch",
+        "description": "Requires a tenant-wide settings.read grant.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Branch" } }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      },
+      "patch": {
+        "operationId": "updateBranch",
+        "tags": ["settings"],
+        "summary": "updateBranch",
+        "description": "Requires settings.manage and Idempotency-Key. code is immutable; defaultInventoryLocationId must belong to this branch. No DELETE exists.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          { "$ref": "#/components/parameters/IdempotencyKeyHeader" },
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Settings mutation payload",
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/UpdateBranchRequest" } }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Branch" } }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "409": { "$ref": "#/components/responses/Error409" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/v1/settings/branches/{branchId}/brands": {
+      "put": {
+        "operationId": "setBranchBrands",
+        "tags": ["settings"],
+        "summary": "setBranchBrands",
+        "description": "Requires settings.manage and Idempotency-Key. Replaces the branch's brand operating-eligibility set. Never models brand ownership of a branch.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          { "$ref": "#/components/parameters/IdempotencyKeyHeader" },
+          {
+            "name": "branchId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Settings mutation payload",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SetBranchBrandsRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Branch" } }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "409": { "$ref": "#/components/responses/Error409" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/v1/settings/warehouses": {
+      "get": {
+        "operationId": "listWarehouses",
+        "tags": ["settings"],
+        "summary": "listWarehouses",
+        "description": "Requires a tenant-wide settings.read grant.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "Filter by lifecycle status.",
+            "schema": { "type": "string", "enum": ["active", "inactive", "archived"] }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum items per page (1-100, default 25).",
+            "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 25 }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Opaque forward-pagination cursor from a previous page's nextCursor.",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/WarehouseListResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      },
+      "post": {
+        "operationId": "createWarehouse",
+        "tags": ["settings"],
+        "summary": "createWarehouse",
+        "description": "Requires a tenant-wide settings.manage grant and Idempotency-Key. Exact replay returns the original response; changed intent conflicts.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          { "$ref": "#/components/parameters/IdempotencyKeyHeader" }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Settings mutation payload",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateWarehouseRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Warehouse" } }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "409": { "$ref": "#/components/responses/Error409" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/v1/settings/warehouses/{warehouseId}": {
+      "get": {
+        "operationId": "getWarehouse",
+        "tags": ["settings"],
+        "summary": "getWarehouse",
+        "description": "Requires a tenant-wide settings.read grant.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          {
+            "name": "warehouseId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Warehouse" } }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      },
+      "patch": {
+        "operationId": "updateWarehouse",
+        "tags": ["settings"],
+        "summary": "updateWarehouse",
+        "description": "Requires settings.manage and Idempotency-Key. code is immutable. No DELETE exists.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          { "$ref": "#/components/parameters/IdempotencyKeyHeader" },
+          {
+            "name": "warehouseId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Settings mutation payload",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateWarehouseRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Warehouse" } }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "409": { "$ref": "#/components/responses/Error409" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/v1/settings/inventory-locations": {
+      "get": {
+        "operationId": "listInventoryLocations",
+        "tags": ["settings"],
+        "summary": "listInventoryLocations",
+        "description": "Requires a tenant-wide settings.read grant.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "Filter by lifecycle status.",
+            "schema": { "type": "string", "enum": ["active", "inactive", "archived"] }
+          },
+          {
+            "name": "branchId",
+            "in": "query",
+            "required": false,
+            "description": "Filter to a parent branch.",
+            "schema": { "type": "string", "format": "uuid" }
+          },
+          {
+            "name": "warehouseId",
+            "in": "query",
+            "required": false,
+            "description": "Filter to a parent warehouse.",
+            "schema": { "type": "string", "format": "uuid" }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum items per page (1-100, default 25).",
+            "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 25 }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Opaque forward-pagination cursor from a previous page's nextCursor.",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/InventoryLocationListResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      },
+      "post": {
+        "operationId": "createInventoryLocation",
+        "tags": ["settings"],
+        "summary": "createInventoryLocation",
+        "description": "Requires settings.manage and Idempotency-Key. Exactly one parent (branchId XOR warehouseId).",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          { "$ref": "#/components/parameters/IdempotencyKeyHeader" }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Settings mutation payload",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateInventoryLocationRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/InventoryLocation" } }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "409": { "$ref": "#/components/responses/Error409" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/v1/settings/inventory-locations/{locationId}": {
+      "get": {
+        "operationId": "getInventoryLocation",
+        "tags": ["settings"],
+        "summary": "getInventoryLocation",
+        "description": "Requires a tenant-wide settings.read grant.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          {
+            "name": "locationId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/InventoryLocation" } }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      },
+      "patch": {
+        "operationId": "updateInventoryLocation",
+        "tags": ["settings"],
+        "summary": "updateInventoryLocation",
+        "description": "Requires settings.manage and Idempotency-Key. Parent, locationType and code are immutable (never re-parented). No DELETE exists.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          { "$ref": "#/components/parameters/IdempotencyKeyHeader" },
+          {
+            "name": "locationId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Settings mutation payload",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateInventoryLocationRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/InventoryLocation" } }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "409": { "$ref": "#/components/responses/Error409" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/v1/settings/registers": {
+      "get": {
+        "operationId": "listRegisters",
+        "tags": ["settings"],
+        "summary": "listRegisters",
+        "description": "Requires a tenant-wide settings.read grant.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "Filter by lifecycle status.",
+            "schema": { "type": "string", "enum": ["active", "inactive", "archived"] }
+          },
+          {
+            "name": "branchId",
+            "in": "query",
+            "required": false,
+            "description": "Filter to a branch.",
+            "schema": { "type": "string", "format": "uuid" }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum items per page (1-100, default 25).",
+            "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 25 }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Opaque forward-pagination cursor from a previous page's nextCursor.",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/RegisterListResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      },
+      "post": {
+        "operationId": "createRegister",
+        "tags": ["settings"],
+        "summary": "createRegister",
+        "description": "Requires a tenant-wide settings.manage grant and Idempotency-Key. Exact replay returns the original response; changed intent conflicts.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          { "$ref": "#/components/parameters/IdempotencyKeyHeader" }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Settings mutation payload",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateRegisterRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Register" } }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "409": { "$ref": "#/components/responses/Error409" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/v1/settings/registers/{registerId}": {
+      "get": {
+        "operationId": "getRegister",
+        "tags": ["settings"],
+        "summary": "getRegister",
+        "description": "Requires a tenant-wide settings.read grant.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          {
+            "name": "registerId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Register" } }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      },
+      "patch": {
+        "operationId": "updateRegister",
+        "tags": ["settings"],
+        "summary": "updateRegister",
+        "description": "Requires settings.manage and Idempotency-Key. branchId and code are immutable; sellingCurrency is rejected once the register has a sale; a same-branch default location is enforced. No DELETE exists.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          { "$ref": "#/components/parameters/IdempotencyKeyHeader" },
+          {
+            "name": "registerId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Settings mutation payload",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateRegisterRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Register" } }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "409": { "$ref": "#/components/responses/Error409" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/v1/settings/storefront": {
+      "get": {
+        "operationId": "listStorefrontSettings",
+        "tags": ["settings"],
+        "summary": "listStorefrontSettings",
+        "description": "Requires a tenant-wide settings.read grant.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/TenantIdHeader" }],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StorefrontSettingsListResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/v1/settings/storefront/{brandId}": {
+      "get": {
+        "operationId": "getStorefrontSettings",
+        "tags": ["settings"],
+        "summary": "getStorefrontSettings",
+        "description": "Requires a tenant-wide settings.read grant.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          {
+            "name": "brandId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StorefrontSettings" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      },
+      "put": {
+        "operationId": "upsertStorefrontSettings",
+        "tags": ["settings"],
+        "summary": "upsertStorefrontSettings",
+        "description": "Requires settings.manage and Idempotency-Key. currency is rejected once the brand has an online order (same value is a no-op).",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          { "$ref": "#/components/parameters/IdempotencyKeyHeader" },
+          {
+            "name": "brandId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Settings mutation payload",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpsertStorefrontSettingsRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StorefrontSettings" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "409": { "$ref": "#/components/responses/Error409" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/v1/settings/returns": {
+      "get": {
+        "operationId": "getReturnSettings",
+        "tags": ["settings"],
+        "summary": "getReturnSettings",
+        "description": "Requires a tenant-wide settings.read grant.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/TenantIdHeader" }],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ReturnSettings" } }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      },
+      "put": {
+        "operationId": "updateReturnSettings",
+        "tags": ["settings"],
+        "summary": "updateReturnSettings",
+        "description": "Requires settings.manage and Idempotency-Key. Hard integrity ceilings are enforced by the database; editing never rewrites existing return policy snapshots.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          { "$ref": "#/components/parameters/IdempotencyKeyHeader" }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Settings mutation payload",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateReturnSettingsRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ReturnSettings" } }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "409": { "$ref": "#/components/responses/Error409" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/v1/settings/devices": {
+      "get": {
+        "operationId": "listDevices",
+        "tags": ["settings"],
+        "summary": "listDevices",
+        "description": "Requires a tenant-wide settings.read grant.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "Filter by device status.",
+            "schema": { "type": "string", "enum": ["enrolled", "active", "revoked"] }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum items per page (1-100, default 25).",
+            "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 25 }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Opaque forward-pagination cursor from a previous page's nextCursor.",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DeviceListResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/v1/settings/devices/{deviceId}": {
+      "get": {
+        "operationId": "getDevice",
+        "tags": ["settings"],
+        "summary": "getDevice",
+        "description": "Requires a tenant-wide settings.read grant.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          {
+            "name": "deviceId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Device" } }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/v1/settings/devices/{deviceId}/revoke": {
+      "post": {
+        "operationId": "revokeDevice",
+        "tags": ["settings"],
+        "summary": "revokeDevice",
+        "description": "Requires settings.manage and Idempotency-Key. Ends any current assignment and marks the device revoked. Never exposes or rotates key material.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          { "$ref": "#/components/parameters/IdempotencyKeyHeader" },
+          {
+            "name": "deviceId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Settings mutation payload",
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/RevokeDeviceRequest" } }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Device" } }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "409": { "$ref": "#/components/responses/Error409" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/v1/settings/devices/{deviceId}/assignment": {
+      "put": {
+        "operationId": "assignDevice",
+        "tags": ["settings"],
+        "summary": "assignDevice",
+        "description": "Requires settings.manage and Idempotency-Key. Assigns/reassigns the device to a Register via the append-only interval model, preserving history and keeping one current assignment per side.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          { "$ref": "#/components/parameters/IdempotencyKeyHeader" },
+          {
+            "name": "deviceId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Settings mutation payload",
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/AssignDeviceRequest" } }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Device" } }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "409": { "$ref": "#/components/responses/Error409" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
     "/api/v1/storefront/quote": {
       "post": {
         "operationId": "quoteCheckout",
@@ -6016,6 +7243,15 @@
           "access": {
             "type": "object",
             "properties": {
+              "settings": {
+                "type": "object",
+                "properties": {
+                  "canRead": { "type": "boolean" },
+                  "canManage": { "type": "boolean" }
+                },
+                "required": ["canRead", "canManage"],
+                "additionalProperties": false
+              },
               "suppliers": {
                 "type": "object",
                 "properties": {
@@ -7567,6 +8803,23 @@
         "$schema": "http://json-schema.org/draft-07/schema#",
         "type": "object",
         "properties": {
+          "business": {
+            "type": "object",
+            "properties": {
+              "tenant": {
+                "type": "object",
+                "properties": {
+                  "displayName": { "type": "string", "minLength": 1 },
+                  "legalName": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                  "taxIdentifier": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
+                },
+                "required": ["displayName", "legalName", "taxIdentifier"],
+                "additionalProperties": false
+              }
+            },
+            "required": ["tenant"],
+            "additionalProperties": false
+          },
           "registers": {
             "type": "array",
             "items": {
@@ -7591,7 +8844,35 @@
                 },
                 "defaultInventoryLocationName": { "type": "string", "minLength": 1 },
                 "sellingCurrency": { "type": "string", "pattern": "^[A-Z]{3}$" },
-                "canSell": { "type": "boolean", "const": true }
+                "canSell": { "type": "boolean", "const": true },
+                "branch": {
+                  "type": "object",
+                  "properties": {
+                    "displayName": { "type": "string", "minLength": 1 },
+                    "addressLine1": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                    "addressLine2": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                    "city": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                    "region": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                    "postalCode": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                    "countryCode": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                    "contactEmail": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                    "contactPhone": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                    "receiptFooter": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
+                  },
+                  "required": [
+                    "displayName",
+                    "addressLine1",
+                    "addressLine2",
+                    "city",
+                    "region",
+                    "postalCode",
+                    "countryCode",
+                    "contactEmail",
+                    "contactPhone",
+                    "receiptFooter"
+                  ],
+                  "additionalProperties": false
+                }
               },
               "required": [
                 "registerId",
@@ -7601,13 +8882,14 @@
                 "defaultInventoryLocationId",
                 "defaultInventoryLocationName",
                 "sellingCurrency",
-                "canSell"
+                "canSell",
+                "branch"
               ],
               "additionalProperties": false
             }
           }
         },
-        "required": ["registers"],
+        "required": ["business", "registers"],
         "additionalProperties": false
       },
       "CreatePosSaleRequest": {
@@ -8705,6 +9987,1697 @@
           "fulfillment",
           "reconciliation"
         ],
+        "additionalProperties": false
+      },
+      "BusinessSettings": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "slug": { "type": "string" },
+          "normalizedSlug": { "type": "string" },
+          "displayName": { "type": "string" },
+          "legalName": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+          "status": {
+            "type": "string",
+            "enum": ["provisioning", "active", "suspended", "archived"]
+          },
+          "onboardingState": { "type": "string" },
+          "defaultLocale": { "type": "string" },
+          "defaultTimezone": { "type": "string" },
+          "defaultCurrency": { "type": "string", "pattern": "^[A-Z]{3}$" },
+          "countryCode": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+          "contactEmail": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+          "contactPhone": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+          "taxIdentifier": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "normalizedSlug",
+          "displayName",
+          "legalName",
+          "status",
+          "onboardingState",
+          "defaultLocale",
+          "defaultTimezone",
+          "defaultCurrency",
+          "countryCode",
+          "contactEmail",
+          "contactPhone",
+          "taxIdentifier",
+          "createdAt",
+          "updatedAt"
+        ],
+        "additionalProperties": false
+      },
+      "UpdateBusinessRequest": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "displayName": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "legalName": {
+            "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 200 }, { "type": "null" }]
+          },
+          "contactEmail": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 254,
+                "format": "email",
+                "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+              },
+              { "type": "null" }
+            ]
+          },
+          "contactPhone": {
+            "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 50 }, { "type": "null" }]
+          },
+          "defaultTimezone": { "type": "string", "minLength": 1, "maxLength": 100 },
+          "countryCode": {
+            "anyOf": [{ "type": "string", "pattern": "^[A-Z]{2}$" }, { "type": "null" }]
+          },
+          "taxIdentifier": {
+            "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 100 }, { "type": "null" }]
+          },
+          "defaultCurrency": { "type": "string", "pattern": "^[A-Z]{3}$" }
+        },
+        "additionalProperties": false
+      },
+      "Brand": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "tenantId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "code": { "type": "string" },
+          "displayName": { "type": "string" },
+          "legalName": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+          "status": { "type": "string", "enum": ["active", "inactive", "archived"] },
+          "archivedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              { "type": "null" }
+            ]
+          },
+          "archiveReason": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          }
+        },
+        "required": [
+          "id",
+          "tenantId",
+          "code",
+          "displayName",
+          "legalName",
+          "status",
+          "archivedAt",
+          "archiveReason",
+          "createdAt",
+          "updatedAt"
+        ],
+        "additionalProperties": false
+      },
+      "CreateBrandRequest": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "code": { "type": "string", "minLength": 1, "maxLength": 100 },
+          "displayName": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "legalName": {
+            "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 200 }, { "type": "null" }]
+          }
+        },
+        "required": ["code", "displayName"],
+        "additionalProperties": false
+      },
+      "UpdateBrandRequest": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "displayName": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "legalName": {
+            "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 200 }, { "type": "null" }]
+          },
+          "status": { "type": "string", "enum": ["active", "inactive", "archived"] },
+          "archiveReason": {
+            "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 500 }, { "type": "null" }]
+          }
+        },
+        "additionalProperties": false
+      },
+      "BrandListResponse": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "tenantId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "code": { "type": "string" },
+                "displayName": { "type": "string" },
+                "legalName": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                "status": { "type": "string", "enum": ["active", "inactive", "archived"] },
+                "archivedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "archiveReason": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                },
+                "updatedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                }
+              },
+              "required": [
+                "id",
+                "tenantId",
+                "code",
+                "displayName",
+                "legalName",
+                "status",
+                "archivedAt",
+                "archiveReason",
+                "createdAt",
+                "updatedAt"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "pageInfo": {
+            "type": "object",
+            "properties": {
+              "nextCursor": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+              "hasMore": { "type": "boolean" }
+            },
+            "required": ["nextCursor", "hasMore"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["items", "pageInfo"],
+        "additionalProperties": false
+      },
+      "Branch": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "tenantId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "code": { "type": "string" },
+          "displayName": { "type": "string" },
+          "timezone": { "type": "string" },
+          "status": { "type": "string", "enum": ["active", "inactive", "archived"] },
+          "addressLine1": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+          "addressLine2": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+          "city": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+          "region": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+          "postalCode": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+          "countryCode": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+          "contactEmail": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+          "contactPhone": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+          "isFulfillmentEnabled": { "type": "boolean" },
+          "isClickAndCollectEnabled": { "type": "boolean" },
+          "defaultInventoryLocationId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              { "type": "null" }
+            ]
+          },
+          "receiptFooter": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+          "archivedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              { "type": "null" }
+            ]
+          },
+          "archiveReason": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "eligibleBrandIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "tenantId",
+          "code",
+          "displayName",
+          "timezone",
+          "status",
+          "addressLine1",
+          "addressLine2",
+          "city",
+          "region",
+          "postalCode",
+          "countryCode",
+          "contactEmail",
+          "contactPhone",
+          "isFulfillmentEnabled",
+          "isClickAndCollectEnabled",
+          "defaultInventoryLocationId",
+          "receiptFooter",
+          "archivedAt",
+          "archiveReason",
+          "createdAt",
+          "updatedAt",
+          "eligibleBrandIds"
+        ],
+        "additionalProperties": false
+      },
+      "CreateBranchRequest": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "code": { "type": "string", "minLength": 1, "maxLength": 100 },
+          "displayName": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "timezone": { "type": "string", "minLength": 1, "maxLength": 100 },
+          "addressLine1": {
+            "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 200 }, { "type": "null" }]
+          },
+          "addressLine2": {
+            "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 200 }, { "type": "null" }]
+          },
+          "city": {
+            "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 120 }, { "type": "null" }]
+          },
+          "region": {
+            "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 120 }, { "type": "null" }]
+          },
+          "postalCode": {
+            "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 40 }, { "type": "null" }]
+          },
+          "countryCode": {
+            "anyOf": [{ "type": "string", "pattern": "^[A-Z]{2}$" }, { "type": "null" }]
+          },
+          "contactEmail": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 254,
+                "format": "email",
+                "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+              },
+              { "type": "null" }
+            ]
+          },
+          "contactPhone": {
+            "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 50 }, { "type": "null" }]
+          },
+          "isFulfillmentEnabled": { "type": "boolean" },
+          "isClickAndCollectEnabled": { "type": "boolean" },
+          "receiptFooter": {
+            "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 2000 }, { "type": "null" }]
+          }
+        },
+        "required": ["code", "displayName", "timezone"],
+        "additionalProperties": false
+      },
+      "UpdateBranchRequest": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "displayName": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "timezone": { "type": "string", "minLength": 1, "maxLength": 100 },
+          "addressLine1": {
+            "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 200 }, { "type": "null" }]
+          },
+          "addressLine2": {
+            "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 200 }, { "type": "null" }]
+          },
+          "city": {
+            "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 120 }, { "type": "null" }]
+          },
+          "region": {
+            "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 120 }, { "type": "null" }]
+          },
+          "postalCode": {
+            "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 40 }, { "type": "null" }]
+          },
+          "countryCode": {
+            "anyOf": [{ "type": "string", "pattern": "^[A-Z]{2}$" }, { "type": "null" }]
+          },
+          "contactEmail": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 254,
+                "format": "email",
+                "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+              },
+              { "type": "null" }
+            ]
+          },
+          "contactPhone": {
+            "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 50 }, { "type": "null" }]
+          },
+          "isFulfillmentEnabled": { "type": "boolean" },
+          "isClickAndCollectEnabled": { "type": "boolean" },
+          "defaultInventoryLocationId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              { "type": "null" }
+            ]
+          },
+          "receiptFooter": {
+            "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 2000 }, { "type": "null" }]
+          },
+          "status": { "type": "string", "enum": ["active", "inactive", "archived"] },
+          "archiveReason": {
+            "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 500 }, { "type": "null" }]
+          }
+        },
+        "additionalProperties": false
+      },
+      "SetBranchBrandsRequest": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "brandIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            }
+          }
+        },
+        "required": ["brandIds"],
+        "additionalProperties": false
+      },
+      "BranchListResponse": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "tenantId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "code": { "type": "string" },
+                "displayName": { "type": "string" },
+                "timezone": { "type": "string" },
+                "status": { "type": "string", "enum": ["active", "inactive", "archived"] },
+                "addressLine1": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                "addressLine2": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                "city": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                "region": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                "postalCode": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                "countryCode": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                "contactEmail": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                "contactPhone": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                "isFulfillmentEnabled": { "type": "boolean" },
+                "isClickAndCollectEnabled": { "type": "boolean" },
+                "defaultInventoryLocationId": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "receiptFooter": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                "archivedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "archiveReason": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                },
+                "updatedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                },
+                "eligibleBrandIds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  }
+                }
+              },
+              "required": [
+                "id",
+                "tenantId",
+                "code",
+                "displayName",
+                "timezone",
+                "status",
+                "addressLine1",
+                "addressLine2",
+                "city",
+                "region",
+                "postalCode",
+                "countryCode",
+                "contactEmail",
+                "contactPhone",
+                "isFulfillmentEnabled",
+                "isClickAndCollectEnabled",
+                "defaultInventoryLocationId",
+                "receiptFooter",
+                "archivedAt",
+                "archiveReason",
+                "createdAt",
+                "updatedAt",
+                "eligibleBrandIds"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "pageInfo": {
+            "type": "object",
+            "properties": {
+              "nextCursor": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+              "hasMore": { "type": "boolean" }
+            },
+            "required": ["nextCursor", "hasMore"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["items", "pageInfo"],
+        "additionalProperties": false
+      },
+      "Warehouse": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "tenantId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "code": { "type": "string" },
+          "displayName": { "type": "string" },
+          "timezone": { "type": "string" },
+          "status": { "type": "string", "enum": ["active", "inactive", "archived"] },
+          "addressLine1": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+          "addressLine2": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+          "city": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+          "region": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+          "postalCode": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+          "countryCode": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+          "contactEmail": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+          "contactPhone": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+          "isFulfillmentEnabled": { "type": "boolean" },
+          "isReceivingEnabled": { "type": "boolean" },
+          "isTransferOriginEnabled": { "type": "boolean" },
+          "isTransferDestinationEnabled": { "type": "boolean" },
+          "archivedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              { "type": "null" }
+            ]
+          },
+          "archiveReason": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          }
+        },
+        "required": [
+          "id",
+          "tenantId",
+          "code",
+          "displayName",
+          "timezone",
+          "status",
+          "addressLine1",
+          "addressLine2",
+          "city",
+          "region",
+          "postalCode",
+          "countryCode",
+          "contactEmail",
+          "contactPhone",
+          "isFulfillmentEnabled",
+          "isReceivingEnabled",
+          "isTransferOriginEnabled",
+          "isTransferDestinationEnabled",
+          "archivedAt",
+          "archiveReason",
+          "createdAt",
+          "updatedAt"
+        ],
+        "additionalProperties": false
+      },
+      "CreateWarehouseRequest": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "code": { "type": "string", "minLength": 1, "maxLength": 100 },
+          "displayName": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "timezone": { "type": "string", "minLength": 1, "maxLength": 100 },
+          "addressLine1": {
+            "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 200 }, { "type": "null" }]
+          },
+          "addressLine2": {
+            "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 200 }, { "type": "null" }]
+          },
+          "city": {
+            "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 120 }, { "type": "null" }]
+          },
+          "region": {
+            "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 120 }, { "type": "null" }]
+          },
+          "postalCode": {
+            "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 40 }, { "type": "null" }]
+          },
+          "countryCode": {
+            "anyOf": [{ "type": "string", "pattern": "^[A-Z]{2}$" }, { "type": "null" }]
+          },
+          "contactEmail": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 254,
+                "format": "email",
+                "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+              },
+              { "type": "null" }
+            ]
+          },
+          "contactPhone": {
+            "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 50 }, { "type": "null" }]
+          },
+          "isFulfillmentEnabled": { "type": "boolean" },
+          "isReceivingEnabled": { "type": "boolean" },
+          "isTransferOriginEnabled": { "type": "boolean" },
+          "isTransferDestinationEnabled": { "type": "boolean" }
+        },
+        "required": ["code", "displayName", "timezone"],
+        "additionalProperties": false
+      },
+      "UpdateWarehouseRequest": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "displayName": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "timezone": { "type": "string", "minLength": 1, "maxLength": 100 },
+          "addressLine1": {
+            "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 200 }, { "type": "null" }]
+          },
+          "addressLine2": {
+            "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 200 }, { "type": "null" }]
+          },
+          "city": {
+            "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 120 }, { "type": "null" }]
+          },
+          "region": {
+            "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 120 }, { "type": "null" }]
+          },
+          "postalCode": {
+            "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 40 }, { "type": "null" }]
+          },
+          "countryCode": {
+            "anyOf": [{ "type": "string", "pattern": "^[A-Z]{2}$" }, { "type": "null" }]
+          },
+          "contactEmail": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 254,
+                "format": "email",
+                "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+              },
+              { "type": "null" }
+            ]
+          },
+          "contactPhone": {
+            "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 50 }, { "type": "null" }]
+          },
+          "isFulfillmentEnabled": { "type": "boolean" },
+          "isReceivingEnabled": { "type": "boolean" },
+          "isTransferOriginEnabled": { "type": "boolean" },
+          "isTransferDestinationEnabled": { "type": "boolean" },
+          "status": { "type": "string", "enum": ["active", "inactive", "archived"] },
+          "archiveReason": {
+            "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 500 }, { "type": "null" }]
+          }
+        },
+        "additionalProperties": false
+      },
+      "WarehouseListResponse": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "tenantId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "code": { "type": "string" },
+                "displayName": { "type": "string" },
+                "timezone": { "type": "string" },
+                "status": { "type": "string", "enum": ["active", "inactive", "archived"] },
+                "addressLine1": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                "addressLine2": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                "city": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                "region": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                "postalCode": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                "countryCode": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                "contactEmail": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                "contactPhone": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                "isFulfillmentEnabled": { "type": "boolean" },
+                "isReceivingEnabled": { "type": "boolean" },
+                "isTransferOriginEnabled": { "type": "boolean" },
+                "isTransferDestinationEnabled": { "type": "boolean" },
+                "archivedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "archiveReason": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                },
+                "updatedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                }
+              },
+              "required": [
+                "id",
+                "tenantId",
+                "code",
+                "displayName",
+                "timezone",
+                "status",
+                "addressLine1",
+                "addressLine2",
+                "city",
+                "region",
+                "postalCode",
+                "countryCode",
+                "contactEmail",
+                "contactPhone",
+                "isFulfillmentEnabled",
+                "isReceivingEnabled",
+                "isTransferOriginEnabled",
+                "isTransferDestinationEnabled",
+                "archivedAt",
+                "archiveReason",
+                "createdAt",
+                "updatedAt"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "pageInfo": {
+            "type": "object",
+            "properties": {
+              "nextCursor": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+              "hasMore": { "type": "boolean" }
+            },
+            "required": ["nextCursor", "hasMore"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["items", "pageInfo"],
+        "additionalProperties": false
+      },
+      "InventoryLocation": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "tenantId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "branchId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              { "type": "null" }
+            ]
+          },
+          "warehouseId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              { "type": "null" }
+            ]
+          },
+          "code": { "type": "string" },
+          "displayName": { "type": "string" },
+          "locationType": { "type": "string" },
+          "status": { "type": "string", "enum": ["active", "inactive", "archived"] },
+          "isSellable": { "type": "boolean" },
+          "isFulfillmentEnabled": { "type": "boolean" },
+          "isReceivingEnabled": { "type": "boolean" },
+          "isTransferOriginEnabled": { "type": "boolean" },
+          "isTransferDestinationEnabled": { "type": "boolean" },
+          "archivedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              { "type": "null" }
+            ]
+          },
+          "archiveReason": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          }
+        },
+        "required": [
+          "id",
+          "tenantId",
+          "branchId",
+          "warehouseId",
+          "code",
+          "displayName",
+          "locationType",
+          "status",
+          "isSellable",
+          "isFulfillmentEnabled",
+          "isReceivingEnabled",
+          "isTransferOriginEnabled",
+          "isTransferDestinationEnabled",
+          "archivedAt",
+          "archiveReason",
+          "createdAt",
+          "updatedAt"
+        ],
+        "additionalProperties": false
+      },
+      "CreateInventoryLocationRequest": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "branchId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "warehouseId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "code": { "type": "string", "minLength": 1, "maxLength": 100 },
+          "displayName": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "locationType": { "type": "string", "minLength": 1, "maxLength": 60 },
+          "isSellable": { "type": "boolean" },
+          "isFulfillmentEnabled": { "type": "boolean" },
+          "isReceivingEnabled": { "type": "boolean" },
+          "isTransferOriginEnabled": { "type": "boolean" },
+          "isTransferDestinationEnabled": { "type": "boolean" }
+        },
+        "required": ["code", "displayName", "locationType"],
+        "additionalProperties": false
+      },
+      "UpdateInventoryLocationRequest": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "displayName": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "isSellable": { "type": "boolean" },
+          "isFulfillmentEnabled": { "type": "boolean" },
+          "isReceivingEnabled": { "type": "boolean" },
+          "isTransferOriginEnabled": { "type": "boolean" },
+          "isTransferDestinationEnabled": { "type": "boolean" },
+          "status": { "type": "string", "enum": ["active", "inactive", "archived"] },
+          "archiveReason": {
+            "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 500 }, { "type": "null" }]
+          }
+        },
+        "additionalProperties": false
+      },
+      "InventoryLocationListResponse": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "tenantId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "branchId": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "warehouseId": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "code": { "type": "string" },
+                "displayName": { "type": "string" },
+                "locationType": { "type": "string" },
+                "status": { "type": "string", "enum": ["active", "inactive", "archived"] },
+                "isSellable": { "type": "boolean" },
+                "isFulfillmentEnabled": { "type": "boolean" },
+                "isReceivingEnabled": { "type": "boolean" },
+                "isTransferOriginEnabled": { "type": "boolean" },
+                "isTransferDestinationEnabled": { "type": "boolean" },
+                "archivedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "archiveReason": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                },
+                "updatedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                }
+              },
+              "required": [
+                "id",
+                "tenantId",
+                "branchId",
+                "warehouseId",
+                "code",
+                "displayName",
+                "locationType",
+                "status",
+                "isSellable",
+                "isFulfillmentEnabled",
+                "isReceivingEnabled",
+                "isTransferOriginEnabled",
+                "isTransferDestinationEnabled",
+                "archivedAt",
+                "archiveReason",
+                "createdAt",
+                "updatedAt"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "pageInfo": {
+            "type": "object",
+            "properties": {
+              "nextCursor": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+              "hasMore": { "type": "boolean" }
+            },
+            "required": ["nextCursor", "hasMore"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["items", "pageInfo"],
+        "additionalProperties": false
+      },
+      "Register": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "tenantId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "branchId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "code": { "type": "string" },
+          "displayName": { "type": "string" },
+          "status": { "type": "string", "enum": ["active", "inactive", "archived"] },
+          "defaultInventoryLocationId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              { "type": "null" }
+            ]
+          },
+          "sellingCurrency": { "type": "string", "pattern": "^[A-Z]{3}$" },
+          "archivedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              { "type": "null" }
+            ]
+          },
+          "archiveReason": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          }
+        },
+        "required": [
+          "id",
+          "tenantId",
+          "branchId",
+          "code",
+          "displayName",
+          "status",
+          "defaultInventoryLocationId",
+          "sellingCurrency",
+          "archivedAt",
+          "archiveReason",
+          "createdAt",
+          "updatedAt"
+        ],
+        "additionalProperties": false
+      },
+      "CreateRegisterRequest": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "branchId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "code": { "type": "string", "minLength": 1, "maxLength": 100 },
+          "displayName": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "defaultInventoryLocationId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              { "type": "null" }
+            ]
+          },
+          "sellingCurrency": { "type": "string", "pattern": "^[A-Z]{3}$" },
+          "status": { "type": "string", "enum": ["active", "inactive", "archived"] }
+        },
+        "required": ["branchId", "code", "displayName", "sellingCurrency"],
+        "additionalProperties": false
+      },
+      "UpdateRegisterRequest": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "displayName": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "defaultInventoryLocationId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              { "type": "null" }
+            ]
+          },
+          "sellingCurrency": { "type": "string", "pattern": "^[A-Z]{3}$" },
+          "status": { "type": "string", "enum": ["active", "inactive", "archived"] },
+          "archiveReason": {
+            "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 500 }, { "type": "null" }]
+          }
+        },
+        "additionalProperties": false
+      },
+      "RegisterListResponse": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "tenantId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "branchId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "code": { "type": "string" },
+                "displayName": { "type": "string" },
+                "status": { "type": "string", "enum": ["active", "inactive", "archived"] },
+                "defaultInventoryLocationId": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "sellingCurrency": { "type": "string", "pattern": "^[A-Z]{3}$" },
+                "archivedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "archiveReason": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                },
+                "updatedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                }
+              },
+              "required": [
+                "id",
+                "tenantId",
+                "branchId",
+                "code",
+                "displayName",
+                "status",
+                "defaultInventoryLocationId",
+                "sellingCurrency",
+                "archivedAt",
+                "archiveReason",
+                "createdAt",
+                "updatedAt"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "pageInfo": {
+            "type": "object",
+            "properties": {
+              "nextCursor": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+              "hasMore": { "type": "boolean" }
+            },
+            "required": ["nextCursor", "hasMore"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["items", "pageInfo"],
+        "additionalProperties": false
+      },
+      "StorefrontSettings": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "tenantId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "brandId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "inventoryLocationId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "currency": { "type": "string", "pattern": "^[A-Z]{3}$" },
+          "codEnabled": { "type": "boolean" }
+        },
+        "required": ["tenantId", "brandId", "inventoryLocationId", "currency", "codEnabled"],
+        "additionalProperties": false
+      },
+      "UpsertStorefrontSettingsRequest": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "inventoryLocationId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "currency": { "type": "string", "pattern": "^[A-Z]{3}$" },
+          "codEnabled": { "type": "boolean" }
+        },
+        "additionalProperties": false
+      },
+      "StorefrontSettingsListResponse": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "tenantId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "brandId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "inventoryLocationId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "currency": { "type": "string", "pattern": "^[A-Z]{3}$" },
+                "codEnabled": { "type": "boolean" }
+              },
+              "required": ["tenantId", "brandId", "inventoryLocationId", "currency", "codEnabled"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["items"],
+        "additionalProperties": false
+      },
+      "ReturnSettings": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "tenantId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "enabled": { "type": "boolean" },
+          "windowDays": {
+            "anyOf": [{ "type": "integer", "minimum": 0, "maximum": 3650 }, { "type": "null" }]
+          },
+          "allowedReasons": { "type": "array", "items": { "type": "string" } },
+          "manualRefundsEnabled": { "type": "boolean" },
+          "maxManualRefundMinor": {
+            "anyOf": [
+              { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+              { "type": "null" }
+            ]
+          }
+        },
+        "required": [
+          "tenantId",
+          "enabled",
+          "windowDays",
+          "allowedReasons",
+          "manualRefundsEnabled",
+          "maxManualRefundMinor"
+        ],
+        "additionalProperties": false
+      },
+      "UpdateReturnSettingsRequest": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "enabled": { "type": "boolean" },
+          "windowDays": {
+            "anyOf": [{ "type": "integer", "minimum": 0, "maximum": 3650 }, { "type": "null" }]
+          },
+          "manualRefundsEnabled": { "type": "boolean" },
+          "maxManualRefundMinor": {
+            "anyOf": [
+              { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+              { "type": "null" }
+            ]
+          },
+          "allowedReasons": {
+            "maxItems": 50,
+            "type": "array",
+            "items": { "type": "string", "minLength": 1, "maxLength": 200 }
+          }
+        },
+        "additionalProperties": false
+      },
+      "Device": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "tenantId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "installationId": { "type": "string" },
+          "deviceType": { "type": "string" },
+          "displayName": { "type": "string" },
+          "status": { "type": "string", "enum": ["enrolled", "active", "revoked"] },
+          "clientVersion": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+          "platform": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+          "osVersion": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+          "activatedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              { "type": "null" }
+            ]
+          },
+          "revokedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              { "type": "null" }
+            ]
+          },
+          "revocationReason": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+          "lastSeenAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              { "type": "null" }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "currentAssignment": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "assignmentId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "registerId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "registerName": { "type": "string" },
+                  "assignedAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                  }
+                },
+                "required": ["assignmentId", "registerId", "registerName", "assignedAt"],
+                "additionalProperties": false
+              },
+              { "type": "null" }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "tenantId",
+          "installationId",
+          "deviceType",
+          "displayName",
+          "status",
+          "clientVersion",
+          "platform",
+          "osVersion",
+          "activatedAt",
+          "revokedAt",
+          "revocationReason",
+          "lastSeenAt",
+          "createdAt",
+          "updatedAt",
+          "currentAssignment"
+        ],
+        "additionalProperties": false
+      },
+      "DeviceListResponse": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "tenantId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "installationId": { "type": "string" },
+                "deviceType": { "type": "string" },
+                "displayName": { "type": "string" },
+                "status": { "type": "string", "enum": ["enrolled", "active", "revoked"] },
+                "clientVersion": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                "platform": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                "osVersion": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                "activatedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "revokedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "revocationReason": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                "lastSeenAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                },
+                "updatedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                },
+                "currentAssignment": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "assignmentId": {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                        },
+                        "registerId": {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                        },
+                        "registerName": { "type": "string" },
+                        "assignedAt": {
+                          "type": "string",
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                        }
+                      },
+                      "required": ["assignmentId", "registerId", "registerName", "assignedAt"],
+                      "additionalProperties": false
+                    },
+                    { "type": "null" }
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "tenantId",
+                "installationId",
+                "deviceType",
+                "displayName",
+                "status",
+                "clientVersion",
+                "platform",
+                "osVersion",
+                "activatedAt",
+                "revokedAt",
+                "revocationReason",
+                "lastSeenAt",
+                "createdAt",
+                "updatedAt",
+                "currentAssignment"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "pageInfo": {
+            "type": "object",
+            "properties": {
+              "nextCursor": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+              "hasMore": { "type": "boolean" }
+            },
+            "required": ["nextCursor", "hasMore"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["items", "pageInfo"],
+        "additionalProperties": false
+      },
+      "RevokeDeviceRequest": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "reason": {
+            "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 500 }, { "type": "null" }]
+          }
+        },
+        "additionalProperties": false
+      },
+      "AssignDeviceRequest": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "registerId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "reason": {
+            "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 500 }, { "type": "null" }]
+          }
+        },
+        "required": ["registerId"],
         "additionalProperties": false
       }
     }

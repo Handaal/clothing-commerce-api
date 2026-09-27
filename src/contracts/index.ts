@@ -211,3 +211,5 @@ export * from "./management/staff";
 export * from "./management/reporting";
 
 export * from "./management/reporting-export";
+
+export * from "./management/settings";

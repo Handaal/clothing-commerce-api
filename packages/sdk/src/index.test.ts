@@ -272,7 +272,7 @@ describe("Commerce SDK", () => {
   });
 
   it("exposes semantic SDK version metadata", () => {
-    expect(SDK_VERSION).toBe("0.13.1");
+    expect(SDK_VERSION).toBe("0.14.0");
   });
 });
 
@@ -592,8 +592,23 @@ describe("Commerce SDK Connected POS surface", () => {
     const fetchImplementation = vi.fn<typeof globalThis.fetch>(async (input, init) => {
       calls.push({ url: String(input), init });
       if (String(input).endsWith("/context")) {
+        const branchIdentity = {
+          displayName: "Main",
+          addressLine1: null,
+          addressLine2: null,
+          city: null,
+          region: null,
+          postalCode: null,
+          countryCode: null,
+          contactEmail: null,
+          contactPhone: null,
+          receiptFooter: null,
+        };
         return new Response(
           JSON.stringify({
+            business: {
+              tenant: { displayName: "Acme", legalName: null, taxIdentifier: null },
+            },
             registers: [
               {
                 registerId: "77777777-7777-4777-8777-777777777718",
@@ -604,6 +619,7 @@ describe("Commerce SDK Connected POS surface", () => {
                 defaultInventoryLocationName: "Floor",
                 sellingCurrency: "USD",
                 canSell: true,
+                branch: branchIdentity,
               },
             ],
           }),
