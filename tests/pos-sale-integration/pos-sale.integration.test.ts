@@ -40,6 +40,7 @@ const FOREIGN_TENANT = "2a000001-0000-4000-8000-000000000002";
 const REGISTER = "2a000005-0000-4000-8000-000000000001";
 const LOCATION = "2a000004-0000-4000-8000-000000000001";
 const VARIANT = "2a000007-0000-4000-8000-000000000001";
+const ACTOR = "2a000012-0000-4000-8000-000000000001";
 
 class FakeVerifier implements ExternalIdentityVerifier {
   async verifyRequest(request: Request): Promise<VerifiedExternalIdentity> {
@@ -160,6 +161,18 @@ describe.sequential("Connected POS Sale V1 real HTTP boundary", () => {
   let successful: Record<string, unknown>;
 
   it("returns only fully authorized active register selling context", async () => {
+    const settingsSave = await admin.schema("settings_private").rpc("write_register", {
+      p_tenant: TENANT,
+      p_register: REGISTER,
+      p_actor: ACTOR,
+      p_key: "pos-context-topology-save",
+      p_input: {
+        status: "active",
+        defaultInventoryLocationId: LOCATION,
+      },
+    });
+    expect(settingsSave.error).toBeNull();
+
     const response = await getContext("pos-full");
     expect(response.status).toBe(200);
     expect(await json(response)).toEqual({

@@ -16,7 +16,7 @@ import { fileURLToPath } from "node:url";
 const repositoryRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const migrationDirectory = join(repositoryRoot, "supabase", "migrations");
 const testFile = join(repositoryRoot, "supabase", "tests", "phase_2r_settings_persistence.sql");
-const expectedAssertionCount = 52;
+const expectedAssertionCount = 76;
 const containerName = `clothing-commerce-settings-persistence-${process.pid}`;
 const postgresImage = "postgres:17.6-alpine";
 const databaseName = "commerce_test";

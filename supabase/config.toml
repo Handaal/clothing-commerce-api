@@ -10,8 +10,9 @@ major_version = 17
 enabled = false
 
 [api]
-# Server-side inventory, orders, fulfillment, and Connected POS application layers call sanctioned
-# layers call sanctioned functions in their private schemas via PostgREST (service-role client).
+# Server-side domain repositories call sanctioned functions in these private schemas through
+# PostgREST using the service-role transport client. Keep this exact list synchronized with runtime
+# `.schema(...)` usage; tests/postgrest-schema-exposure.test.ts is the structural drift gate.
 # Exposing a schema does NOT grant access: USAGE is revoked from anon/authenticated and EXECUTE is
 # granted only to service_role, so schema exposure is not the security boundary -- the function grants
 # are. In particular fulfillments_private.record_fulfillment_issue lives in inventory_private and is
@@ -19,5 +20,5 @@ enabled = false
 # directly. public remains the default client surface.
 # catalog_private holds the sanctioned catalog write functions (EXECUTE granted to service_role only);
 # catalog_public holds the published-only Storefront read functions (EXECUTE granted to anon too).
-schemas = ["public", "inventory_private", "orders_private", "fulfillments_private", "pos_sales_private", "offline_pos_private", "catalog_private", "catalog_public", "online_private", "returns_private", "suppliers_private", "staff_private"]
+schemas = ["public", "inventory_private", "orders_private", "fulfillments_private", "pos_sales_private", "offline_pos_private", "catalog_private", "catalog_public", "online_private", "returns_private", "suppliers_private", "staff_private", "promotions_private", "reporting_private", "settings_private"]
 extra_search_path = ["public", "extensions"]

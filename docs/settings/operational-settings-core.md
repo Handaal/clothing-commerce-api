@@ -36,20 +36,32 @@ as UI guidance only.
 
 ## Mutation-safety matrix
 
-| Resource              | Freely mutable                                                                                                                                                                           | Immutable after creation                                       | Locked / guarded                                                                                           |
-| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| **Business/Tenant**   | display_name, legal_name, contact_email, contact_phone, default_timezone, country_code, **tax_identifier**                                                                               | slug / normalized_slug, status                                 | **default_currency**: rejected once the tenant has any Order (same value is a no-op)                       |
-| **Brand**             | display_name, legal_name; lifecycle status (active/inactive/archived)                                                                                                                    | **code**                                                       | never hard-deleted (lifecycle only)                                                                        |
-| **Branch**            | display_name, timezone, address/contact fields, fulfillment flag, click-and-collect flag, **default_inventory_location** (same branch), **receipt_footer**, brand eligibility; lifecycle | **code**                                                       | default location must belong to the branch (composite FK); never hard-deleted                              |
-| **Warehouse**         | display_name, timezone, address/contact fields, capability flags; lifecycle                                                                                                              | **code**                                                       | never hard-deleted                                                                                         |
-| **InventoryLocation** | display_name, capability flags (sellable/fulfillment/receiving/transfer); lifecycle                                                                                                      | **branch_id XOR warehouse_id parent**, **location_type**, code | exactly one parent at creation; never re-parented; prefer deactivate/archive                               |
-| **Register**          | display_name, **default_inventory_location** (same branch), lifecycle                                                                                                                    | **branch_id**, **code**                                        | **selling_currency**: rejected once the register has a POS Order; active requires a valid default location |
-| **Storefront**        | inventory_location_id, cod_enabled                                                                                                                                                       | (per-brand identity)                                           | **currency**: rejected once the brand has an ONLINE Order (same value is a no-op)                          |
-| **ReturnSettings**    | enabled, window_days, manual_refunds_enabled, max_manual_refund_minor, allowed_reasons                                                                                                   | —                                                              | hard integrity ceilings enforced by table CHECKs; editing never rewrites stored return policy snapshots    |
+| Resource              | Freely mutable                                                                                                                                                                           | Immutable after creation                                       | Locked / guarded                                                                                                                     |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| **Business/Tenant**   | display_name, legal_name, contact_email, contact_phone, default_timezone, country_code, **tax_identifier**                                                                               | slug / normalized_slug, status                                 | **default_currency**: rejected once the tenant has any Order (same value is a no-op)                                                 |
+| **Brand**             | display_name, legal_name; lifecycle status (active/inactive/archived)                                                                                                                    | **code**                                                       | never hard-deleted (lifecycle only)                                                                                                  |
+| **Branch**            | display_name, timezone, address/contact fields, fulfillment flag, click-and-collect flag, **default_inventory_location** (same branch), **receipt_footer**, brand eligibility; lifecycle | **code**                                                       | default location must belong to the branch (composite FK); never hard-deleted                                                        |
+| **Warehouse**         | display_name, timezone, address/contact fields, capability flags; lifecycle                                                                                                              | **code**                                                       | never hard-deleted                                                                                                                   |
+| **InventoryLocation** | display_name, capability flags (sellable/fulfillment/receiving/transfer); lifecycle                                                                                                      | **branch_id XOR warehouse_id parent**, **location_type**, code | exactly one parent at creation; cannot lose capabilities required by an enabled Storefront or active Register                        |
+| **Register**          | display_name, **default_inventory_location** (same branch), lifecycle                                                                                                                    | **branch_id**, **code**                                        | **selling_currency** locks after first POS Order; active requires an active Branch plus active, fulfillment-enabled default location |
+| **Storefront**        | inventory_location_id, cod_enabled                                                                                                                                                       | (per-brand identity)                                           | **currency** locks after first ONLINE Order; COD-enabled requires active Brand plus active, sellable, fulfillment-enabled location   |
+| **ReturnSettings**    | enabled, window_days, manual_refunds_enabled, max_manual_refund_minor, allowed_reasons                                                                                                   | —                                                              | hard integrity ceilings enforced by table CHECKs; editing never rewrites stored return policy snapshots                              |
 
 Immutability is enforced by omitting the field from the update allowlist (`22023` on an attempt), by
 composite foreign keys (`23503` for a cross-branch default location), and by not exposing any hard-delete
 operation. Currency locks raise `SC409`. Codes are unique per tenant (`23505`).
+
+Operational readiness is enforced in both directions. Enabling COD validates the same Tenant/Brand/
+InventoryLocation state used by public checkout. Activating a Register validates the actual POS rule:
+its Branch and default location must be active and the location must be fulfillment-enabled; POS does
+not require `is_sellable`. A disabled Storefront or inactive Register may retain a non-operational
+location. Once enabled/active, Settings rejects later Brand/Branch/location lifecycle or capability
+changes that would invalidate the dependency. Device assignment remains identity governance and adds
+no second readiness rule.
+
+The API returns stable conflicts for Admin mapping: `STOREFRONT_LOCATION_NOT_OPERATIONAL`,
+`STOREFRONT_DEPENDENCY_CONFLICT`, `REGISTER_LOCATION_NOT_OPERATIONAL`, and
+`REGISTER_DEPENDENCY_CONFLICT`. SQL diagnostics are never returned to clients.
 
 ## Device governance boundary
 
@@ -78,6 +90,10 @@ eligibility); `warehouses` + `{warehouseId}`; `inventory-locations` + `{location
 `{deviceId}` + `{deviceId}/revoke` (POST) + `{deviceId}/assignment` (PUT). Lists use the shared opaque
 keyset cursor; every mutation requires an `Idempotency-Key`. Full shapes: `openapi/openapi.json` (tag
 `settings`) and SDK `0.14.0`.
+
+Run `pnpm test:settings:persistence` for two clean migration cycles plus the Settings mutation-safety,
+topology, reverse-dependency, idempotency, and private-schema privilege regressions. The online and
+connected-POS integration suites prove the saved configurations at their runtime boundaries.
 
 ## Deferred configuration (not built)
 

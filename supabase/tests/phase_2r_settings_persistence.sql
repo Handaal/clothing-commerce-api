@@ -242,6 +242,187 @@ select pg_temp.assert_true(
   settings_private.list_brands('2a000000-0000-4000-8000-000000000002', null, null, 50) = '[]'::jsonb,
   'tenant isolation on brand list');
 
+-- ============================ operational topology ============================
+do $$
+declare
+  t constant uuid := '2a000000-0000-4000-8000-000000000001';
+  actor constant uuid := '2c000000-0000-4000-8000-000000000001';
+  brand uuid := (select id from public.brands where tenant_id = t and normalized_code = 'a1');
+  branch uuid := (select id from public.branches where tenant_id = t and normalized_code = 'br1');
+  loc_operational uuid := (select id from public.inventory_locations where tenant_id = t and normalized_code = 'l1');
+  loc_candidate uuid := (select id from public.inventory_locations where tenant_id = t and normalized_code = 'l2');
+  inactive_register jsonb;
+begin
+  -- The disabled storefront may retain a non-operational route; enabling it is the readiness boundary.
+  perform pg_temp.assert_true(
+    not (settings_private.get_storefront(t, brand)->>'codEnabled')::boolean
+      and (settings_private.get_storefront(t, brand)->>'inventoryLocationId') = loc_candidate::text,
+    'disabled storefront may retain a non-operational location');
+
+  perform settings_private.write_inventory_location(
+    t, loc_candidate, actor, 'top-loc-inactive', '{"status":"inactive"}'
+  );
+  perform pg_temp.assert_raises(
+    format('select settings_private.write_storefront(%L,%L,%L,%L,%L::jsonb)',
+      t, brand, actor, 'top-sf-inactive', '{"codEnabled":true}'),
+    'SF409', 'inactive storefront location rejected when COD is enabled');
+
+  perform settings_private.write_inventory_location(
+    t, loc_candidate, actor, 'top-loc-nonsellable',
+    '{"status":"active","isSellable":false,"isFulfillmentEnabled":true}'
+  );
+  perform pg_temp.assert_raises(
+    format('select settings_private.write_storefront(%L,%L,%L,%L,%L::jsonb)',
+      t, brand, actor, 'top-sf-nonsellable', '{"codEnabled":true}'),
+    'SF409', 'non-sellable storefront location rejected');
+
+  perform settings_private.write_inventory_location(
+    t, loc_candidate, actor, 'top-loc-nonfulfillment',
+    '{"isSellable":true,"isFulfillmentEnabled":false}'
+  );
+  perform pg_temp.assert_raises(
+    format('select settings_private.write_storefront(%L,%L,%L,%L,%L::jsonb)',
+      t, brand, actor, 'top-sf-nonfulfillment', '{"codEnabled":true}'),
+    'SF409', 'non-fulfillment storefront location rejected');
+
+  perform settings_private.write_inventory_location(
+    t, loc_candidate, actor, 'top-loc-ready', '{"isFulfillmentEnabled":true}'
+  );
+  perform pg_temp.assert_true(
+    (settings_private.write_storefront(t, brand, actor, 'top-sf-ready', '{"codEnabled":true}')
+      ->>'codEnabled')::boolean,
+    'active sellable fulfillment location accepted for enabled storefront');
+
+  perform pg_temp.assert_raises(
+    format('select settings_private.write_inventory_location(%L,%L,%L,%L,%L::jsonb)',
+      t, loc_candidate, actor, 'top-sf-block-inactive', '{"status":"inactive"}'),
+    'SD409', 'enabled storefront blocks later location deactivation');
+  perform pg_temp.assert_raises(
+    format('select settings_private.write_inventory_location(%L,%L,%L,%L,%L::jsonb)',
+      t, loc_candidate, actor, 'top-sf-block-sellable', '{"isSellable":false}'),
+    'SD409', 'enabled storefront blocks later sellable capability removal');
+  perform pg_temp.assert_raises(
+    format('select settings_private.write_inventory_location(%L,%L,%L,%L,%L::jsonb)',
+      t, loc_candidate, actor, 'top-sf-block-fulfillment', '{"isFulfillmentEnabled":false}'),
+    'SD409', 'enabled storefront blocks later fulfillment capability removal');
+  perform pg_temp.assert_raises(
+    format('select settings_private.write_brand(%L,%L,%L,%L,%L::jsonb)',
+      t, brand, actor, 'top-sf-block-brand', '{"status":"inactive"}'),
+    'SD409', 'enabled storefront blocks later brand deactivation');
+
+  perform settings_private.write_storefront(t, brand, actor, 'top-sf-disable', '{"codEnabled":false}');
+  perform settings_private.write_inventory_location(
+    t, loc_candidate, actor, 'top-loc-register-inactive',
+    '{"status":"inactive","isFulfillmentEnabled":true}'
+  );
+  perform pg_temp.assert_raises(
+    format('select settings_private.write_register(%L,null,%L,%L,%L::jsonb)',
+      t, actor, 'top-reg-inactive-location', jsonb_build_object(
+        'branchId', (select branch_id from public.inventory_locations where id = loc_candidate),
+        'code', 'R-BAD-1', 'displayName', 'Bad inactive', 'sellingCurrency', 'USD',
+        'defaultInventoryLocationId', loc_candidate, 'status', 'active')),
+    'RG409', 'active register rejects inactive default location');
+
+  perform settings_private.write_inventory_location(
+    t, loc_candidate, actor, 'top-loc-register-nonfulfillment',
+    '{"status":"active","isFulfillmentEnabled":false}'
+  );
+  perform pg_temp.assert_raises(
+    format('select settings_private.write_register(%L,null,%L,%L,%L::jsonb)',
+      t, actor, 'top-reg-nonfulfillment-location', jsonb_build_object(
+        'branchId', (select branch_id from public.inventory_locations where id = loc_candidate),
+        'code', 'R-BAD-2', 'displayName', 'Bad capability', 'sellingCurrency', 'USD',
+        'defaultInventoryLocationId', loc_candidate, 'status', 'active')),
+    'RG409', 'active register rejects non-fulfillment default location');
+
+  inactive_register := settings_private.write_register(
+    t, null, actor, 'top-reg-inactive-allowed', jsonb_build_object(
+      'branchId', (select branch_id from public.inventory_locations where id = loc_candidate),
+      'code', 'R-INACTIVE', 'displayName', 'Inactive till', 'sellingCurrency', 'USD',
+      'defaultInventoryLocationId', loc_candidate, 'status', 'inactive')
+  );
+  perform pg_temp.assert_true(
+    inactive_register->>'status' = 'inactive',
+    'inactive register may retain a non-operational default location');
+
+  perform pg_temp.assert_true(
+    exists (
+      select 1 from public.registers
+      where tenant_id = t and default_inventory_location_id = loc_operational and status = 'active'
+    ),
+    'valid active register remains accepted');
+  perform pg_temp.assert_raises(
+    format('select settings_private.write_inventory_location(%L,%L,%L,%L,%L::jsonb)',
+      t, loc_operational, actor, 'top-reg-block-inactive', '{"status":"inactive"}'),
+    'RD409', 'active register blocks later location deactivation');
+  perform pg_temp.assert_raises(
+    format('select settings_private.write_inventory_location(%L,%L,%L,%L,%L::jsonb)',
+      t, loc_operational, actor, 'top-reg-block-fulfillment', '{"isFulfillmentEnabled":false}'),
+    'RD409', 'active register blocks later fulfillment capability removal');
+  perform pg_temp.assert_raises(
+    format('select settings_private.write_branch(%L,%L,%L,%L,%L::jsonb)',
+      t, branch, actor, 'top-reg-block-branch', '{"status":"inactive"}'),
+    'RD409', 'active register blocks later branch deactivation');
+end $$;
+
+-- ============================ exposed private-schema privilege graph ============================
+select pg_temp.assert_true(
+  not exists (
+    select 1 from pg_roles
+    where rolname in ('promotions_writer', 'reporting_reader', 'settings_writer')
+      and (rolcanlogin or rolbypassrls)
+  ),
+  'newly exposed private-schema roles remain NOLOGIN and NOBYPASSRLS');
+select pg_temp.assert_true(
+  not has_schema_privilege('anon', 'promotions_private', 'USAGE')
+    and not has_schema_privilege('anon', 'reporting_private', 'USAGE')
+    and not has_schema_privilege('anon', 'settings_private', 'USAGE')
+    and not has_schema_privilege('authenticated', 'promotions_private', 'USAGE')
+    and not has_schema_privilege('authenticated', 'reporting_private', 'USAGE')
+    and not has_schema_privilege('authenticated', 'settings_private', 'USAGE'),
+  'anon and authenticated cannot use newly exposed private schemas');
+select pg_temp.assert_true(
+  not exists (
+    select 1
+    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname in ('promotions_private', 'reporting_private', 'settings_private')
+      and (has_function_privilege('anon', p.oid, 'EXECUTE')
+        or has_function_privilege('authenticated', p.oid, 'EXECUTE'))
+  ),
+  'anon and authenticated cannot execute newly exposed private RPCs');
+select pg_temp.assert_true(
+  has_schema_privilege('service_role', 'promotions_private', 'USAGE')
+    and has_schema_privilege('service_role', 'reporting_private', 'USAGE')
+    and has_schema_privilege('service_role', 'settings_private', 'USAGE'),
+  'service transport can discover each intended private RPC schema');
+select pg_temp.assert_true(
+  has_function_privilege('service_role', 'promotions_private.evaluate(uuid,text,text,uuid,uuid,jsonb,text)', 'EXECUTE')
+    and has_function_privilege('service_role', 'reporting_private.report_summary(uuid,date,date)', 'EXECUTE')
+    and has_function_privilege('service_role', 'settings_private.get_business(uuid)', 'EXECUTE')
+    and has_function_privilege('service_role', 'settings_private.write_storefront(uuid,uuid,uuid,text,jsonb)', 'EXECUTE'),
+  'service transport retains intended Promotion, Reporting and Settings entrypoint grants');
+select pg_temp.assert_true(
+  not has_function_privilege('service_role',
+    'settings_private.write_storefront_unchecked(uuid,uuid,uuid,text,jsonb)', 'EXECUTE')
+    and not has_function_privilege('service_role',
+      'settings_private.assert_storefront_operational(uuid,uuid,uuid)', 'EXECUTE'),
+  'service transport cannot execute Settings implementation helpers');
+select pg_temp.assert_true(
+  not has_table_privilege('service_role', 'public.promotions', 'INSERT,UPDATE,DELETE')
+    and not has_table_privilege('service_role', 'public.settings_commands', 'INSERT,UPDATE,DELETE')
+    and not has_table_privilege('authenticated', 'public.promotions', 'INSERT,UPDATE,DELETE')
+    and not has_table_privilege('authenticated', 'public.settings_commands', 'INSERT,UPDATE,DELETE'),
+  'schema exposure grants no direct mutation authority');
+select pg_temp.assert_true(
+  not exists (
+    select 1
+    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname in ('promotions_private', 'reporting_private', 'settings_private')
+      and has_function_privilege('service_role', p.oid, 'EXECUTE')
+      and (not p.prosecdef or not (coalesce(p.proconfig, '{}'::text[]) @> array['search_path=""']))
+  ),
+  'every service-executable private RPC is SECURITY DEFINER with an empty search_path');
+
 -- ============================ currency locks after commercial history ============================
 -- A POS order for the register locks its selling currency; a tenant order locks default_currency;
 -- an online order for the brand locks the storefront currency. Same value stays a no-op.
