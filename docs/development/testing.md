@@ -47,6 +47,8 @@ implementation as complete.
 | SDK check                  | `pnpm test:sdk`                              | Build, types, methods, token/tenant/client headers, error parsing, pack, isolated self-contained tarball  | Publication to a remote registry                          |
 | Build                      | `pnpm build`                                 | Compilation and build-time integration                                                                    | Deployment/runtime infrastructure                         |
 | SDK package check          | `pnpm sdk:pack`                              | The SDK can be packaged and its included files inspected                                                  | Publication or consumer integration in a remote registry  |
+| Full repository suite      | `pnpm test:all`                              | Legacy core gates plus Catalog management, Online, Promotions, Reporting/export, and Settings suites      | Formatting, build, or SDK packaging by itself             |
+| Release validation         | `pnpm validate:release`                      | Format, lint, strict types, full tests, OpenAPI, SDK consumer/package gate, and production build          | Production deployment or cloud credentials                |
 | Whitespace validation      | `git diff --check`                           | Trailing whitespace and malformed patch markers                                                           | Any semantic correctness                                  |
 
 At the Phase 1D review point, `pnpm test` runs the four existing unit/contract files with eleven
@@ -97,11 +99,15 @@ test commands; formatting, lint, typecheck, build, packing, and diff checks rema
 
 ## What runs in CI
 
-`.github/workflows/ci.yml` currently runs dependency installation with the frozen lockfile,
+`.github/workflows/ci.yml` runs dependency installation with the frozen lockfile,
 formatting verification, linting, type checking, unit/contract Vitest, the distinct deterministic
 and real-repository authorization steps, all three persistence commands, all three distinct RLS
 security steps, the catalog category and inventory balance concurrency regressions, the build, and
-SDK packing. Application authorization and all database layers are mandatory in every pull request.
+SDK packing. A separate required `modern-domain-suites` job runs Catalog management, Online
+persistence/real public HTTP, Promotions persistence/concurrency, Reporting persistence/export, and
+Settings persistence sequentially. The local Supabase suites are deliberately not parallelized inside
+one runner because they share ports. Application authorization and all database layers are mandatory
+in every pull request.
 
 The GitHub-hosted Ubuntu runner supplies Docker. CI invokes the same Node runner used locally, which
 checks Docker availability, creates its own disposable PostgreSQL container, runs both clean test

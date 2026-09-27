@@ -25,6 +25,13 @@ and idempotency state. **It is an immutable placement receipt, not a live status
 replay after cancellation still returns that original receipt. There is no public order lookup by
 number or UUID. Future status lookup must require an opaque access token or verified customer login.
 
+`POST /api/v1/storefront/quote` uses the same locked routing, catalog, currency, and Promotion
+evaluation path as checkout but is commercially non-consuming: it creates no Customer, Order,
+reservation, Payment, adjustment, or redemption. Repeating a quote is safe. Its PostgreSQL function is
+classified `VOLATILE` because the shared validation helpers legitimately use `SELECT ... FOR SHARE`;
+this selects a read-write transaction mode through PostgREST and does not imply business-state
+mutation. Do not remove those locks or change it back to `STABLE`.
+
 ## Customer identity and snapshots
 
 Customers are tenant-owned commerce entities, separate from UserIdentity and Membership. Names and
@@ -45,7 +52,7 @@ Subsequent profile, address and catalog changes do not rewrite history.
 
 ## Pricing and routing
 
-The server resolves a deployment-owned `storefront_checkout_settings` row for the public tenant/brand
+The server resolves an API-managed `storefront_checkout_settings` row for the public tenant/brand
 pair, checks active Tenant/Brand and active sellable, fulfillment-enabled InventoryLocation, and locks
 the routing and catalog rows. Each variant must belong to that exact tenant/brand, have an active
 parent and variant, a published parent, and an active price in the configured currency.
@@ -58,8 +65,8 @@ Totals are safe JavaScript integers in minor units. This phase has no shipping-f
 promotions or discount overrides: the merchandise price is the final configured checkout amount.
 Do not invent tax/fiscal breakdowns. Operational references are not fiscal invoices.
 
-Routing is intentionally one location and currency per tenant/brand, provisioned through reviewed
-server-side SQL. For example, using actual verified tenant-owned IDs:
+Routing is intentionally one location and currency per tenant/brand and is managed through the
+authorized Settings API. The underlying shape is:
 
 ```sql
 insert into public.storefront_checkout_settings
@@ -71,6 +78,10 @@ values (:tenant, :brand, :location, :currency, false);
 migration enables it for a live tenant. The fixture explicitly enables COD in the disposable test
 database. Arbitrary client tenant/brand combinations cannot bypass this mapping or composite FKs.
 Domain/host resolution remains the existing future Storefront context concern.
+
+The Settings write boundary rejects enabling COD unless this exact runtime topology is operational,
+and prevents later Settings mutations from deactivating the Brand/location or removing sellable or
+fulfillment capability while the Storefront remains enabled. Disable or reroute the Storefront first.
 
 ## Stock commitments and lifecycle
 

@@ -22,7 +22,9 @@ credentials.
 ## Files and configuration
 
 - `supabase/config.toml` identifies this local project, pins PostgreSQL major version 17, publishes
-  local PostgreSQL on port `54322`, and disables seed execution.
+  local PostgreSQL on port `54322`, disables seed execution, and exposes the exact PostgREST schema
+  set used by server repositories. That set includes the private Promotion, Reporting, and Settings
+  RPC schemas; `tests/postgrest-schema-exposure.test.ts` fails if the checked-in list drifts.
 - `supabase/migrations/` is the single append-only schema history used by both database runners.
 - `supabase/tests/phase_1c_b_tenant_rls.test.sql` contains transactional pgTAP fixtures and policy
   assertions.
@@ -36,6 +38,13 @@ credentials.
 Change ports or service configuration only in `supabase/config.toml`, then document the reason.
 Never add a cloud project reference, access token, database password, JWT signing secret, service
 key, or generated local credential output to version control.
+
+PostgREST schema exposure provides transport discoverability only. It grants no database authority:
+`anon` and `authenticated` have no `USAGE` or RPC execution on private schemas, while `service_role`
+can execute only reviewed entrypoints. The underlying writer/reader roles remain `NOLOGIN
+NOBYPASSRLS`, and externally executable private RPCs are hardened `SECURITY DEFINER` functions with
+an empty `search_path`. The Settings persistence suite verifies this privilege graph for
+`promotions_private`, `reporting_private`, and `settings_private`.
 
 ## Prerequisites and first setup
 

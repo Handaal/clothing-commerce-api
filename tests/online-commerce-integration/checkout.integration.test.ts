@@ -20,6 +20,7 @@ const B = "2a000002-0000-4000-8000-000000000001";
 const V = "2a000007-0000-4000-8000-000000000001";
 const L = "2a000004-0000-4000-8000-000000000001";
 const P = "2a000006-0000-4000-8000-000000000001";
+const ACTOR = "2a000012-0000-4000-8000-000000000001";
 const foreignT = "2a000001-0000-4000-8000-000000000002";
 const intent = {
   tenantId: T,
@@ -115,6 +116,74 @@ async function fulfill(order: string, quantity: number, location = L) {
   });
 }
 describe.sequential("online commerce through real Next.js HTTP + PostgreSQL", () => {
+  it("quotes through public HTTP after a valid Settings save without mutating commercial state", async () => {
+    const settingsSave = await db.schema("settings_private").rpc("write_storefront", {
+      p_tenant: T,
+      p_brand: B,
+      p_actor: ACTOR,
+      p_key: "quote-topology-save",
+      p_input: {
+        inventoryLocationId: L,
+        currency: "USD",
+        codEnabled: true,
+      },
+    });
+    expect(settingsSave.error).toBeNull();
+
+    const promotion = await db.schema("promotions_private").rpc("create_promotion", {
+      p_tenant: T,
+      p_key: "quote-promotion",
+      p_payload: {
+        name: "Quote ten percent",
+        benefitType: "percentage",
+        benefitPercentBp: 1000,
+        targetType: "order",
+        activationType: "code",
+        channel: "online",
+        brandId: B,
+        codes: [{ code: "QUOTE10", maxRedemptions: 10 }],
+      },
+    });
+    expect(promotion.error).toBeNull();
+
+    const before = await counts();
+    const beforeCommercial = sql(
+      "select jsonb_build_array((select count(*) from orders),(select count(*) from stock_reservations),(select count(*) from promotion_redemptions));",
+    );
+    const quoteIntent = {
+      tenantId: T,
+      brandId: B,
+      lines: [{ variantId: V, quantity: 1 }],
+      promotionCode: "QUOTE10",
+    };
+    const first = await sdk.quote(quoteIntent);
+    expect(first).toMatchObject({
+      currency: "USD",
+      grossSubtotalMinor: 2500,
+      discountTotalMinor: 250,
+      totalMinor: 2250,
+      codeStatus: "valid",
+      promotion: { name: "Quote ten percent", discountTotalMinor: 250 },
+    });
+    expect(await sdk.quote(quoteIntent)).toEqual(first);
+    expect(await counts()).toBe(before);
+    expect(
+      sql(
+        "select jsonb_build_array((select count(*) from orders),(select count(*) from stock_reservations),(select count(*) from promotion_redemptions));",
+      ),
+    ).toBe(beforeCommercial);
+
+    await expect(sdk.quote({ ...quoteIntent, tenantId: foreignT })).rejects.toMatchObject({
+      code: "CHECKOUT_UNAVAILABLE",
+    });
+    await expect(
+      sdk.quote({
+        ...quoteIntent,
+        lines: [{ variantId: "2a000007-0000-4000-8000-000000000099", quantity: 1 }],
+      }),
+    ).rejects.toMatchObject({ code: "VARIANT_NOT_SELLABLE" });
+  }, 60000);
+
   it("reads the published merged catalog and places one canonical guest order atomically", async () => {
     const published = await sdk.getPublishedProduct({ tenantId: T, slug: "pos-tee" });
     expect(published.variants[0]?.id).toBe(V);
