@@ -104,6 +104,33 @@ export interface UnassignStaffRoleInput extends IdempotentWrite {
   reason?: string;
 }
 import {
+  AttendanceClockResponseSchema,
+  MyAttendanceResponseSchema,
+  AttendanceListResponseSchema,
+  type AttendanceClockResponse,
+  type MyAttendanceResponse,
+  type AttendanceListResponse,
+} from "../../../src/contracts/management/attendance";
+export type {
+  AttendanceEntry,
+  AttendanceClockResponse,
+  MyAttendanceResponse,
+  AttendanceListResponse,
+} from "../../../src/contracts/management/attendance";
+/** Clock-in records the signed-in member's start; `branchId` optionally tags the POS register's branch. */
+export interface ClockInInput {
+  branchId?: string | null;
+}
+export interface MyAttendanceQuery {
+  limit?: number;
+}
+export interface AttendanceListQuery {
+  membershipId?: string;
+  branchId?: string;
+  limit?: number;
+  cursor?: string;
+}
+import {
   CheckoutResultSchema,
   type CheckoutRequest,
   type CheckoutResult,
@@ -657,6 +684,14 @@ export interface TenantCommerceClient {
   updateStaffStatus(input: UpdateStaffStatusInput): Promise<StaffDetail>;
   assignStaffRole(input: AssignStaffRoleInput): Promise<StaffDetail>;
   unassignStaffRole(input: UnassignStaffRoleInput): Promise<StaffDetail>;
+  /** Clock the signed-in member in (attendance.record). Fails if they already have an open entry. */
+  clockIn(input?: ClockInInput): Promise<AttendanceClockResponse>;
+  /** Clock the signed-in member out of their open entry (attendance.record). */
+  clockOut(): Promise<AttendanceClockResponse>;
+  /** The signed-in member's own attendance: current open entry + recent entries (attendance.record). */
+  getMyAttendance(query?: MyAttendanceQuery): Promise<MyAttendanceResponse>;
+  /** Tenant-wide workforce attendance, keyset-paginated (attendance.read). */
+  listAttendance(query?: AttendanceListQuery): Promise<AttendanceListResponse>;
   receiveInventory(input: ReceiveInventoryInput): Promise<ReceiveInventoryResponse>;
   adjustInventory(input: AdjustInventoryInput): Promise<AdjustInventoryResponse>;
   transferInventory(input: TransferInventoryInput): Promise<TransferInventoryResponse>;
@@ -1111,6 +1146,30 @@ export function createCommerceClient({
           `/api/v1/staff/${encodeURIComponent(membershipId)}/role-assignments/${encodeURIComponent(assignmentId)}`,
           StaffDetailSchema,
           { tenantId, method: "DELETE", body, idempotencyKey },
+        ),
+      clockIn: (input: ClockInInput = {}) =>
+        request("/api/v1/attendance/clock-in", AttendanceClockResponseSchema, {
+          tenantId,
+          method: "POST",
+          body: input,
+        }),
+      clockOut: () =>
+        request("/api/v1/attendance/clock-out", AttendanceClockResponseSchema, {
+          tenantId,
+          method: "POST",
+          body: {},
+        }),
+      getMyAttendance: (query: MyAttendanceQuery = {}) =>
+        request(
+          `/api/v1/attendance/me${buildQuery({ limit: query.limit })}`,
+          MyAttendanceResponseSchema,
+          { tenantId },
+        ),
+      listAttendance: (query: AttendanceListQuery = {}) =>
+        request(
+          `/api/v1/attendance${buildQuery({ membershipId: query.membershipId, branchId: query.branchId, limit: query.limit, cursor: query.cursor })}`,
+          AttendanceListResponseSchema,
+          { tenantId },
         ),
       receiveInventory: ({ idempotencyKey, ...body }: ReceiveInventoryInput) =>
         request("/api/v1/inventory/receipts", ReceiveInventoryResponseSchema, {

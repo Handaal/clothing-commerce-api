@@ -23,6 +23,8 @@ import { SuppliersService } from "../suppliers/service";
 import { createSuppliersRepository } from "../suppliers/repository";
 import { StaffService } from "../staff/service";
 import { createStaffRepository } from "../staff/repository";
+import { AttendanceService } from "../attendance/service";
+import { createAttendanceRepository } from "../attendance/repository";
 import { PromotionsService } from "../promotions/service";
 import { createPromotionsRepository } from "../promotions/repository";
 import { ReportingService } from "../reporting/service";
@@ -140,6 +142,10 @@ export function createManagementApiBoundary(
     staffService: new StaffService(
       authorizationService,
       createStaffRepository(supabaseConfiguration),
+    ),
+    attendanceService: new AttendanceService(
+      authorizationService,
+      createAttendanceRepository(supabaseConfiguration),
     ),
     promotionsService: new PromotionsService(
       authorizationService,
