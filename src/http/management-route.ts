@@ -14,6 +14,7 @@ import { PosSaleError } from "../pos/errors";
 import { OfflinePosError } from "../pos/offline-errors";
 import { SupplierError } from "../suppliers/errors";
 import { StaffError } from "../staff/errors";
+import { AttendanceError } from "../attendance/errors";
 import { ReturnError } from "../returns/errors";
 import { PromotionError } from "../promotions/errors";
 import { ReportingError } from "../reporting/errors";
@@ -185,6 +186,7 @@ function mapError(error: unknown, requestId: string, request?: Request): Respons
     error instanceof ReturnError ||
     error instanceof SupplierError ||
     error instanceof StaffError ||
+    error instanceof AttendanceError ||
     error instanceof PromotionError ||
     error instanceof ReportingError ||
     error instanceof SettingsError
