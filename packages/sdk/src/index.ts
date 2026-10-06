@@ -131,6 +131,54 @@ export interface AttendanceListQuery {
   cursor?: string;
 }
 import {
+  PayrollReportResponseSchema,
+  PayrollSettingsSchema,
+  EmployeeCompensationSchema,
+  AdjustmentSchema,
+  AdjustmentListResponseSchema,
+  LeaveListResponseSchema,
+  LeaveClockResponseSchema,
+  AttendanceDeletedResponseSchema,
+  type PayrollReportResponse,
+  type PayrollSettings,
+  type EmployeeCompensation,
+  type Adjustment,
+  type AdjustmentListResponse,
+  type LeaveListResponse,
+  type LeaveClockResponse,
+  type SetCompensationRequest,
+  type UpdatePayrollSettingsRequest,
+  type CreateAdjustmentRequest,
+  type CreateAttendanceEntryRequest,
+  type UpdateAttendanceEntryRequest,
+} from "../../../src/contracts/management/attendance-payroll";
+export type {
+  PayrollRow,
+  PayrollTotals,
+  PayrollReportResponse,
+  PayrollSettings,
+  EmployeeCompensation,
+  AdjustmentType,
+  Adjustment,
+  AdjustmentListResponse,
+  LeaveEntry,
+  LeaveListResponse,
+  LeaveClockResponse,
+  SetCompensationRequest,
+  UpdatePayrollSettingsRequest,
+  CreateAdjustmentRequest,
+  CreateAttendanceEntryRequest,
+  UpdateAttendanceEntryRequest,
+} from "../../../src/contracts/management/attendance-payroll";
+/** Inclusive [from, to] calendar-date window (YYYY-MM-DD) for payroll / adjustments / leave reads. */
+export interface AttendanceDateRange {
+  from: string;
+  to: string;
+}
+export type SetCompensationInput = SetCompensationRequest & { membershipId: string };
+export type CreateAdjustmentInput = CreateAdjustmentRequest;
+export type UpdateAttendanceEntryInput = UpdateAttendanceEntryRequest & { entryId: string };
+import {
   CheckoutResultSchema,
   type CheckoutRequest,
   type CheckoutResult,
@@ -699,6 +747,26 @@ export interface TenantCommerceClient {
   getMyAttendance(query?: MyAttendanceQuery): Promise<MyAttendanceResponse>;
   /** Tenant-wide workforce attendance, keyset-paginated (attendance.read). */
   listAttendance(query?: AttendanceListQuery): Promise<AttendanceListResponse>;
+  /** Computed payroll for a date range (attendance.read). */
+  getPayrollReport(range: AttendanceDateRange): Promise<PayrollReportResponse>;
+  /** Tenant payroll settings: normal-hours threshold + shift-duration divisor (read/manage). */
+  getPayrollSettings(): Promise<PayrollSettings>;
+  updatePayrollSettings(input: UpdatePayrollSettingsRequest): Promise<PayrollSettings>;
+  /** A member's current compensation, or null if none is set (attendance.read). */
+  getCompensation(membershipId: string): Promise<EmployeeCompensation | null>;
+  setCompensation(input: SetCompensationInput): Promise<EmployeeCompensation>;
+  /** Dated bonus/deduction adjustments (read list / manage create+remove). */
+  listAdjustments(range: AttendanceDateRange): Promise<AdjustmentListResponse>;
+  createAdjustment(input: CreateAdjustmentInput): Promise<Adjustment>;
+  removeAdjustment(adjustmentId: string): Promise<{ id: string }>;
+  /** Manager-sanctioned manual attendance entries (attendance.manage). */
+  addAttendanceEntry(input: CreateAttendanceEntryRequest): Promise<AttendanceClockResponse>;
+  updateAttendanceEntry(input: UpdateAttendanceEntryInput): Promise<AttendanceClockResponse>;
+  removeAttendanceEntry(entryId: string): Promise<{ id: string }>;
+  /** Mid-shift leave log (attendance.read) + self-service start/end (attendance.record). */
+  listLeaves(range: AttendanceDateRange): Promise<LeaveListResponse>;
+  startLeave(input?: ClockInInput): Promise<LeaveClockResponse>;
+  endLeave(): Promise<LeaveClockResponse>;
   receiveInventory(input: ReceiveInventoryInput): Promise<ReceiveInventoryResponse>;
   adjustInventory(input: AdjustInventoryInput): Promise<AdjustInventoryResponse>;
   transferInventory(input: TransferInventoryInput): Promise<TransferInventoryResponse>;
@@ -1178,6 +1246,86 @@ export function createCommerceClient({
           AttendanceListResponseSchema,
           { tenantId },
         ),
+      getPayrollReport: (range: AttendanceDateRange) =>
+        request(
+          `/api/v1/attendance/payroll${buildQuery({ from: range.from, to: range.to })}`,
+          PayrollReportResponseSchema,
+          { tenantId },
+        ),
+      getPayrollSettings: () =>
+        request("/api/v1/attendance/settings", PayrollSettingsSchema, { tenantId }),
+      updatePayrollSettings: (input: UpdatePayrollSettingsRequest) =>
+        request("/api/v1/attendance/settings", PayrollSettingsSchema, {
+          tenantId,
+          method: "PUT",
+          body: input,
+        }),
+      getCompensation: (membershipId: string) =>
+        request(
+          `/api/v1/attendance/compensation/${encodeURIComponent(membershipId)}`,
+          EmployeeCompensationSchema.nullable(),
+          { tenantId },
+        ),
+      setCompensation: ({ membershipId, ...body }: SetCompensationInput) =>
+        request(
+          `/api/v1/attendance/compensation/${encodeURIComponent(membershipId)}`,
+          EmployeeCompensationSchema,
+          { tenantId, method: "PUT", body },
+        ),
+      listAdjustments: (range: AttendanceDateRange) =>
+        request(
+          `/api/v1/attendance/adjustments${buildQuery({ from: range.from, to: range.to })}`,
+          AdjustmentListResponseSchema,
+          { tenantId },
+        ),
+      createAdjustment: (input: CreateAdjustmentInput) =>
+        request("/api/v1/attendance/adjustments", AdjustmentSchema, {
+          tenantId,
+          method: "POST",
+          body: input,
+        }),
+      removeAdjustment: (adjustmentId: string) =>
+        request(
+          `/api/v1/attendance/adjustments/${encodeURIComponent(adjustmentId)}`,
+          AttendanceDeletedResponseSchema,
+          { tenantId, method: "DELETE", body: {} },
+        ),
+      addAttendanceEntry: (input: CreateAttendanceEntryRequest) =>
+        request("/api/v1/attendance/entries", AttendanceClockResponseSchema, {
+          tenantId,
+          method: "POST",
+          body: input,
+        }),
+      updateAttendanceEntry: ({ entryId, ...body }: UpdateAttendanceEntryInput) =>
+        request(
+          `/api/v1/attendance/entries/${encodeURIComponent(entryId)}`,
+          AttendanceClockResponseSchema,
+          { tenantId, method: "PATCH", body },
+        ),
+      removeAttendanceEntry: (entryId: string) =>
+        request(
+          `/api/v1/attendance/entries/${encodeURIComponent(entryId)}`,
+          AttendanceDeletedResponseSchema,
+          { tenantId, method: "DELETE", body: {} },
+        ),
+      listLeaves: (range: AttendanceDateRange) =>
+        request(
+          `/api/v1/attendance/leaves${buildQuery({ from: range.from, to: range.to })}`,
+          LeaveListResponseSchema,
+          { tenantId },
+        ),
+      startLeave: (input: ClockInInput = {}) =>
+        request("/api/v1/attendance/leave/start", LeaveClockResponseSchema, {
+          tenantId,
+          method: "POST",
+          body: input,
+        }),
+      endLeave: () =>
+        request("/api/v1/attendance/leave/end", LeaveClockResponseSchema, {
+          tenantId,
+          method: "POST",
+          body: {},
+        }),
       receiveInventory: ({ idempotencyKey, ...body }: ReceiveInventoryInput) =>
         request("/api/v1/inventory/receipts", ReceiveInventoryResponseSchema, {
           tenantId,

@@ -81,12 +81,12 @@ begin
   where key in (
       'catalog.read', 'inventory.read', 'orders.read',
       'inventory.receive', 'inventory.adjust', 'inventory.transfer',
-      'attendance.read'
+      'attendance.read', 'attendance.manage'
     )
     and status = 'active';
-  if v_perm_count <> 7 then
+  if v_perm_count <> 8 then
     raise exception
-      'DEV_PROVISIONING: expected 7 active canonical permissions (catalog.read, inventory.read, orders.read, inventory.receive, inventory.adjust, inventory.transfer, attendance.read) but found %. Run `pnpm supabase:reset` to apply migrations.',
+      'DEV_PROVISIONING: expected 8 active canonical permissions (catalog.read, inventory.read, orders.read, inventory.receive, inventory.adjust, inventory.transfer, attendance.read, attendance.manage) but found %. Run `pnpm supabase:reset` to apply migrations.',
       v_perm_count;
   end if;
 
@@ -166,17 +166,17 @@ begin
     v_role_created := true;
   end if;
 
-  -- 5. Grant EXACTLY the seven management permissions (three reads + three inventory writes + attendance
-  --    read). The idempotent insert reconciles an older state up to the full set; the count assertion then
-  --    keeps the role an EXACT set. If it carries anything beyond these seven (e.g. inventory.opening/issue
-  --    or any other grant), fail rather than silently narrow/widen. A re-run inserts nothing and re-asserts.
+  -- 5. Grant EXACTLY the eight management permissions (three reads + three inventory writes + attendance
+  --    read + attendance manage). The idempotent insert reconciles an older state up to the full set; the
+  --    count assertion then keeps the role an EXACT set. If it carries anything beyond these eight, fail
+  --    rather than silently narrow/widen. A re-run inserts nothing and re-asserts.
   insert into public.role_permissions (tenant_id, role_id, permission_id)
   select v_tenant_id, v_role_id, p.id
   from public.permissions p
   where p.key in (
     'catalog.read', 'inventory.read', 'orders.read',
     'inventory.receive', 'inventory.adjust', 'inventory.transfer',
-    'attendance.read'
+    'attendance.read', 'attendance.manage'
   )
   on conflict (tenant_id, role_id, permission_id) do nothing;
 
@@ -184,9 +184,9 @@ begin
   from public.role_permissions
   where tenant_id = v_tenant_id
     and role_id = v_role_id;
-  if v_role_perm_count <> 7 then
+  if v_role_perm_count <> 8 then
     raise exception
-      'DEV_PROVISIONING: role "Dev Management Reader" must grant exactly the 7 management permissions but carries % grants; refusing to alter an unexpected grant set.',
+      'DEV_PROVISIONING: role "Dev Management Reader" must grant exactly the 8 management permissions but carries % grants; refusing to alter an unexpected grant set.',
       v_role_perm_count;
   end if;
 
