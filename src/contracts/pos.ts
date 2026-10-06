@@ -49,12 +49,28 @@ export const PosContextResponseSchema = z.object({
   registers: z.array(PosContextRegisterSchema),
 });
 
+// Cashier-confirmed tender methods. card / instapay / wallet are recorded as exact captures (the
+// cashier confirms the external terminal / transfer / wallet succeeded); only cash carries change.
+export const PosTenderMethodSchema = z.enum(["cash", "card", "instapay", "wallet"]);
+
+export const PosTenderInputSchema = z
+  .object({
+    method: PosTenderMethodSchema,
+    amountMinor: PositiveIntegerSchema,
+    // Physical cash handed over, for the cash tender only; change = cashReceivedMinor − amountMinor.
+    cashReceivedMinor: NonNegativeIntegerSchema.optional(),
+  })
+  .strict();
+
+// A sale is settled either by a single cash amount (cashReceivedMinor) or by an explicit split of
+// tenders whose amounts sum to the authoritative net total. Exactly one of the two must be present.
 export const CreatePosSaleRequestSchema = z
   .object({
     registerId: UuidSchema,
     // The expected NET total after any promotion; the server re-derives and rejects a stale value.
     expectedTotalMinor: NonNegativeIntegerSchema,
-    cashReceivedMinor: NonNegativeIntegerSchema,
+    cashReceivedMinor: NonNegativeIntegerSchema.optional(),
+    tenders: z.array(PosTenderInputSchema).min(1).max(4).optional(),
     lines: z
       .array(
         z.object({
@@ -65,7 +81,44 @@ export const CreatePosSaleRequestSchema = z
       .min(1),
     promotionCode: PromotionCodeInputSchema.nullable().optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((value, ctx) => {
+    if (value.tenders === undefined && value.cashReceivedMinor === undefined) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["tenders"],
+        message: "provide cashReceivedMinor or tenders",
+      });
+    }
+    if (value.tenders !== undefined) {
+      const methods = new Set<string>();
+      for (const [index, tender] of value.tenders.entries()) {
+        if (methods.has(tender.method))
+          ctx.addIssue({
+            code: "custom",
+            path: ["tenders", index, "method"],
+            message: "a method may appear at most once",
+          });
+        methods.add(tender.method);
+        if (tender.method !== "cash" && tender.cashReceivedMinor !== undefined)
+          ctx.addIssue({
+            code: "custom",
+            path: ["tenders", index, "cashReceivedMinor"],
+            message: "cashReceivedMinor applies to the cash tender only",
+          });
+        if (
+          tender.method === "cash" &&
+          tender.cashReceivedMinor !== undefined &&
+          tender.cashReceivedMinor < tender.amountMinor
+        )
+          ctx.addIssue({
+            code: "custom",
+            path: ["tenders", index, "cashReceivedMinor"],
+            message: "cash received is below the cash tender amount",
+          });
+      }
+    }
+  });
 
 // Non-consuming connected-POS pricing quote over the same engine (register context resolves currency).
 export const PosQuoteRequestSchema = z
@@ -111,20 +164,25 @@ const PosOrderSchema = z.object({
   lines: z.array(PosOrderLineSchema).min(1),
 });
 
-export const CashPaymentSchema = z.object({
+// One captured POS tender. Cash carries cashReceived/change; non-cash tenders are exact captures
+// with null cash fields. A cash-only sale produces exactly one row (method "cash").
+export const PosPaymentSchema = z.object({
   id: UuidSchema,
   orderId: UuidSchema,
-  method: z.literal("cash"),
+  method: PosTenderMethodSchema,
   status: z.literal("captured"),
   currency: CurrencySchema,
   amountMinor: NonNegativeIntegerSchema,
-  cashReceivedMinor: NonNegativeIntegerSchema,
-  changeMinor: NonNegativeIntegerSchema,
+  cashReceivedMinor: NonNegativeIntegerSchema.nullable(),
+  changeMinor: NonNegativeIntegerSchema.nullable(),
   capturedByMembershipId: UuidSchema,
   capturedAt: IsoDateTimeSchema,
   createdAt: IsoDateTimeSchema,
   updatedAt: IsoDateTimeSchema,
 });
+
+// Backward-compatible alias: the primary (cash-or-first) tender of a sale.
+export const CashPaymentSchema = PosPaymentSchema;
 
 const PosFulfillmentLineSchema = z.object({
   id: UuidSchema,
@@ -148,7 +206,9 @@ const PosFulfillmentSchema = z.object({
 export const CreatePosSaleResponseSchema = z.object({
   saleStatus: z.literal("completed"),
   order: PosOrderSchema,
-  payment: CashPaymentSchema,
+  // `payment` is the primary (cash-or-first) tender; `payments` is the full split, summing to total.
+  payment: PosPaymentSchema,
+  payments: z.array(PosPaymentSchema).min(1),
   fulfillment: PosFulfillmentSchema,
 });
 
@@ -275,6 +335,9 @@ export const OfflineSaleCommandSchema = z
     totalMinor: NonNegativeIntegerSchema,
     cashReceivedMinor: NonNegativeIntegerSchema,
     changeMinor: NonNegativeIntegerSchema,
+    // Optional split tender. When present, the tender amounts sum to totalMinor; the cash tender's
+    // cashReceived/change mirror the top-level cashReceivedMinor/changeMinor. Absent ⇒ cash-only.
+    tenders: z.array(PosTenderInputSchema).min(1).max(4).optional(),
     offlineSaleOrdinal: PositiveIntegerSchema,
     cumulativeExposureMinor: NonNegativeIntegerSchema,
   })
@@ -289,6 +352,26 @@ export const OfflineSaleCommandSchema = z
           message: "a variant may appear at most once",
         });
       variants.add(line.variantId);
+    }
+    if (value.tenders !== undefined) {
+      const methods = new Set<string>();
+      let sum = 0;
+      for (const [index, tender] of value.tenders.entries()) {
+        if (methods.has(tender.method))
+          ctx.addIssue({
+            code: "custom",
+            path: ["tenders", index, "method"],
+            message: "a method may appear at most once",
+          });
+        methods.add(tender.method);
+        sum += tender.amountMinor;
+      }
+      if (sum !== value.totalMinor)
+        ctx.addIssue({
+          code: "custom",
+          path: ["tenders"],
+          message: "tenders must sum to totalMinor",
+        });
     }
   });
 
@@ -317,11 +400,15 @@ export const IngestOfflineSaleResponseSchema = z.object({
   localSaleId: z.string(),
   receivedAt: IsoDateTimeSchema,
   order: PosOrderSchema,
-  payment: CashPaymentSchema,
+  payment: PosPaymentSchema,
+  payments: z.array(PosPaymentSchema).min(1).optional(),
   fulfillment: PosFulfillmentSchema.nullable(),
   reconciliation: OfflineReconciliationSchema.nullable(),
 });
 
+export type PosTenderMethod = z.infer<typeof PosTenderMethodSchema>;
+export type PosTenderInput = z.infer<typeof PosTenderInputSchema>;
+export type PosPayment = z.infer<typeof PosPaymentSchema>;
 export type PosContextResponse = z.infer<typeof PosContextResponseSchema>;
 export type PosQuoteRequest = z.infer<typeof PosQuoteRequestSchema>;
 export type PosQuoteResponse = z.infer<typeof PosQuoteResponseSchema>;

@@ -536,7 +536,14 @@ export interface TransferInventoryInput extends IdempotentWrite {
 export interface CreatePosSaleInput extends IdempotentWrite {
   registerId: string;
   expectedTotalMinor: number;
-  cashReceivedMinor: number;
+  // Settle by a single cash amount (cashReceivedMinor) OR an explicit split of tenders that sum to
+  // the net total. Provide exactly one. cashReceivedMinor stays for the common cash-only sale.
+  cashReceivedMinor?: number;
+  tenders?: ReadonlyArray<{
+    method: "cash" | "card" | "instapay" | "wallet";
+    amountMinor: number;
+    cashReceivedMinor?: number;
+  }>;
   lines: ReadonlyArray<{ variantId: string; quantity: number }>;
   // Optional entered promotion code (trimmed, uppercased server-side); mirrors CreatePosSaleRequestSchema.
   promotionCode?: string | null;

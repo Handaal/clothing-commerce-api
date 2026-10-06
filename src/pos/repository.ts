@@ -5,6 +5,7 @@ import type {
   PosSaleIntent,
   PosSaleReplayTarget,
   PosSaleResult,
+  PosTenderInput,
   ResolvedPosSaleLine,
 } from "./model";
 
@@ -18,7 +19,8 @@ export interface RecordPosSaleCommand {
   readonly currency: string;
   readonly brandId: string;
   readonly expectedTotalMinor: number;
-  readonly cashReceivedMinor: number;
+  readonly cashReceivedMinor: number | null;
+  readonly tenders: readonly PosTenderInput[] | null;
   readonly lines: readonly ResolvedPosSaleLine[];
   readonly promotionCode: string | null;
 }

@@ -101,17 +101,32 @@ const EvaluationSchema = z.object({
 const PaymentSchema = z.object({
   id: z.string().uuid(),
   order_id: z.string().uuid(),
-  method: z.literal("cash"),
+  method: z.enum(["cash", "card", "instapay", "wallet"]),
   status: z.literal("captured"),
   currency: z.string(),
   amount_minor: z.union([z.number(), z.string()]),
-  cash_received_minor: z.union([z.number(), z.string()]),
-  change_minor: z.union([z.number(), z.string()]),
+  cash_received_minor: z.union([z.number(), z.string()]).nullable(),
+  change_minor: z.union([z.number(), z.string()]).nullable(),
   captured_by_membership_id: z.string().uuid(),
   captured_at: z.string(),
   created_at: z.string(),
   updated_at: z.string(),
+  tender_sequence: z.union([z.number(), z.string()]).nullable().optional(),
 });
+
+// Canonical DB shape for a tender, shared by record_sale and the replay fingerprint so both hash
+// identically. cash_received_minor is included only for the cash tender.
+function toDbTenders(
+  tenders: ReadonlyArray<{ method: string; amountMinor: number; cashReceivedMinor?: number }>,
+): Array<Record<string, unknown>> {
+  return tenders.map((tender) => ({
+    method: tender.method,
+    amount_minor: tender.amountMinor,
+    ...(tender.method === "cash" && tender.cashReceivedMinor !== undefined
+      ? { cash_received_minor: tender.cashReceivedMinor }
+      : {}),
+  }));
+}
 
 interface DatabaseErrorLike {
   readonly code?: string;
@@ -195,6 +210,7 @@ export class SupabasePosSaleRepository implements PosSaleRepository {
           variant_id: line.variantId,
           quantity: line.quantity,
         })),
+        ...(intent.tenders ? { tenders: toDbTenders(intent.tenders) } : {}),
       },
     });
     if (error) throw mapError(error);
@@ -277,6 +293,7 @@ export class SupabasePosSaleRepository implements PosSaleRepository {
       p_expected_total_minor: command.expectedTotalMinor,
       p_cash_received_minor: command.cashReceivedMinor,
       p_promotion_code: command.promotionCode,
+      p_tenders: command.tenders ? toDbTenders(command.tenders) : null,
       p_lines: command.lines.map((line) => ({
         variant_id: line.variantId,
         product_id: line.productId,
@@ -351,11 +368,12 @@ export class SupabasePosSaleRepository implements PosSaleRepository {
       (candidate) => candidate.permissionKey === OrderPermission.read,
     );
     if (!readProof) throw new Error("A POS sale proof is missing orders.read.");
-    const [order, fulfillment, payment] = await Promise.all([
+    const [order, fulfillment, payments] = await Promise.all([
       this.orders.getOrder(readProof, tenantId, sale.order_id),
       this.fulfillments.getFulfillment(readProof, tenantId, sale.fulfillment_id),
-      this.loadPayment(tenantId, sale.payment_id),
+      this.loadPayments(tenantId, sale.order_id),
     ]);
+    const payment = payments.find((row) => row.id === sale.payment_id) ?? payments[0];
     if (!order || !fulfillment || !payment) {
       throw new Error("A committed POS sale is missing a component.");
     }
@@ -369,6 +387,7 @@ export class SupabasePosSaleRepository implements PosSaleRepository {
         updatedAt: isoDateTime(order.updatedAt),
       },
       payment,
+      payments,
       fulfillment: {
         ...fulfillment,
         fulfilledAt: isoDateTime(fulfillment.fulfilledAt),
@@ -449,33 +468,35 @@ export class SupabasePosSaleRepository implements PosSaleRepository {
     });
   }
 
-  private async loadPayment(tenantId: string, paymentId: string): Promise<PaymentResult | null> {
+  // All captured tenders for the order, ordered by tender sequence. A cash-only sale returns one row.
+  private async loadPayments(tenantId: string, orderId: string): Promise<PaymentResult[]> {
     const { data, error } = await this.client
       .from("payments")
       .select(
-        "id,order_id,method,status,currency,amount_minor,cash_received_minor,change_minor,captured_by_membership_id,captured_at,created_at,updated_at",
+        "id,order_id,method,status,currency,amount_minor,cash_received_minor,change_minor,captured_by_membership_id,captured_at,created_at,updated_at,tender_sequence",
       )
       .eq("tenant_id", tenantId)
-      .eq("id", paymentId)
-      .limit(1);
+      .eq("order_id", orderId)
+      .order("tender_sequence", { ascending: true });
     if (error) throw mapError(error);
-    const rows = data ?? [];
-    if (rows.length === 0) return null;
-    const payment = PaymentSchema.parse(rows[0]);
-    return {
-      id: payment.id,
-      orderId: payment.order_id,
-      method: payment.method,
-      status: payment.status,
-      currency: payment.currency,
-      amountMinor: safeInteger(payment.amount_minor),
-      cashReceivedMinor: safeInteger(payment.cash_received_minor),
-      changeMinor: safeInteger(payment.change_minor),
-      capturedByMembershipId: payment.captured_by_membership_id,
-      capturedAt: isoDateTime(payment.captured_at),
-      createdAt: isoDateTime(payment.created_at),
-      updatedAt: isoDateTime(payment.updated_at),
-    };
+    return (data ?? []).map((row) => {
+      const payment = PaymentSchema.parse(row);
+      return {
+        id: payment.id,
+        orderId: payment.order_id,
+        method: payment.method,
+        status: payment.status,
+        currency: payment.currency,
+        amountMinor: safeInteger(payment.amount_minor),
+        cashReceivedMinor:
+          payment.cash_received_minor === null ? null : safeInteger(payment.cash_received_minor),
+        changeMinor: payment.change_minor === null ? null : safeInteger(payment.change_minor),
+        capturedByMembershipId: payment.captured_by_membership_id,
+        capturedAt: isoDateTime(payment.captured_at),
+        createdAt: isoDateTime(payment.created_at),
+        updatedAt: isoDateTime(payment.updated_at),
+      };
+    });
   }
 }
 
