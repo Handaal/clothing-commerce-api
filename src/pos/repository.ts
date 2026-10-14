@@ -1,6 +1,7 @@
 import type { PosSaleExecutionProof } from "./execution-proof";
 import type {
   PosBusinessIdentity,
+  PosCustomerInput,
   PosRegisterContext,
   PosSaleIntent,
   PosSaleReplayTarget,
@@ -23,6 +24,7 @@ export interface RecordPosSaleCommand {
   readonly tenders: readonly PosTenderInput[] | null;
   readonly lines: readonly ResolvedPosSaleLine[];
   readonly promotionCode: string | null;
+  readonly customer: PosCustomerInput | null;
 }
 
 export interface PromotionEvaluationInput {

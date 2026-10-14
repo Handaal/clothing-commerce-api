@@ -126,7 +126,14 @@ PostgREST configuration before deploying the new API/SDK contract. Local configu
 execution remain revoked. No new environment variable or external dependency is required. Existing
 Clerk and Supabase server configuration remains in use; no secrets enter SDK artifacts.
 
-## Unit cost and deferred procurement
+## Supplier money extension
+
+The later custom supplier-money extension is documented in
+[supplier-money.md](supplier-money.md). It adds atomic priced receipts, initial and standalone
+payments, server-computed dues, and reminders while preserving this foundation. Per-line supplier
+cost is AP/history only and does not establish inventory valuation or COGS.
+
+## Unit cost and deferred procurement (original Phase 2N boundary)
 
 The current schema has retail selling prices and order/payment snapshots, but no coherent
 acquisition-cost, inventory-cost-basis or costing model. Phase 2N therefore adds **no unit cost**.

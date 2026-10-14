@@ -272,7 +272,7 @@ describe("Commerce SDK", () => {
   });
 
   it("exposes semantic SDK version metadata", () => {
-    expect(SDK_VERSION).toBe("0.17.0");
+    expect(SDK_VERSION).toBe("0.19.0");
   });
 });
 
@@ -676,6 +676,22 @@ describe("Commerce SDK Connected POS surface", () => {
             createdAt: now,
             updatedAt: now,
           },
+          payments: [
+            {
+              id: PAYMENT,
+              orderId: ORDER,
+              method: "cash",
+              status: "captured",
+              currency: "USD",
+              amountMinor: 2500,
+              cashReceivedMinor: 3000,
+              changeMinor: 500,
+              capturedByMembershipId: MEMBERSHIP,
+              capturedAt: now,
+              createdAt: now,
+              updatedAt: now,
+            },
+          ],
           fulfillment: {
             id: FULFILLMENT,
             orderId: ORDER,

@@ -203,6 +203,7 @@ export * from "./management/promotions";
 
 export * from "./storefront/checkout";
 export * from "./management/returns";
+export * from "./management/customers";
 
 export * from "./management/suppliers";
 

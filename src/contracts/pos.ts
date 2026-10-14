@@ -62,6 +62,20 @@ export const PosTenderInputSchema = z
   })
   .strict();
 
+// Optional customer captured at the register. The phone is matched (create-or-match) to a tenant
+// customer by its normalized form; name/phone are snapshotted onto the order. Normalization strips
+// everything but + and digits; the result must be E.164 so it can be matched and stored.
+export const PosCustomerInputSchema = z
+  .object({
+    name: z.string().trim().min(1).max(200),
+    phone: z.string().trim().min(1).max(32),
+  })
+  .strict()
+  .refine((value) => /^\+[1-9][0-9]{6,14}$/.test(value.phone.replace(/[^+0-9]/g, "")), {
+    path: ["phone"],
+    message: "phone must be a valid international number",
+  });
+
 // A sale is settled either by a single cash amount (cashReceivedMinor) or by an explicit split of
 // tenders whose amounts sum to the authoritative net total. Exactly one of the two must be present.
 export const CreatePosSaleRequestSchema = z
@@ -71,6 +85,8 @@ export const CreatePosSaleRequestSchema = z
     expectedTotalMinor: NonNegativeIntegerSchema,
     cashReceivedMinor: NonNegativeIntegerSchema.optional(),
     tenders: z.array(PosTenderInputSchema).min(1).max(4).optional(),
+    // Optional; when present the sale links/creates a customer by phone and snapshots the contact.
+    customer: PosCustomerInputSchema.optional(),
     lines: z
       .array(
         z.object({

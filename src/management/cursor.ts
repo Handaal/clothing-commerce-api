@@ -39,9 +39,16 @@ const OrderCursorSchema = z.object({
   k: z.object({ placedAt: IsoDateTimeSchema, id: UuidSchema }),
 });
 
+const CustomerCursorSchema = z.object({
+  v: z.literal(1),
+  sort: z.literal("created_at_desc"),
+  k: z.object({ createdAt: IsoDateTimeSchema, id: UuidSchema }),
+});
+
 export type ProductCursorKey = z.infer<typeof ProductCursorSchema>["k"];
 export type InventoryCursorKey = z.infer<typeof InventoryCursorSchema>["k"];
 export type OrderCursorKey = z.infer<typeof OrderCursorSchema>["k"];
+export type CustomerCursorKey = z.infer<typeof CustomerCursorSchema>["k"];
 
 function encode(value: unknown): string {
   return Buffer.from(JSON.stringify(value), "utf8").toString("base64url");
@@ -83,4 +90,12 @@ export function encodeOrderCursor(key: OrderCursorKey): string {
 
 export function decodeOrderCursor(cursor: string): OrderCursorKey {
   return decode(OrderCursorSchema, cursor).k;
+}
+
+export function encodeCustomerCursor(key: CustomerCursorKey): string {
+  return encode({ v: 1, sort: "created_at_desc", k: key });
+}
+
+export function decodeCustomerCursor(cursor: string): CustomerCursorKey {
+  return decode(CustomerCursorSchema, cursor).k;
 }

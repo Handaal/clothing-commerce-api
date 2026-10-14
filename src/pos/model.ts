@@ -23,6 +23,19 @@ export const PosTenderInputSchema = z
   })
   .strict();
 
+// Optional customer captured at the register. The phone is matched (create-or-match) by its normalized
+// form; normalization keeps only + and digits and the result must be E.164.
+export const PosCustomerInputSchema = z
+  .object({
+    name: z.string().trim().min(1).max(200),
+    phone: z.string().trim().min(1).max(32),
+  })
+  .strict()
+  .refine((value) => /^\+[1-9][0-9]{6,14}$/.test(value.phone.replace(/[^+0-9]/g, "")), {
+    path: ["phone"],
+    message: "phone must be a valid international number",
+  });
+
 export const CreatePosSaleInputSchema = z
   .object({
     registerId: UuidSchema,
@@ -31,6 +44,7 @@ export const CreatePosSaleInputSchema = z
     tenders: z.array(PosTenderInputSchema).min(1).max(4).optional(),
     lines: z.array(z.object({ variantId: UuidSchema, quantity: QuantitySchema }).strict()).min(1),
     promotionCode: PromotionCodeSchema,
+    customer: PosCustomerInputSchema.optional(),
   })
   .strict()
   .superRefine((value, ctx) => {
@@ -69,6 +83,7 @@ export const CreatePosSaleInputSchema = z
 
 export type PosTenderMethod = z.infer<typeof PosTenderMethodSchema>;
 export type PosTenderInput = z.infer<typeof PosTenderInputSchema>;
+export type PosCustomerInput = z.infer<typeof PosCustomerInputSchema>;
 export type CreatePosSaleInput = z.infer<typeof CreatePosSaleInputSchema>;
 
 export const PosPermission = {
@@ -175,6 +190,7 @@ export interface PosSaleIntent {
   readonly tenders: readonly PosTenderInput[] | null;
   readonly lines: readonly { readonly variantId: string; readonly quantity: number }[];
   readonly promotionCode: string | null;
+  readonly customer: PosCustomerInput | null;
 }
 
 export interface PosQuoteInput {

@@ -294,6 +294,9 @@ export class SupabasePosSaleRepository implements PosSaleRepository {
       p_cash_received_minor: command.cashReceivedMinor,
       p_promotion_code: command.promotionCode,
       p_tenders: command.tenders ? toDbTenders(command.tenders) : null,
+      p_customer: command.customer
+        ? { name: command.customer.name, phone: command.customer.phone }
+        : null,
       p_lines: command.lines.map((line) => ({
         variant_id: line.variantId,
         product_id: line.productId,

@@ -9,6 +9,7 @@ interface ClerkAuthenticationResult {
   toAuth(): {
     readonly userId: string | null;
     readonly sessionId: string | null;
+    readonly sessionClaims?: Readonly<Record<string, unknown>> | null;
   } | null;
 }
 
@@ -47,6 +48,16 @@ export interface ClerkVerifierConfiguration {
   readonly jwtKey?: string;
 }
 
+export function isClerkAuthorizedPartyAllowed(
+  authorizedParty: unknown,
+  allowedParties: readonly string[],
+): boolean {
+  return (
+    authorizedParty === undefined ||
+    (typeof authorizedParty === "string" && allowedParties.includes(authorizedParty))
+  );
+}
+
 export function createClerkRequestVerifier(
   configuration: ClerkVerifierConfiguration,
 ): ClerkRequestVerifier {
@@ -56,11 +67,19 @@ export function createClerkRequestVerifier(
     ...(configuration.jwtKey ? { jwtKey: configuration.jwtKey } : {}),
   });
 
-  return new ClerkRequestVerifier(async (request) =>
-    client.authenticateRequest(request, {
+  return new ClerkRequestVerifier(async (request) => {
+    const result = await client.authenticateRequest(request, {
       acceptsToken: "session_token",
-      authorizedParties: [...configuration.authorizedParties],
       ...(configuration.jwtKey ? { jwtKey: configuration.jwtKey } : {}),
-    }),
-  );
+    });
+
+    if (!result.isAuthenticated) return result;
+
+    const authorizedParty = result.toAuth()?.sessionClaims?.azp;
+    if (!isClerkAuthorizedPartyAllowed(authorizedParty, configuration.authorizedParties)) {
+      return { isAuthenticated: false, toAuth: () => null };
+    }
+
+    return result;
+  });
 }

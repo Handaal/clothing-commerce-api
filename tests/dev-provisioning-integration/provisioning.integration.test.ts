@@ -21,21 +21,42 @@ const admin: SupabaseClient = createClient(url, serviceRoleKey, {
 });
 
 const scriptPath = join(process.cwd(), "scripts", "provision-dev-identity.mjs");
-const READ_PERMISSIONS = ["catalog.read", "inventory.read", "orders.read"] as const;
+const READ_PERMISSIONS = ["catalog.read", "inventory.read", "orders.read", "returns.read"] as const;
+const PROMOTION_PERMISSIONS = ["promotions.read", "promotions.manage"] as const;
 const INVENTORY_WRITE_PERMISSIONS = [
   "inventory.receive",
   "inventory.adjust",
   "inventory.transfer",
 ] as const;
-// The dev management role grants EXACTLY these six: three reads plus the three Phase 2G inventory writes.
-const EXPECTED_PERMISSIONS = [...READ_PERMISSIONS, ...INVENTORY_WRITE_PERMISSIONS] as const;
-// Deliberately excluded: opening stock, generic issue, and any catalog/order/fulfillment write.
+const ATTENDANCE_PERMISSIONS = ["attendance.read", "attendance.manage"] as const;
+const STAFF_PERMISSIONS = ["staff.read"] as const;
+const SETTINGS_PERMISSIONS = ["settings.read", "settings.manage"] as const;
+const SUPPLIER_PERMISSIONS = ["suppliers.read", "suppliers.manage"] as const;
+const REPORTS_PERMISSIONS = ["reports.read"] as const;
+// The dev management role grants EXACTLY these seventeen: four reads, two promotion permissions, the three
+// Phase 2G inventory writes, the two attendance permissions, staff.read (the Staff desk roster read that
+// backs the attendance/payroll back-office), the settings/suppliers read+manage pairs that back the
+// operational-settings (inventory locations) and Suppliers payables desks, and reports.read for the
+// Reports desk.
+const EXPECTED_PERMISSIONS = [
+  ...READ_PERMISSIONS,
+  ...PROMOTION_PERMISSIONS,
+  ...INVENTORY_WRITE_PERMISSIONS,
+  ...ATTENDANCE_PERMISSIONS,
+  ...STAFF_PERMISSIONS,
+  ...SETTINGS_PERMISSIONS,
+  ...SUPPLIER_PERMISSIONS,
+  ...REPORTS_PERMISSIONS,
+] as const;
+// Deliberately excluded: opening stock, generic issue, any catalog/order/fulfillment write, and staff
+// mutation (staff.read is granted read-only; staff.manage is withheld).
 const FORBIDDEN_PERMISSIONS = [
   "inventory.opening",
   "inventory.issue",
   "catalog.create",
   "orders.create",
   "orders.cancel",
+  "staff.manage",
 ] as const;
 
 const SUBJECT_PRIMARY = "user_dev_primary";
@@ -140,8 +161,9 @@ describe("development identity provisioning (local Postgres)", () => {
       .single();
     expect(membership?.status).toBe("active");
 
-    // (11 & 16) role grants EXACTLY the six management permissions (three reads + three inventory
-    //           writes), and no forbidden write (opening/issue, catalog/order/fulfillment write, wildcard)
+    // (11 & 16) role grants EXACTLY the sixteen management permissions (reads + promotions + inventory
+    //           writes + attendance + settings + suppliers + reports), and no forbidden write
+    //           (opening/issue, catalog/order/fulfillment write, wildcard)
     const { data: role } = await admin
       .from("roles")
       .select("id,is_protected,status")
@@ -307,7 +329,7 @@ describe("development identity provisioning (local Postgres)", () => {
     expect(await bindingsFor(SUBJECT_PRIMARY)).toHaveLength(1);
   });
 
-  it("(9b) reconciles an old three-read role up to the exact six-permission set", async () => {
+  it("(9b) reconciles a role missing the inventory writes back up to the exact permission set", async () => {
     const tenantId = await devTenantId();
     const { data: role } = await admin
       .from("roles")
@@ -317,7 +339,7 @@ describe("development identity provisioning (local Postgres)", () => {
       .single();
 
     // Simulate a dev-local provisioned before Phase 2G: drop the three inventory write grants so the role
-    // carries only the original three reads.
+    // carries only the surviving (non-inventory-write) permissions.
     const { data: writePerms } = await admin
       .from("permissions")
       .select("id")
@@ -336,9 +358,9 @@ describe("development identity provisioning (local Postgres)", () => {
       .select("permission_id", { count: "exact", head: true })
       .eq("tenant_id", tenantId)
       .eq("role_id", role?.id);
-    expect(beforeCount).toBe(3);
+    expect(beforeCount).toBe(EXPECTED_PERMISSIONS.length - INVENTORY_WRITE_PERMISSIONS.length);
 
-    // Re-running the provisioner reconciles up to exactly six without duplicating the surviving reads.
+    // Re-running the provisioner reconciles back up to the exact set without duplicating survivors.
     const result = provision(SUBJECT_PRIMARY);
     expect(result.status).toBe(0);
 

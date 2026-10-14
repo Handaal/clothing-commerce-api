@@ -1,5 +1,11 @@
 # Clothing Commerce Platform — Canonical V1 State
 
+> **Local custom extension (2026-10-09):** the current integration worktree adds supplier purchase
+> money, standalone due payments, server-computed dues and payment reminders with SDK `0.19.0`.
+> Purchase cost remains AP/history-only and does not create inventory valuation or COGS. See
+> `docs/suppliers/supplier-money.md`. This note describes unmerged local work; the verified merged
+> history below remains unchanged.
+
 **Status as of:** 2026-09-27 (Phase 2Q Reporting core + API-owned CSV export **merged** (SDK `0.13.1`).
 Phase **2R-A Operational Settings Core + SDK `0.14.0`** is implemented on branch
 `phase/2r-operational-settings-core`, PR pending. Admin Mobile Promotion, Reporting and Settings

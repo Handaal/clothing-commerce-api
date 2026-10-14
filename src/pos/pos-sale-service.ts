@@ -80,6 +80,7 @@ export class PosSaleService {
       cashReceivedMinor: command.cashReceivedMinor ?? null,
       tenders: command.tenders ?? null,
       promotionCode,
+      customer: command.customer ?? null,
       lines: command.lines.map((line) => ({ ...line })),
     };
 
@@ -159,6 +160,7 @@ export class PosSaleService {
       cashReceivedMinor: command.cashReceivedMinor ?? null,
       tenders: command.tenders ?? null,
       promotionCode,
+      customer: command.customer ?? null,
       lines,
     });
     const sale = await this.repository.getSale(executionProof, context.tenant.id, saleId);

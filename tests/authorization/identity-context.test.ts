@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { ClerkRequestVerifier } from "../../src/authentication/clerk-request-verifier";
+import {
+  ClerkRequestVerifier,
+  isClerkAuthorizedPartyAllowed,
+} from "../../src/authentication/clerk-request-verifier";
 import { AuthorizationContextResolver } from "../../src/authorization/context-resolver";
 import { AuthorizationError, authorizationErrorResponse } from "../../src/authorization/errors";
 import {
@@ -54,6 +57,16 @@ describe("Clerk request verification", () => {
     await expectCode(signedOut.verifyRequest(request), "UNAUTHENTICATED");
     await expectCode(subjectless.verifyRequest(request), "UNAUTHENTICATED");
     await expectCode(failed.verifyRequest(request), "UNAUTHENTICATED");
+  });
+
+  it("requires configured browser authorized parties while allowing native tokens without azp", () => {
+    const allowed = ["https://admin.example.test"];
+
+    expect(isClerkAuthorizedPartyAllowed(undefined, allowed)).toBe(true);
+    expect(isClerkAuthorizedPartyAllowed("https://admin.example.test", allowed)).toBe(true);
+    expect(isClerkAuthorizedPartyAllowed("https://attacker.example.test", allowed)).toBe(false);
+    expect(isClerkAuthorizedPartyAllowed(null, allowed)).toBe(false);
+    expect(isClerkAuthorizedPartyAllowed(["https://admin.example.test"], allowed)).toBe(false);
   });
 });
 
