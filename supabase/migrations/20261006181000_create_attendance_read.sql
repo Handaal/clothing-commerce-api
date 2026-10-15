@@ -87,11 +87,13 @@ create function attendance_private.list_attendance(
   limit greatest(coalesce(p_limit, 26), 1);
 $f$;
 
+grant create on schema attendance_private to attendance_writer;
 alter function attendance_private.entry_json(public.attendance_entries) owner to attendance_writer;
 alter function attendance_private.get_entry(uuid, uuid) owner to attendance_writer;
 alter function attendance_private.my_attendance(uuid, uuid, integer) owner to attendance_writer;
 alter function attendance_private.list_attendance(uuid, uuid, uuid, timestamptz, uuid, integer)
   owner to attendance_writer;
+revoke create on schema attendance_private from attendance_writer;
 
 revoke all on function attendance_private.entry_json(public.attendance_entries) from public;
 revoke all on function attendance_private.get_entry(uuid, uuid) from public;

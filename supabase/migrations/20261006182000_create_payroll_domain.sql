@@ -149,7 +149,7 @@ begin
   return v_id;
 end $f$;
 
-grant create on schema public to attendance_writer;
+grant create on schema public, attendance_private to attendance_writer;
 alter table public.employee_compensation owner to attendance_writer;
 alter table public.employee_adjustments owner to attendance_writer;
 alter table public.payroll_settings owner to attendance_writer;
@@ -157,7 +157,7 @@ alter function attendance_private.set_compensation(uuid,uuid,bigint,bigint,numer
 alter function attendance_private.upsert_payroll_settings(uuid,numeric,numeric) owner to attendance_writer;
 alter function attendance_private.add_adjustment(uuid,uuid,text,bigint,text,date,numeric,uuid) owner to attendance_writer;
 alter function attendance_private.remove_adjustment(uuid,uuid) owner to attendance_writer;
-revoke create on schema public from attendance_writer;
+revoke create on schema public, attendance_private from attendance_writer;
 
 revoke all on function attendance_private.set_compensation(uuid,uuid,bigint,bigint,numeric,text) from public;
 revoke all on function attendance_private.upsert_payroll_settings(uuid,numeric,numeric) from public;

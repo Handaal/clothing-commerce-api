@@ -178,12 +178,14 @@ returns jsonb language sql stable security definer set search_path='' as $f$
   );
 $f$;
 
+grant create on schema attendance_private to attendance_writer;
 alter function attendance_private.payroll(uuid,date,date) owner to attendance_writer;
 alter function attendance_private.list_adjustments(uuid,date,date) owner to attendance_writer;
 alter function attendance_private.list_leaves(uuid,date,date) owner to attendance_writer;
 alter function attendance_private.get_leave_entry(uuid,uuid) owner to attendance_writer;
 alter function attendance_private.get_compensation(uuid,uuid) owner to attendance_writer;
 alter function attendance_private.get_payroll_settings(uuid) owner to attendance_writer;
+revoke create on schema attendance_private from attendance_writer;
 
 revoke all on function attendance_private.get_leave_entry(uuid,uuid) from public;
 revoke all on function attendance_private.payroll(uuid,date,date) from public;

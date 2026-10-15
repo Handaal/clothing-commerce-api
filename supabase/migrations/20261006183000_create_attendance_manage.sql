@@ -148,14 +148,14 @@ begin
   return v_id;
 end $f$;
 
-grant create on schema public to attendance_writer;
+grant create on schema public, attendance_private to attendance_writer;
 alter table public.staff_leave_entries owner to attendance_writer;
 alter function attendance_private.forbid_leave_mutation() owner to attendance_writer;
 alter function attendance_private.admin_upsert_entry(uuid,uuid,uuid,timestamptz,timestamptz,uuid) owner to attendance_writer;
 alter function attendance_private.admin_delete_entry(uuid,uuid) owner to attendance_writer;
 alter function attendance_private.leave_start(uuid,uuid,uuid) owner to attendance_writer;
 alter function attendance_private.leave_end(uuid,uuid) owner to attendance_writer;
-revoke create on schema public from attendance_writer;
+revoke create on schema public, attendance_private from attendance_writer;
 
 revoke all on function attendance_private.admin_upsert_entry(uuid,uuid,uuid,timestamptz,timestamptz,uuid) from public;
 revoke all on function attendance_private.admin_delete_entry(uuid,uuid) from public;
