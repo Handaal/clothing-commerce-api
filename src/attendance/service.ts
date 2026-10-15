@@ -81,11 +81,17 @@ export class AttendanceService {
   // ── Payroll (read) ───────────────────────────────────────────────────────────
   async payroll(context: AuthorizationContext, query: DateRangeQuery) {
     const { from, to } = parse(DateRangeQuerySchema, query);
-    return this.repository.payroll(await this.authorize(context, AttendancePermission.read), from, to);
+    return this.repository.payroll(
+      await this.authorize(context, AttendancePermission.read),
+      from,
+      to,
+    );
   }
 
   async getPayrollSettings(context: AuthorizationContext) {
-    return this.repository.getPayrollSettings(await this.authorize(context, AttendancePermission.read));
+    return this.repository.getPayrollSettings(
+      await this.authorize(context, AttendancePermission.read),
+    );
   }
 
   async getCompensation(context: AuthorizationContext, membershipId: string) {

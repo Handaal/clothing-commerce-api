@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { CurrencySchema, NonNegativeIntegerSchema, SafeIntegerSchema } from "../common/serialization";
+import {
+  CurrencySchema,
+  NonNegativeIntegerSchema,
+  SafeIntegerSchema,
+} from "../common/serialization";
 
 const DateTimeSchema = z.string().datetime({ offset: true });
 // Calendar date (YYYY-MM-DD) as projected by the payroll/adjustment read RPCs.
@@ -106,7 +110,9 @@ export const LeaveEntrySchema = z.object({
 });
 export const LeaveListResponseSchema = z.object({ items: z.array(LeaveEntrySchema) });
 export const LeaveClockResponseSchema = z.object({ entry: LeaveEntrySchema });
-export const LeaveStartRequestSchema = z.object({ branchId: z.uuid().nullable().optional() }).strict();
+export const LeaveStartRequestSchema = z
+  .object({ branchId: z.uuid().nullable().optional() })
+  .strict();
 export const LeaveEndRequestSchema = z.object({}).strict();
 
 // ── Manager-sanctioned manual attendance entries ──────────────────────────────

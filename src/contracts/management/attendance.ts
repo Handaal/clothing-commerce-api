@@ -39,9 +39,7 @@ export const AttendanceListResponseSchema = paginated(AttendanceEntrySchema);
  * Clock-in request body. `branchId` is optional context — the POS register's branch — recorded on the
  * entry for reporting. Clock-out carries no body (the open entry is resolved from the actor).
  */
-export const ClockInRequestSchema = z
-  .object({ branchId: z.uuid().nullable().optional() })
-  .strict();
+export const ClockInRequestSchema = z.object({ branchId: z.uuid().nullable().optional() }).strict();
 export const ClockOutRequestSchema = z.object({}).strict();
 
 export type AttendanceEntry = z.infer<typeof AttendanceEntrySchema>;

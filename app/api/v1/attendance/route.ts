@@ -16,7 +16,10 @@ export async function GET(request: Request) {
     handler: (context) =>
       boundary.attendanceService.list(
         context,
-        parseRequest(AttendanceListQuerySchema, Object.fromEntries(new URL(request.url).searchParams)),
+        parseRequest(
+          AttendanceListQuerySchema,
+          Object.fromEntries(new URL(request.url).searchParams),
+        ),
       ),
   });
 }

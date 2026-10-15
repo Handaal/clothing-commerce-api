@@ -1,9 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
-import {
-  assertAuthorizedOperationProof,
-  type AuthorizedOperationContext,
-} from "../authorization";
+import { assertAuthorizedOperationProof, type AuthorizedOperationContext } from "../authorization";
 import {
   AttendanceEntrySchema,
   AttendanceListResponseSchema,
@@ -44,9 +41,9 @@ function decodeCursor(cursor: string | undefined) {
 }
 
 function encodeCursor(entry: { clockIn: string; id: string }) {
-  return Buffer.from(JSON.stringify({ v: 1, sort: SORT, clockIn: entry.clockIn, id: entry.id })).toString(
-    "base64url",
-  );
+  return Buffer.from(
+    JSON.stringify({ v: 1, sort: SORT, clockIn: entry.clockIn, id: entry.id }),
+  ).toString("base64url");
 }
 
 export class AttendanceRepository {
@@ -89,29 +86,25 @@ export class AttendanceRepository {
   }
 
   async mine(proof: AuthorizedOperationContext, query: MyAttendanceQuery) {
-    const { data, error } = await this.client
-      .schema("attendance_private")
-      .rpc("my_attendance", {
-        p_tenant_id: this.tenant(proof),
-        p_membership_id: this.membership(proof),
-        p_limit: query.limit,
-      });
+    const { data, error } = await this.client.schema("attendance_private").rpc("my_attendance", {
+      p_tenant_id: this.tenant(proof),
+      p_membership_id: this.membership(proof),
+      p_limit: query.limit,
+    });
     if (error) throw attendanceDatabaseError(error);
     return MyAttendanceResponseSchema.parse(data);
   }
 
   async list(proof: AuthorizedOperationContext, query: AttendanceListQuery) {
     const after = decodeCursor(query.cursor);
-    const { data, error } = await this.client
-      .schema("attendance_private")
-      .rpc("list_attendance", {
-        p_tenant_id: this.tenant(proof),
-        p_membership_id: query.membershipId ?? null,
-        p_branch_id: query.branchId ?? null,
-        p_after_clock_in: after?.clockIn ?? null,
-        p_after_id: after?.id ?? null,
-        p_limit: query.limit + 1,
-      });
+    const { data, error } = await this.client.schema("attendance_private").rpc("list_attendance", {
+      p_tenant_id: this.tenant(proof),
+      p_membership_id: query.membershipId ?? null,
+      p_branch_id: query.branchId ?? null,
+      p_after_clock_in: after?.clockIn ?? null,
+      p_after_id: after?.id ?? null,
+      p_limit: query.limit + 1,
+    });
     if (error) throw attendanceDatabaseError(error);
     const rows = z.array(AttendanceEntrySchema).parse(data);
     const items = rows.slice(0, query.limit);
@@ -147,13 +140,21 @@ export class AttendanceRepository {
         deductionMinor: t.deductionMinor + r.deductionMinor,
         netPayMinor: t.netPayMinor + r.netPayMinor,
       }),
-      { baseSalaryMinor: 0, overtimeAmountMinor: 0, bonusMinor: 0, deductionMinor: 0, netPayMinor: 0 },
+      {
+        baseSalaryMinor: 0,
+        overtimeAmountMinor: 0,
+        bonusMinor: 0,
+        deductionMinor: 0,
+        netPayMinor: 0,
+      },
     );
     return PayrollReportResponseSchema.parse({ items, totals });
   }
 
   async getPayrollSettings(proof: AuthorizedOperationContext) {
-    const { data, error } = await this.rpc("get_payroll_settings", { p_tenant_id: this.tenant(proof) });
+    const { data, error } = await this.rpc("get_payroll_settings", {
+      p_tenant_id: this.tenant(proof),
+    });
     if (error) throw attendanceDatabaseError(error);
     return PayrollSettingsSchema.parse(data);
   }
@@ -206,7 +207,9 @@ export class AttendanceRepository {
       p_to: to,
     });
     if (error) throw attendanceDatabaseError(error);
-    return AdjustmentListResponseSchema.parse({ items: z.array(AdjustmentSchema).parse(data ?? []) });
+    return AdjustmentListResponseSchema.parse({
+      items: z.array(AdjustmentSchema).parse(data ?? []),
+    });
   }
 
   async createAdjustment(proof: AuthorizedOperationContext, input: CreateAdjustmentRequest) {

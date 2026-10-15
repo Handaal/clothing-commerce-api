@@ -1,7 +1,4 @@
-import {
-  ClockInRequestSchema,
-  AttendanceClockResponseSchema,
-} from "../../../../../src/contracts";
+import { ClockInRequestSchema, AttendanceClockResponseSchema } from "../../../../../src/contracts";
 import {
   managementOptionsResponse,
   runTenantManagementBodyRoute,
