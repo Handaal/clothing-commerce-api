@@ -344,7 +344,7 @@ describe("development commerce fixture (local Postgres)", () => {
       .from("role_permissions")
       .select("permission_id, permissions(key)", { count: "exact" })
       .eq("tenant_id", tenantId);
-    expect(grantCount).toBe(13);
+    expect(grantCount).toBe(25);
 
     type Grant = { permissions: { key: string } | { key: string }[] | null };
     const grantedKeys = ((grants ?? []) as Grant[])
@@ -356,16 +356,30 @@ describe("development commerce fixture (local Postgres)", () => {
       .sort();
     expect(new Set(grantedKeys)).toEqual(
       new Set([
+        // Management reader
         "catalog.read",
         "inventory.read",
         "orders.read",
+        "returns.read",
+        "promotions.read",
+        "promotions.manage",
         "inventory.receive",
         "inventory.adjust",
         "inventory.transfer",
-        "inventory.issue",
+        "attendance.read",
+        "attendance.manage",
+        "staff.read",
+        "settings.read",
+        "settings.manage",
+        "suppliers.read",
+        "suppliers.manage",
+        "reports.read",
+        // POS cashier only (beyond the overlap above)
         "orders.create",
         "orders.fulfill",
+        "inventory.issue",
         "payments.capture",
+        "attendance.record",
       ]),
     );
     // Explicitly absent: opening stock, generic issue, other-domain writes, and any wildcard/admin grant.
