@@ -239,6 +239,7 @@ describe("development identity provisioning (local Postgres)", () => {
       .sort();
     expect(posKeys).toEqual(
       [
+        "attendance.record",
         "catalog.read",
         "inventory.issue",
         "inventory.read",
@@ -295,7 +296,7 @@ describe("development identity provisioning (local Postgres)", () => {
       .select("permission_id", { count: "exact", head: true })
       .eq("tenant_id", tenantId)
       .eq("role_id", role?.id);
-    expect(grantCount).toBe(6);
+    expect(grantCount).toBe(17);
   });
 
   it("(9) a third identical run leaves the same records and ids unchanged", async () => {
