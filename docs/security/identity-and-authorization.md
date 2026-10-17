@@ -41,11 +41,14 @@ repository operation. They must not construct an `AuthorizationContext` from req
 
 ## Trusted identity derivation
 
-`@clerk/backend` `authenticateRequest()` accepts only Clerk session tokens and checks an explicit
-`authorizedParties` origin allowlist. The optional Clerk JWT public key enables networkless
-signature verification; otherwise Clerk may retrieve verification keys. The verifier returns only
-the verified Clerk `userId` and non-authoritative diagnostic session ID. It does not read Clerk
-role or user metadata.
+`@clerk/backend` `authenticateRequest()` accepts only Clerk session tokens. After Clerk verifies the
+token signature and standard claims, browser tokens carrying an `azp` claim must match the explicit
+`authorizedParties` origin allowlist. Native Expo session tokens legitimately omit `azp`; following
+Clerk's documented verification rule, the origin check is skipped only when that claim is absent.
+A present non-string or unlisted `azp` fails closed. The optional Clerk JWT public key enables
+networkless signature verification; otherwise Clerk may retrieve verification keys. The verifier
+returns only the verified Clerk `userId` and non-authoritative diagnostic session ID. It does not
+read Clerk role or user metadata.
 
 The context resolver queries `user_identity_provider_bindings` for the exact pair
 `('clerk', verified_user_id)`. Exactly one linked row must exist. No row produces

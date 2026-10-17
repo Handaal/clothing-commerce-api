@@ -48,7 +48,13 @@ describe("OpenAPI management surface", () => {
       [
         "/api/v1/health",
         "/api/v1/suppliers",
+        "/api/v1/suppliers/dues",
+        "/api/v1/suppliers/purchases",
+        "/api/v1/suppliers/purchases/{purchaseId}/items",
+        "/api/v1/suppliers/reminders",
+        "/api/v1/suppliers/reminders/{reminderId}",
         "/api/v1/suppliers/{supplierId}",
+        "/api/v1/suppliers/{supplierId}/payments",
         "/api/v1/suppliers/{supplierId}/receipts",
         "/api/v1/staff",
         "/api/v1/staff/eligible-identities",

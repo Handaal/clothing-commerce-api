@@ -34,8 +34,26 @@ export const OrderListQuerySchema = z.object({
   cursor: CursorSchema,
 });
 
+export const CustomerListQuerySchema = z.object({
+  search: z.string().trim().min(1).max(200).optional(),
+  limit: LimitSchema,
+  cursor: CursorSchema,
+});
+
+export const CustomerOrdersQuerySchema = z.object({
+  limit: LimitSchema,
+  cursor: CursorSchema,
+});
+
+// Phone lookup for the register. Kept permissive here (min length only); the service normalizes to the
+// stored E.164 form before matching.
+export const CustomerLookupQuerySchema = z.object({
+  phone: z.string().trim().min(1).max(32),
+});
+
 export const ProductPathSchema = z.object({ productId: z.string().uuid() });
 export const OrderPathSchema = z.object({ orderId: z.string().uuid() });
+export const CustomerPathSchema = z.object({ customerId: z.string().uuid() });
 export const VariantPathSchema = z.object({ variantId: z.string().uuid() });
 export const MediaPathSchema = z.object({ mediaId: z.string().uuid() });
 export const StorefrontProductSlugPathSchema = z.object({ slug: z.string().min(1).max(200) });

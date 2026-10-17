@@ -13,13 +13,38 @@ const PromotionCodeSchema = z
   .nullable()
   .optional();
 
+export const PosTenderMethodSchema = z.enum(["cash", "card", "instapay", "wallet"]);
+
+export const PosTenderInputSchema = z
+  .object({
+    method: PosTenderMethodSchema,
+    amountMinor: QuantitySchema,
+    cashReceivedMinor: MoneySchema.optional(),
+  })
+  .strict();
+
+// Optional customer captured at the register. The phone is matched (create-or-match) by its normalized
+// form; normalization keeps only + and digits and the result must be E.164.
+export const PosCustomerInputSchema = z
+  .object({
+    name: z.string().trim().min(1).max(200),
+    phone: z.string().trim().min(1).max(32),
+  })
+  .strict()
+  .refine((value) => /^\+[1-9][0-9]{6,14}$/.test(value.phone.replace(/[^+0-9]/g, "")), {
+    path: ["phone"],
+    message: "phone must be a valid international number",
+  });
+
 export const CreatePosSaleInputSchema = z
   .object({
     registerId: UuidSchema,
     expectedTotalMinor: MoneySchema,
-    cashReceivedMinor: MoneySchema,
+    cashReceivedMinor: MoneySchema.optional(),
+    tenders: z.array(PosTenderInputSchema).min(1).max(4).optional(),
     lines: z.array(z.object({ variantId: UuidSchema, quantity: QuantitySchema }).strict()).min(1),
     promotionCode: PromotionCodeSchema,
+    customer: PosCustomerInputSchema.optional(),
   })
   .strict()
   .superRefine((value, ctx) => {
@@ -34,8 +59,31 @@ export const CreatePosSaleInputSchema = z
       }
       seen.add(line.variantId);
     }
+    if (value.tenders === undefined && value.cashReceivedMinor === undefined) {
+      ctx.addIssue({
+        code: "custom",
+        message: "provide cashReceivedMinor or tenders",
+        path: ["tenders"],
+      });
+    }
+    if (value.tenders !== undefined) {
+      const methods = new Set<string>();
+      for (const [index, tender] of value.tenders.entries()) {
+        if (methods.has(tender.method)) {
+          ctx.addIssue({
+            code: "custom",
+            message: "a method may appear at most once",
+            path: ["tenders", index, "method"],
+          });
+        }
+        methods.add(tender.method);
+      }
+    }
   });
 
+export type PosTenderMethod = z.infer<typeof PosTenderMethodSchema>;
+export type PosTenderInput = z.infer<typeof PosTenderInputSchema>;
+export type PosCustomerInput = z.infer<typeof PosCustomerInputSchema>;
 export type CreatePosSaleInput = z.infer<typeof CreatePosSaleInputSchema>;
 
 export const PosPermission = {
@@ -114,12 +162,12 @@ export interface ResolvedPosSaleLine {
 export interface PaymentResult {
   readonly id: string;
   readonly orderId: string;
-  readonly method: "cash";
+  readonly method: PosTenderMethod;
   readonly status: "captured";
   readonly currency: string;
   readonly amountMinor: number;
-  readonly cashReceivedMinor: number;
-  readonly changeMinor: number;
+  readonly cashReceivedMinor: number | null;
+  readonly changeMinor: number | null;
   readonly capturedByMembershipId: string;
   readonly capturedAt: string;
   readonly createdAt: string;
@@ -129,16 +177,20 @@ export interface PaymentResult {
 export interface PosSaleResult {
   readonly saleStatus: "completed";
   readonly order: import("../orders/model").OrderResult;
+  // `payment` is the primary (cash-or-first) tender; `payments` is the full split.
   readonly payment: PaymentResult;
+  readonly payments: readonly PaymentResult[];
   readonly fulfillment: import("../fulfillments/model").FulfillmentResult;
 }
 
 export interface PosSaleIntent {
   readonly registerId: string;
   readonly expectedTotalMinor: number;
-  readonly cashReceivedMinor: number;
+  readonly cashReceivedMinor: number | null;
+  readonly tenders: readonly PosTenderInput[] | null;
   readonly lines: readonly { readonly variantId: string; readonly quantity: number }[];
   readonly promotionCode: string | null;
+  readonly customer: PosCustomerInput | null;
 }
 
 export interface PosQuoteInput {

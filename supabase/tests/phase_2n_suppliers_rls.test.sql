@@ -14,7 +14,7 @@ select ok(not has_table_privilege('service_role','public.suppliers','DELETE'),'t
 select ok(not has_table_privilege('service_role','public.supplier_commands','SELECT'),'command intent is private');
 select ok(not has_function_privilege('authenticated','suppliers_private.write_supplier(uuid,uuid,uuid,text,jsonb)','EXECUTE'),'client cannot invoke writer');
 select ok(has_function_privilege('service_role','suppliers_private.write_supplier(uuid,uuid,uuid,text,jsonb)','EXECUTE'),'transport can invoke authorized path');
-select is((select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='suppliers_private' and p.proname<>'supplier_json' and (not p.prosecdef or not p.proconfig @> array['search_path=""'])),0::bigint,'entrypoints have hardened search path');
+select is((select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='suppliers_private' and p.proname not in ('supplier_json','reminder_json') and (not p.prosecdef or not p.proconfig @> array['search_path=""'])),0::bigint,'entrypoints have hardened search path');
 select ok(not has_table_privilege('suppliers_writer','public.inventory_operations','INSERT'),'supplier writer cannot create inventory');
 select ok(not has_table_privilege('suppliers_writer','public.inventory_movements','UPDATE'),'supplier writer cannot change movement history');
 select ok(not has_table_privilege('service_role','public.inventory_operations','UPDATE'),'transport cannot rewrite supplier snapshots');

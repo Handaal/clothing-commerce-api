@@ -3,6 +3,9 @@ import { describe, expect, it, vi } from "vitest";
 import { AuthorizationService } from "../../src/authorization";
 import {
   CreateSupplierRequestSchema,
+  CreateSupplierReminderRequestSchema,
+  RecordSupplierPaymentRequestSchema,
+  RecordSupplierPurchaseRequestSchema,
   UpdateSupplierRequestSchema,
 } from "../../src/contracts/management/suppliers";
 import { ReceiveInventoryRequestSchema } from "../../src/contracts";
@@ -57,6 +60,28 @@ describe("Supplier validation", () => {
       }),
     ).toMatchObject({ supplierId: ids.tenant, supplierReference: "DN-1" });
   });
+  it("validates supplier money as safe integer minor units", () => {
+    const purchase = {
+      supplierId: ids.tenant,
+      inventoryLocationId: ids.locationActive,
+      paidMinor: 500,
+      lines: [{ variantId: ids.variantActive, quantity: 2, unitCostMinor: 300 }],
+    };
+    expect(RecordSupplierPurchaseRequestSchema.parse(purchase)).toEqual(purchase);
+    expect(
+      RecordSupplierPurchaseRequestSchema.safeParse({
+        ...purchase,
+        lines: [{ ...purchase.lines[0], unitCostMinor: 1.5 }],
+      }).success,
+    ).toBe(false);
+    expect(RecordSupplierPaymentRequestSchema.safeParse({ amountMinor: 0 }).success).toBe(false);
+    expect(
+      CreateSupplierReminderRequestSchema.parse({
+        supplierId: ids.tenant,
+        dueDate: "2026-10-09",
+      }),
+    ).toMatchObject({ leadDays: 3, notify: true });
+  });
 });
 
 describe("Supplier permission coupling", () => {
@@ -89,5 +114,17 @@ describe("Supplier permission coupling", () => {
     await expect(
       service.update(context, ids.tenant, "key", { status: "inactive" }),
     ).rejects.toMatchObject({ code: "PERMISSION_DENIED" });
+  });
+  it("requires both supplier management and destination receive authority for a purchase", async () => {
+    const spy = vi.spyOn(repository, "recordPurchase");
+    await expect(
+      service.recordPurchase(contextWith([grant(["suppliers.manage"])]), "key", {
+        supplierId: ids.tenant,
+        inventoryLocationId: ids.locationActive,
+        lines: [{ variantId: ids.variantActive, quantity: 1, unitCostMinor: 100 }],
+      }),
+    ).rejects.toMatchObject({ code: "PERMISSION_DENIED" });
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
   });
 });

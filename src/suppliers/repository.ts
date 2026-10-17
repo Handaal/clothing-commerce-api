@@ -10,18 +10,42 @@ import {
   SupplierListResponseSchema,
   SupplierReceiptSchema,
   SupplierReceiptsResponseSchema,
+  SupplierPurchaseSchema,
+  SupplierPurchasesResponseSchema,
+  SupplierPurchaseItemSchema,
+  SupplierPurchaseItemsResponseSchema,
+  SupplierPaymentSchema,
+  SupplierPaymentsResponseSchema,
+  SupplierDuesResponseSchema,
+  SupplierReminderSchema,
+  SupplierRemindersResponseSchema,
+  DeleteSupplierReminderResponseSchema,
   type CreateSupplierRequest,
   type UpdateSupplierRequest,
+  type RecordSupplierPurchaseRequest,
+  type RecordSupplierPaymentRequest,
+  type CreateSupplierReminderRequest,
+  type UpdateSupplierReminderRequest,
 } from "../contracts/management/suppliers";
 import { InvalidCursorError } from "../management/cursor";
 import { deriveInventoryReadVisibility } from "../management/visibility";
 import { SupplierError, supplierDatabaseError } from "./errors";
-import type { SupplierListQuery, SupplierPageQuery } from "./request";
+import type {
+  SupplierListQuery,
+  SupplierPageQuery,
+  SupplierPurchaseListQuery,
+  SupplierReminderListQuery,
+} from "./request";
 
 const CursorSchema = z
   .object({
     v: z.literal(1),
-    sort: z.enum(["suppliers_id_asc", "supplier_receipts_id_asc"]),
+    sort: z.enum([
+      "suppliers_id_asc",
+      "supplier_receipts_id_asc",
+      "supplier_purchases_id_desc",
+      "supplier_payments_id_desc",
+    ]),
     id: z.uuid(),
   })
   .strict();
@@ -123,6 +147,148 @@ export class SuppliersRepository {
         sort,
       ),
     });
+  }
+  async recordPurchase(
+    proof: AuthorizedOperationContext,
+    key: string,
+    input: RecordSupplierPurchaseRequest,
+  ) {
+    const { data, error } = await this.client
+      .schema("suppliers_private")
+      .rpc("record_supplier_purchase", {
+        p_tenant: this.tenant(proof),
+        p_actor: proof.authorization.membership.id,
+        p_key: key,
+        p_input: input,
+      });
+    if (error) throw supplierDatabaseError(error);
+    return SupplierPurchaseSchema.parse(data);
+  }
+  async purchases(proof: AuthorizedOperationContext, query: SupplierPurchaseListQuery) {
+    const sort = "supplier_purchases_id_desc";
+    const { data, error } = await this.client
+      .schema("suppliers_private")
+      .rpc("list_supplier_purchases", {
+        p_tenant: this.tenant(proof),
+        p_supplier: query.supplierId ?? null,
+        p_after: cursorId(query.cursor, sort),
+        p_limit: query.limit + 1,
+      });
+    if (error) throw supplierDatabaseError(error);
+    const rows = z.array(SupplierPurchaseSchema).parse(data);
+    return SupplierPurchasesResponseSchema.parse({
+      items: rows.slice(0, query.limit),
+      pageInfo: pageInfo(
+        rows.map((row) => row.id),
+        query.limit,
+        sort,
+      ),
+    });
+  }
+  async purchaseItems(proof: AuthorizedOperationContext, purchaseId: string) {
+    const { data, error } = await this.client
+      .schema("suppliers_private")
+      .rpc("supplier_purchase_items", {
+        p_tenant: this.tenant(proof),
+        p_purchase: purchaseId,
+      });
+    if (error) throw supplierDatabaseError(error);
+    return SupplierPurchaseItemsResponseSchema.parse({
+      items: z.array(SupplierPurchaseItemSchema).parse(data),
+    });
+  }
+  async recordPayment(
+    proof: AuthorizedOperationContext,
+    supplierId: string,
+    key: string,
+    input: RecordSupplierPaymentRequest,
+  ) {
+    const { data, error } = await this.client
+      .schema("suppliers_private")
+      .rpc("record_supplier_payment", {
+        p_tenant: this.tenant(proof),
+        p_supplier: supplierId,
+        p_actor: proof.authorization.membership.id,
+        p_key: key,
+        p_input: input,
+      });
+    if (error) throw supplierDatabaseError(error);
+    return SupplierPaymentSchema.parse(data);
+  }
+  async payments(proof: AuthorizedOperationContext, supplierId: string, query: SupplierPageQuery) {
+    const sort = "supplier_payments_id_desc";
+    const { data, error } = await this.client
+      .schema("suppliers_private")
+      .rpc("list_supplier_payments", {
+        p_tenant: this.tenant(proof),
+        p_supplier: supplierId,
+        p_after: cursorId(query.cursor, sort),
+        p_limit: query.limit + 1,
+      });
+    if (error) throw supplierDatabaseError(error);
+    const rows = z.array(SupplierPaymentSchema).parse(data);
+    return SupplierPaymentsResponseSchema.parse({
+      items: rows.slice(0, query.limit),
+      pageInfo: pageInfo(
+        rows.map((row) => row.id),
+        query.limit,
+        sort,
+      ),
+    });
+  }
+  async dues(proof: AuthorizedOperationContext) {
+    const { data, error } = await this.client
+      .schema("suppliers_private")
+      .rpc("supplier_dues", { p_tenant: this.tenant(proof) });
+    if (error) throw supplierDatabaseError(error);
+    return SupplierDuesResponseSchema.parse({ items: data });
+  }
+  async reminders(proof: AuthorizedOperationContext, query: SupplierReminderListQuery) {
+    const { data, error } = await this.client
+      .schema("suppliers_private")
+      .rpc("list_supplier_reminders", {
+        p_tenant: this.tenant(proof),
+        p_supplier: query.supplierId ?? null,
+        p_status: query.status ?? null,
+        p_due_only: query.dueOnly ?? false,
+      });
+    if (error) throw supplierDatabaseError(error);
+    return SupplierRemindersResponseSchema.parse({
+      items: z.array(SupplierReminderSchema).parse(data),
+    });
+  }
+  async writeReminder(
+    proof: AuthorizedOperationContext,
+    reminderId: string | null,
+    key: string,
+    input: CreateSupplierReminderRequest | UpdateSupplierReminderRequest,
+  ) {
+    const { data, error } = await this.client
+      .schema("suppliers_private")
+      .rpc("write_supplier_reminder", {
+        p_tenant: this.tenant(proof),
+        p_reminder: reminderId,
+        p_actor: proof.authorization.membership.id,
+        p_key: key,
+        p_input: input,
+        p_delete: false,
+      });
+    if (error) throw supplierDatabaseError(error);
+    return SupplierReminderSchema.parse(data);
+  }
+  async deleteReminder(proof: AuthorizedOperationContext, reminderId: string, key: string) {
+    const { data, error } = await this.client
+      .schema("suppliers_private")
+      .rpc("write_supplier_reminder", {
+        p_tenant: this.tenant(proof),
+        p_reminder: reminderId,
+        p_actor: proof.authorization.membership.id,
+        p_key: key,
+        p_input: {},
+        p_delete: true,
+      });
+    if (error) throw supplierDatabaseError(error);
+    return DeleteSupplierReminderResponseSchema.parse(data);
   }
 }
 export function createSuppliersRepository(configuration: { url: string; serviceRoleKey: string }) {

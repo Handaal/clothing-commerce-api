@@ -15,6 +15,7 @@ const intendedPostgrestSchemas = [
   "returns_private",
   "suppliers_private",
   "staff_private",
+  "attendance_private",
   "promotions_private",
   "reporting_private",
   "settings_private",

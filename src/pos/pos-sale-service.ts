@@ -77,8 +77,10 @@ export class PosSaleService {
     const intent: PosSaleIntent = {
       registerId: command.registerId,
       expectedTotalMinor: command.expectedTotalMinor,
-      cashReceivedMinor: command.cashReceivedMinor,
+      cashReceivedMinor: command.cashReceivedMinor ?? null,
+      tenders: command.tenders ?? null,
       promotionCode,
+      customer: command.customer ?? null,
       lines: command.lines.map((line) => ({ ...line })),
     };
 
@@ -132,7 +134,10 @@ export class PosSaleService {
     if (promotionCode === null) {
       const total = this.total(lines);
       if (total !== command.expectedTotalMinor) throw new PosSaleError("PRICE_CHANGED", total);
-      if (command.cashReceivedMinor < total) throw new PosSaleError("CASH_RECEIVED_INSUFFICIENT");
+      // For a cash-only sale the handed amount must cover the total; split tenders are validated
+      // server-side (they must sum to the authoritative total).
+      if (command.tenders === undefined && (command.cashReceivedMinor ?? 0) < total)
+        throw new PosSaleError("CASH_RECEIVED_INSUFFICIENT");
     }
 
     const brandId = lines[0]?.brandId;
@@ -152,8 +157,10 @@ export class PosSaleService {
       currency: register.sellingCurrency,
       brandId,
       expectedTotalMinor: command.expectedTotalMinor,
-      cashReceivedMinor: command.cashReceivedMinor,
+      cashReceivedMinor: command.cashReceivedMinor ?? null,
+      tenders: command.tenders ?? null,
       promotionCode,
+      customer: command.customer ?? null,
       lines,
     });
     const sale = await this.repository.getSale(executionProof, context.tenant.id, saleId);

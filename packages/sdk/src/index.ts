@@ -2,12 +2,33 @@ import {
   SupplierSchema,
   SupplierListResponseSchema,
   SupplierReceiptsResponseSchema,
+  SupplierPurchaseSchema,
+  SupplierPurchasesResponseSchema,
+  SupplierPurchaseItemsResponseSchema,
+  SupplierPaymentSchema,
+  SupplierPaymentsResponseSchema,
+  SupplierDuesResponseSchema,
+  SupplierReminderSchema,
+  SupplierRemindersResponseSchema,
+  DeleteSupplierReminderResponseSchema,
   type Supplier,
   type SupplierListResponse,
   type SupplierReceiptsResponse,
   type SupplierStatus,
   type CreateSupplierRequest,
   type UpdateSupplierRequest,
+  type RecordSupplierPurchaseRequest,
+  type SupplierPurchase,
+  type SupplierPurchasesResponse,
+  type SupplierPurchaseItemsResponse,
+  type RecordSupplierPaymentRequest,
+  type SupplierPayment,
+  type SupplierPaymentsResponse,
+  type SupplierDuesResponse,
+  type CreateSupplierReminderRequest,
+  type UpdateSupplierReminderRequest,
+  type SupplierReminder,
+  type SupplierRemindersResponse,
 } from "../../../src/contracts/management/suppliers";
 export type {
   Supplier,
@@ -18,6 +39,21 @@ export type {
   SupplierReceiptsResponse,
   CreateSupplierRequest,
   UpdateSupplierRequest,
+  RecordSupplierPurchaseRequest,
+  SupplierPurchase,
+  SupplierPurchaseItem,
+  SupplierPurchasesResponse,
+  SupplierPurchaseItemsResponse,
+  RecordSupplierPaymentRequest,
+  SupplierPayment,
+  SupplierPaymentsResponse,
+  SupplierDue,
+  SupplierDuesResponse,
+  CreateSupplierReminderRequest,
+  UpdateSupplierReminderRequest,
+  SupplierReminder,
+  SupplierReminderStatus,
+  SupplierRemindersResponse,
 } from "../../../src/contracts/management/suppliers";
 export interface SupplierListQuery {
   search?: string;
@@ -29,8 +65,22 @@ export interface SupplierReceiptsQuery {
   limit?: number;
   cursor?: string;
 }
+export interface SupplierPurchasesQuery extends SupplierReceiptsQuery {
+  supplierId?: string;
+}
+export interface SupplierRemindersQuery {
+  supplierId?: string;
+  status?: "pending" | "done";
+  dueOnly?: boolean;
+}
 export type CreateSupplierInput = CreateSupplierRequest & IdempotentWrite;
 export type UpdateSupplierInput = UpdateSupplierRequest & IdempotentWrite & { supplierId: string };
+export type RecordSupplierPurchaseInput = RecordSupplierPurchaseRequest & IdempotentWrite;
+export type RecordSupplierPaymentInput = RecordSupplierPaymentRequest &
+  IdempotentWrite & { supplierId: string };
+export type CreateSupplierReminderInput = CreateSupplierReminderRequest & IdempotentWrite;
+export type UpdateSupplierReminderInput = UpdateSupplierReminderRequest &
+  IdempotentWrite & { reminderId: string };
 import {
   StaffDetailSchema,
   StaffListResponseSchema,
@@ -103,6 +153,81 @@ export interface UnassignStaffRoleInput extends IdempotentWrite {
   assignmentId: string;
   reason?: string;
 }
+import {
+  AttendanceClockResponseSchema,
+  MyAttendanceResponseSchema,
+  AttendanceListResponseSchema,
+  type AttendanceClockResponse,
+  type MyAttendanceResponse,
+  type AttendanceListResponse,
+} from "../../../src/contracts/management/attendance";
+export type {
+  AttendanceEntry,
+  AttendanceClockResponse,
+  MyAttendanceResponse,
+  AttendanceListResponse,
+} from "../../../src/contracts/management/attendance";
+/** Clock-in records the signed-in member's start; `branchId` optionally tags the POS register's branch. */
+export interface ClockInInput {
+  branchId?: string | null;
+}
+export interface MyAttendanceQuery {
+  limit?: number;
+}
+export interface AttendanceListQuery {
+  membershipId?: string;
+  branchId?: string;
+  limit?: number;
+  cursor?: string;
+}
+import {
+  PayrollReportResponseSchema,
+  PayrollSettingsSchema,
+  EmployeeCompensationSchema,
+  AdjustmentSchema,
+  AdjustmentListResponseSchema,
+  LeaveListResponseSchema,
+  LeaveClockResponseSchema,
+  AttendanceDeletedResponseSchema,
+  type PayrollReportResponse,
+  type PayrollSettings,
+  type EmployeeCompensation,
+  type Adjustment,
+  type AdjustmentListResponse,
+  type LeaveListResponse,
+  type LeaveClockResponse,
+  type SetCompensationRequest,
+  type UpdatePayrollSettingsRequest,
+  type CreateAdjustmentRequest,
+  type CreateAttendanceEntryRequest,
+  type UpdateAttendanceEntryRequest,
+} from "../../../src/contracts/management/attendance-payroll";
+export type {
+  PayrollRow,
+  PayrollTotals,
+  PayrollReportResponse,
+  PayrollSettings,
+  EmployeeCompensation,
+  AdjustmentType,
+  Adjustment,
+  AdjustmentListResponse,
+  LeaveEntry,
+  LeaveListResponse,
+  LeaveClockResponse,
+  SetCompensationRequest,
+  UpdatePayrollSettingsRequest,
+  CreateAdjustmentRequest,
+  CreateAttendanceEntryRequest,
+  UpdateAttendanceEntryRequest,
+} from "../../../src/contracts/management/attendance-payroll";
+/** Inclusive [from, to] calendar-date window (YYYY-MM-DD) for payroll / adjustments / leave reads. */
+export interface AttendanceDateRange {
+  from: string;
+  to: string;
+}
+export type SetCompensationInput = SetCompensationRequest & { membershipId: string };
+export type CreateAdjustmentInput = CreateAdjustmentRequest;
+export type UpdateAttendanceEntryInput = UpdateAttendanceEntryRequest & { entryId: string };
 import {
   CheckoutResultSchema,
   type CheckoutRequest,
@@ -396,6 +521,10 @@ import {
   MeTenantsResponseSchema,
   OrderDetailResponseSchema,
   OrderListResponseSchema,
+  CustomerListResponseSchema,
+  CustomerDetailResponseSchema,
+  CustomerOrdersResponseSchema,
+  CustomerLookupResponseSchema,
   ProductDetailResponseSchema,
   ProductListResponseSchema,
   PosContextResponseSchema,
@@ -437,6 +566,12 @@ import {
   type OrderChannel,
   type OrderDetailResponse,
   type OrderListResponse,
+  type OrderSummary,
+  type CustomerSummary,
+  type CustomerListResponse,
+  type CustomerDetailResponse,
+  type CustomerOrdersResponse,
+  type CustomerLookupResponse,
   type OrderStatus,
   type ProductDetailResponse,
   type ProductListResponse,
@@ -499,6 +634,12 @@ export interface OrderListQuery {
   cursor?: string;
 }
 
+export interface CustomerListQuery {
+  search?: string;
+  limit?: number;
+  cursor?: string;
+}
+
 /**
  * Idempotency is a required, explicit part of every inventory write. The caller supplies a stable key
  * per logical intent; the SDK sends it as the Idempotency-Key header. A replay with the same key and
@@ -536,10 +677,20 @@ export interface TransferInventoryInput extends IdempotentWrite {
 export interface CreatePosSaleInput extends IdempotentWrite {
   registerId: string;
   expectedTotalMinor: number;
-  cashReceivedMinor: number;
+  // Settle by a single cash amount (cashReceivedMinor) OR an explicit split of tenders that sum to
+  // the net total. Provide exactly one. cashReceivedMinor stays for the common cash-only sale.
+  cashReceivedMinor?: number;
+  tenders?: ReadonlyArray<{
+    method: "cash" | "card" | "instapay" | "wallet";
+    amountMinor: number;
+    cashReceivedMinor?: number;
+  }>;
   lines: ReadonlyArray<{ variantId: string; quantity: number }>;
   // Optional entered promotion code (trimmed, uppercased server-side); mirrors CreatePosSaleRequestSchema.
   promotionCode?: string | null;
+  // Optional customer captured at the register. The server matches/creates by normalized phone and
+  // snapshots the contact onto the order. Omit for an anonymous sale.
+  customer?: { name: string; phone: string };
 }
 
 export interface EnrollPosDeviceInput extends EnrollPosDeviceRequest, IdempotentWrite {}
@@ -646,6 +797,22 @@ export interface TenantCommerceClient {
     supplierId: string,
     query?: SupplierReceiptsQuery,
   ): Promise<SupplierReceiptsResponse>;
+  recordSupplierPurchase(input: RecordSupplierPurchaseInput): Promise<SupplierPurchase>;
+  listSupplierPurchases(query?: SupplierPurchasesQuery): Promise<SupplierPurchasesResponse>;
+  supplierPurchaseItems(purchaseId: string): Promise<SupplierPurchaseItemsResponse>;
+  recordSupplierPayment(input: RecordSupplierPaymentInput): Promise<SupplierPayment>;
+  listSupplierPayments(
+    supplierId: string,
+    query?: SupplierReceiptsQuery,
+  ): Promise<SupplierPaymentsResponse>;
+  supplierDues(): Promise<SupplierDuesResponse>;
+  listSupplierReminders(query?: SupplierRemindersQuery): Promise<SupplierRemindersResponse>;
+  createSupplierReminder(input: CreateSupplierReminderInput): Promise<SupplierReminder>;
+  updateSupplierReminder(input: UpdateSupplierReminderInput): Promise<SupplierReminder>;
+  deleteSupplierReminder(input: {
+    reminderId: string;
+    idempotencyKey: string;
+  }): Promise<{ id: string }>;
   listStaff(query?: StaffListQuery): Promise<StaffListResponse>;
   findEligibleStaffIdentitiesByEmail(
     lookup: EligibleStaffIdentityLookup,
@@ -657,11 +824,48 @@ export interface TenantCommerceClient {
   updateStaffStatus(input: UpdateStaffStatusInput): Promise<StaffDetail>;
   assignStaffRole(input: AssignStaffRoleInput): Promise<StaffDetail>;
   unassignStaffRole(input: UnassignStaffRoleInput): Promise<StaffDetail>;
+  /** Clock the signed-in member in (attendance.record). Fails if they already have an open entry. */
+  clockIn(input?: ClockInInput): Promise<AttendanceClockResponse>;
+  /** Clock the signed-in member out of their open entry (attendance.record). */
+  clockOut(): Promise<AttendanceClockResponse>;
+  /** The signed-in member's own attendance: current open entry + recent entries (attendance.record). */
+  getMyAttendance(query?: MyAttendanceQuery): Promise<MyAttendanceResponse>;
+  /** Tenant-wide workforce attendance, keyset-paginated (attendance.read). */
+  listAttendance(query?: AttendanceListQuery): Promise<AttendanceListResponse>;
+  /** Computed payroll for a date range (attendance.read). */
+  getPayrollReport(range: AttendanceDateRange): Promise<PayrollReportResponse>;
+  /** Tenant payroll settings: normal-hours threshold + shift-duration divisor (read/manage). */
+  getPayrollSettings(): Promise<PayrollSettings>;
+  updatePayrollSettings(input: UpdatePayrollSettingsRequest): Promise<PayrollSettings>;
+  /** A member's current compensation, or null if none is set (attendance.read). */
+  getCompensation(membershipId: string): Promise<EmployeeCompensation | null>;
+  setCompensation(input: SetCompensationInput): Promise<EmployeeCompensation>;
+  /** Dated bonus/deduction adjustments (read list / manage create+remove). */
+  listAdjustments(range: AttendanceDateRange): Promise<AdjustmentListResponse>;
+  createAdjustment(input: CreateAdjustmentInput): Promise<Adjustment>;
+  removeAdjustment(adjustmentId: string): Promise<{ id: string }>;
+  /** Manager-sanctioned manual attendance entries (attendance.manage). */
+  addAttendanceEntry(input: CreateAttendanceEntryRequest): Promise<AttendanceClockResponse>;
+  updateAttendanceEntry(input: UpdateAttendanceEntryInput): Promise<AttendanceClockResponse>;
+  removeAttendanceEntry(entryId: string): Promise<{ id: string }>;
+  /** Mid-shift leave log (attendance.read) + self-service start/end (attendance.record). */
+  listLeaves(range: AttendanceDateRange): Promise<LeaveListResponse>;
+  startLeave(input?: ClockInInput): Promise<LeaveClockResponse>;
+  endLeave(): Promise<LeaveClockResponse>;
   receiveInventory(input: ReceiveInventoryInput): Promise<ReceiveInventoryResponse>;
   adjustInventory(input: AdjustInventoryInput): Promise<AdjustInventoryResponse>;
   transferInventory(input: TransferInventoryInput): Promise<TransferInventoryResponse>;
   listOrders(query?: OrderListQuery): Promise<OrderListResponse>;
   getOrder(orderId: string): Promise<OrderDetailResponse>;
+  /** Customers (commerce contacts). Gated on orders.read; search matches name or phone. */
+  listCustomers(query?: CustomerListQuery): Promise<CustomerListResponse>;
+  getCustomer(customerId: string): Promise<CustomerDetailResponse>;
+  listCustomerOrders(
+    customerId: string,
+    query?: { limit?: number; cursor?: string },
+  ): Promise<CustomerOrdersResponse>;
+  /** Match an existing customer by phone (normalized server-side); null when none. */
+  lookupCustomerByPhone(phone: string): Promise<CustomerLookupResponse>;
   getReturnEligibility(orderId: string): Promise<ReturnEligibilityResponse>;
   listReturns(
     orderId: string,
@@ -1053,6 +1257,88 @@ export function createCommerceClient({
           SupplierReceiptsResponseSchema,
           { tenantId },
         ),
+      recordSupplierPurchase: ({ idempotencyKey, ...body }: RecordSupplierPurchaseInput) =>
+        request("/api/v1/suppliers/purchases", SupplierPurchaseSchema, {
+          tenantId,
+          method: "POST",
+          body,
+          idempotencyKey,
+        }),
+      listSupplierPurchases: (query: SupplierPurchasesQuery = {}) =>
+        request(
+          `/api/v1/suppliers/purchases${buildQuery({ supplierId: query.supplierId, limit: query.limit, cursor: query.cursor })}`,
+          SupplierPurchasesResponseSchema,
+          { tenantId },
+        ),
+      supplierPurchaseItems: (purchaseId: string) =>
+        request(
+          `/api/v1/suppliers/purchases/${encodeURIComponent(purchaseId)}/items`,
+          SupplierPurchaseItemsResponseSchema,
+          { tenantId },
+        ),
+      recordSupplierPayment: ({
+        supplierId,
+        idempotencyKey,
+        ...body
+      }: RecordSupplierPaymentInput) =>
+        request(
+          `/api/v1/suppliers/${encodeURIComponent(supplierId)}/payments`,
+          SupplierPaymentSchema,
+          {
+            tenantId,
+            method: "POST",
+            body,
+            idempotencyKey,
+          },
+        ),
+      listSupplierPayments: (supplierId: string, query: SupplierReceiptsQuery = {}) =>
+        request(
+          `/api/v1/suppliers/${encodeURIComponent(supplierId)}/payments${buildQuery({ limit: query.limit, cursor: query.cursor })}`,
+          SupplierPaymentsResponseSchema,
+          { tenantId },
+        ),
+      supplierDues: () =>
+        request("/api/v1/suppliers/dues", SupplierDuesResponseSchema, { tenantId }),
+      listSupplierReminders: (query: SupplierRemindersQuery = {}) =>
+        request(
+          `/api/v1/suppliers/reminders${buildQuery({ supplierId: query.supplierId, status: query.status, dueOnly: query.dueOnly === undefined ? undefined : query.dueOnly ? "true" : "false" })}`,
+          SupplierRemindersResponseSchema,
+          { tenantId },
+        ),
+      createSupplierReminder: ({ idempotencyKey, ...body }: CreateSupplierReminderInput) =>
+        request("/api/v1/suppliers/reminders", SupplierReminderSchema, {
+          tenantId,
+          method: "POST",
+          body,
+          idempotencyKey,
+        }),
+      updateSupplierReminder: ({
+        reminderId,
+        idempotencyKey,
+        ...body
+      }: UpdateSupplierReminderInput) =>
+        request(
+          `/api/v1/suppliers/reminders/${encodeURIComponent(reminderId)}`,
+          SupplierReminderSchema,
+          {
+            tenantId,
+            method: "PATCH",
+            body,
+            idempotencyKey,
+          },
+        ),
+      deleteSupplierReminder: ({
+        reminderId,
+        idempotencyKey,
+      }: {
+        reminderId: string;
+        idempotencyKey: string;
+      }) =>
+        request(
+          `/api/v1/suppliers/reminders/${encodeURIComponent(reminderId)}`,
+          DeleteSupplierReminderResponseSchema,
+          { tenantId, method: "DELETE", body: {}, idempotencyKey },
+        ),
       listStaff: (query: StaffListQuery = {}) =>
         request(
           `/api/v1/staff${buildQuery({ search: query.search, status: query.status, roleId: query.roleId, limit: query.limit, cursor: query.cursor })}`,
@@ -1112,6 +1398,110 @@ export function createCommerceClient({
           StaffDetailSchema,
           { tenantId, method: "DELETE", body, idempotencyKey },
         ),
+      clockIn: (input: ClockInInput = {}) =>
+        request("/api/v1/attendance/clock-in", AttendanceClockResponseSchema, {
+          tenantId,
+          method: "POST",
+          body: input,
+        }),
+      clockOut: () =>
+        request("/api/v1/attendance/clock-out", AttendanceClockResponseSchema, {
+          tenantId,
+          method: "POST",
+          body: {},
+        }),
+      getMyAttendance: (query: MyAttendanceQuery = {}) =>
+        request(
+          `/api/v1/attendance/me${buildQuery({ limit: query.limit })}`,
+          MyAttendanceResponseSchema,
+          { tenantId },
+        ),
+      listAttendance: (query: AttendanceListQuery = {}) =>
+        request(
+          `/api/v1/attendance${buildQuery({ membershipId: query.membershipId, branchId: query.branchId, limit: query.limit, cursor: query.cursor })}`,
+          AttendanceListResponseSchema,
+          { tenantId },
+        ),
+      getPayrollReport: (range: AttendanceDateRange) =>
+        request(
+          `/api/v1/attendance/payroll${buildQuery({ from: range.from, to: range.to })}`,
+          PayrollReportResponseSchema,
+          { tenantId },
+        ),
+      getPayrollSettings: () =>
+        request("/api/v1/attendance/settings", PayrollSettingsSchema, { tenantId }),
+      updatePayrollSettings: (input: UpdatePayrollSettingsRequest) =>
+        request("/api/v1/attendance/settings", PayrollSettingsSchema, {
+          tenantId,
+          method: "PUT",
+          body: input,
+        }),
+      getCompensation: (membershipId: string) =>
+        request(
+          `/api/v1/attendance/compensation/${encodeURIComponent(membershipId)}`,
+          EmployeeCompensationSchema.nullable(),
+          { tenantId },
+        ),
+      setCompensation: ({ membershipId, ...body }: SetCompensationInput) =>
+        request(
+          `/api/v1/attendance/compensation/${encodeURIComponent(membershipId)}`,
+          EmployeeCompensationSchema,
+          { tenantId, method: "PUT", body },
+        ),
+      listAdjustments: (range: AttendanceDateRange) =>
+        request(
+          `/api/v1/attendance/adjustments${buildQuery({ from: range.from, to: range.to })}`,
+          AdjustmentListResponseSchema,
+          { tenantId },
+        ),
+      createAdjustment: (input: CreateAdjustmentInput) =>
+        request("/api/v1/attendance/adjustments", AdjustmentSchema, {
+          tenantId,
+          method: "POST",
+          body: input,
+        }),
+      removeAdjustment: (adjustmentId: string) =>
+        request(
+          `/api/v1/attendance/adjustments/${encodeURIComponent(adjustmentId)}`,
+          AttendanceDeletedResponseSchema,
+          { tenantId, method: "DELETE", body: {} },
+        ),
+      addAttendanceEntry: (input: CreateAttendanceEntryRequest) =>
+        request("/api/v1/attendance/entries", AttendanceClockResponseSchema, {
+          tenantId,
+          method: "POST",
+          body: input,
+        }),
+      updateAttendanceEntry: ({ entryId, ...body }: UpdateAttendanceEntryInput) =>
+        request(
+          `/api/v1/attendance/entries/${encodeURIComponent(entryId)}`,
+          AttendanceClockResponseSchema,
+          { tenantId, method: "PATCH", body },
+        ),
+      removeAttendanceEntry: (entryId: string) =>
+        request(
+          `/api/v1/attendance/entries/${encodeURIComponent(entryId)}`,
+          AttendanceDeletedResponseSchema,
+          { tenantId, method: "DELETE", body: {} },
+        ),
+      listLeaves: (range: AttendanceDateRange) =>
+        request(
+          `/api/v1/attendance/leaves${buildQuery({ from: range.from, to: range.to })}`,
+          LeaveListResponseSchema,
+          { tenantId },
+        ),
+      startLeave: (input: ClockInInput = {}) =>
+        request("/api/v1/attendance/leave/start", LeaveClockResponseSchema, {
+          tenantId,
+          method: "POST",
+          body: input,
+        }),
+      endLeave: () =>
+        request("/api/v1/attendance/leave/end", LeaveClockResponseSchema, {
+          tenantId,
+          method: "POST",
+          body: {},
+        }),
       receiveInventory: ({ idempotencyKey, ...body }: ReceiveInventoryInput) =>
         request("/api/v1/inventory/receipts", ReceiveInventoryResponseSchema, {
           tenantId,
@@ -1148,6 +1538,32 @@ export function createCommerceClient({
         ),
       getOrder: (orderId: string) =>
         request(`/api/v1/orders/${encodeURIComponent(orderId)}`, OrderDetailResponseSchema, {
+          tenantId,
+        }),
+      listCustomers: (query = {}) =>
+        request(
+          `/api/v1/customers${buildQuery({
+            search: query.search,
+            limit: query.limit,
+            cursor: query.cursor,
+          })}`,
+          CustomerListResponseSchema,
+          { tenantId },
+        ),
+      getCustomer: (customerId: string) =>
+        request(
+          `/api/v1/customers/${encodeURIComponent(customerId)}`,
+          CustomerDetailResponseSchema,
+          { tenantId },
+        ),
+      listCustomerOrders: (customerId: string, query = {}) =>
+        request(
+          `/api/v1/customers/${encodeURIComponent(customerId)}/orders${buildQuery(query)}`,
+          CustomerOrdersResponseSchema,
+          { tenantId },
+        ),
+      lookupCustomerByPhone: (phone: string) =>
+        request(`/api/v1/customers/lookup${buildQuery({ phone })}`, CustomerLookupResponseSchema, {
           tenantId,
         }),
       getPosContext: () => request("/api/v1/pos/context", PosContextResponseSchema, { tenantId }),
@@ -1589,6 +2005,12 @@ export type {
   TransferInventoryResponse,
   OrderListResponse,
   OrderDetailResponse,
+  OrderSummary,
+  CustomerSummary,
+  CustomerListResponse,
+  CustomerDetailResponse,
+  CustomerOrdersResponse,
+  CustomerLookupResponse,
   PosContextResponse,
   CreatePosSaleResponse,
   PosDeviceResponse,

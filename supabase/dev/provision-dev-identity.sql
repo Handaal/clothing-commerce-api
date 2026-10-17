@@ -12,9 +12,17 @@
 --
 -- Phase 2G: the development role now also grants the three sanctioned inventory-management WRITE
 -- permissions (inventory.receive, inventory.adjust, inventory.transfer) so a real Clerk login can
--- exercise the Phase 2G write endpoints locally. It still grants NO opening-stock or generic-issue
--- permission, NO catalog/order/fulfillment write, and NO wildcard/admin permission. The role remains an
--- EXACT set (fail-closed): the script asserts the grant count and never widens beyond the declared keys.
+-- exercise the Phase 2G write endpoints locally. It also grants returns.read so the management reader
+-- can view order return history and refund state (read-only). It still grants NO opening-stock or
+-- generic-issue permission, NO catalog/order/fulfillment/returns write, and NO wildcard/admin
+-- permission. The role remains an EXACT set (fail-closed): the script asserts the grant count and never
+-- widens beyond the declared keys.
+-- Back-office desks: the development role also grants settings.read/settings.manage (operational
+-- settings incl. the inventory-locations endpoint the Inventory desk lists) and suppliers.read/
+-- suppliers.manage (the Suppliers payables desk: list/detail/history reads plus supplier, purchase,
+-- payment, and reminder writes). Supplier purchase stock receipt still additionally requires the
+-- already-granted inventory.receive scope. It also grants reports.read (the Reports desk: tenant-wide
+-- sales/products/inventory/returns/promotions/suppliers reports plus their bounded CSV exports).
 -- Connected POS V1 adds a separate, non-protected `Dev POS Cashier` role with exactly catalog.read,
 -- inventory.read/issue, orders.read/create/fulfill, and payments.capture. The existing management role
 -- is not widened; both assignments use the deterministic tenant-wide development scope.
@@ -79,13 +87,17 @@ begin
   select count(*) into v_perm_count
   from public.permissions
   where key in (
-      'catalog.read', 'inventory.read', 'orders.read',
-      'inventory.receive', 'inventory.adjust', 'inventory.transfer'
+      'catalog.read', 'inventory.read', 'orders.read', 'returns.read',
+      'promotions.read', 'promotions.manage',
+      'inventory.receive', 'inventory.adjust', 'inventory.transfer',
+      'attendance.read', 'attendance.manage', 'staff.read',
+      'settings.read', 'settings.manage', 'suppliers.read', 'suppliers.manage',
+      'reports.read'
     )
     and status = 'active';
-  if v_perm_count <> 6 then
+  if v_perm_count <> 17 then
     raise exception
-      'DEV_PROVISIONING: expected 6 active canonical permissions (catalog.read, inventory.read, orders.read, inventory.receive, inventory.adjust, inventory.transfer) but found %. Run `pnpm supabase:reset` to apply migrations.',
+      'DEV_PROVISIONING: expected 17 active canonical permissions (catalog.read, inventory.read, orders.read, returns.read, promotions.read, promotions.manage, inventory.receive, inventory.adjust, inventory.transfer, attendance.read, attendance.manage, staff.read, settings.read, settings.manage, suppliers.read, suppliers.manage, reports.read) but found %. Run `pnpm supabase:reset` to apply migrations.',
       v_perm_count;
   end if;
 
@@ -165,16 +177,29 @@ begin
     v_role_created := true;
   end if;
 
-  -- 5. Grant EXACTLY the six management permissions (three reads + three inventory writes). The idempotent
-  --    insert reconciles the old three-read state up to the full set; the count assertion then keeps the
-  --    role an EXACT set. If it carries anything beyond these six (e.g. inventory.opening/issue or any
-  --    other grant), fail rather than silently narrow/widen. A re-run inserts nothing and re-asserts six.
+  -- 5. Grant EXACTLY the seventeen management permissions (four reads + two promotions + three inventory
+  --    writes + attendance read + attendance manage + staff read + settings read/manage +
+  --    suppliers read/manage + reports read). `staff.read` lets the Staff desk list the workforce (the
+  --    roster the attendance/payroll back-office selects members from); staff.manage is deliberately NOT
+  --    granted, so this role can read but never mutate staff. The idempotent insert reconciles an older
+  --    state up to the full set; the count assertion then keeps the role an EXACT set. If it carries
+  --    anything beyond these seventeen, fail
+  --    rather than silently narrow/widen. A re-run inserts nothing and re-asserts. `returns.read` lets the
+  --    management reader view return history; `promotions.read`/`promotions.manage` let it manage discount
+  --    vouchers (promotion codes); `settings.read`/`settings.manage` cover operational settings incl. the
+  --    inventory-locations endpoint the Inventory desk lists; `suppliers.read`/`suppliers.manage` cover
+  --    the Suppliers payables desk reads and writes; `reports.read` covers the Reports desk (sales,
+  --    products, inventory, returns, promotions, suppliers reports plus their CSV exports).
   insert into public.role_permissions (tenant_id, role_id, permission_id)
   select v_tenant_id, v_role_id, p.id
   from public.permissions p
   where p.key in (
-    'catalog.read', 'inventory.read', 'orders.read',
-    'inventory.receive', 'inventory.adjust', 'inventory.transfer'
+    'catalog.read', 'inventory.read', 'orders.read', 'returns.read',
+    'promotions.read', 'promotions.manage',
+    'inventory.receive', 'inventory.adjust', 'inventory.transfer',
+    'attendance.read', 'attendance.manage', 'staff.read',
+    'settings.read', 'settings.manage', 'suppliers.read', 'suppliers.manage',
+    'reports.read'
   )
   on conflict (tenant_id, role_id, permission_id) do nothing;
 
@@ -182,9 +207,9 @@ begin
   from public.role_permissions
   where tenant_id = v_tenant_id
     and role_id = v_role_id;
-  if v_role_perm_count <> 6 then
+  if v_role_perm_count <> 17 then
     raise exception
-      'DEV_PROVISIONING: role "Dev Management Reader" must grant exactly the 6 management permissions but carries % grants; refusing to alter an unexpected grant set.',
+      'DEV_PROVISIONING: role "Dev Management Reader" must grant exactly the 17 management permissions but carries % grants; refusing to alter an unexpected grant set.',
       v_role_perm_count;
   end if;
 
@@ -192,11 +217,11 @@ begin
   select count(*) into v_pos_perm_count from public.permissions
   where key in (
     'catalog.read', 'inventory.read', 'orders.read', 'orders.create', 'orders.fulfill',
-    'inventory.issue', 'payments.capture'
+    'inventory.issue', 'payments.capture', 'attendance.record'
   ) and status = 'active';
-  if v_pos_perm_count <> 7 then
+  if v_pos_perm_count <> 8 then
     raise exception
-      'DEV_PROVISIONING: expected 7 active POS cashier permissions but found %. Run `pnpm supabase:reset`.',
+      'DEV_PROVISIONING: expected 8 active POS cashier permissions but found %. Run `pnpm supabase:reset`.',
       v_pos_perm_count;
   end if;
 
@@ -217,14 +242,14 @@ begin
   select v_tenant_id, v_pos_role_id, p.id from public.permissions p
   where p.key in (
     'catalog.read', 'inventory.read', 'orders.read', 'orders.create', 'orders.fulfill',
-    'inventory.issue', 'payments.capture'
+    'inventory.issue', 'payments.capture', 'attendance.record'
   ) on conflict (tenant_id, role_id, permission_id) do nothing;
 
   select count(*) into v_pos_role_perm_count from public.role_permissions
   where tenant_id = v_tenant_id and role_id = v_pos_role_id;
-  if v_pos_role_perm_count <> 7 then
+  if v_pos_role_perm_count <> 8 then
     raise exception
-      'DEV_PROVISIONING: role "Dev POS Cashier" must grant exactly 7 permissions but carries %.',
+      'DEV_PROVISIONING: role "Dev POS Cashier" must grant exactly 8 permissions but carries %.',
       v_pos_role_perm_count;
   end if;
 

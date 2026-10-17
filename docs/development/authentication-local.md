@@ -23,14 +23,14 @@ when that service is present; it does not create or authenticate a user.
 Copy `.env.example` to the local environment mechanism used by Next.js and set only development
 values:
 
-| Variable                    | Purpose                                                                 |
-| --------------------------- | ----------------------------------------------------------------------- |
-| `CLERK_SECRET_KEY`          | Server credential used by `@clerk/backend`; never client-visible        |
-| `CLERK_PUBLISHABLE_KEY`     | Identifies the Clerk instance required by request authentication        |
-| `CLERK_AUTHORIZED_PARTIES`  | Comma-separated exact HTTP(S) origins allowed to send session requests  |
-| `CLERK_JWT_KEY`             | Optional PEM public key for networkless session-token verification      |
-| `SUPABASE_URL`              | Server Data API URL                                                     |
-| `SUPABASE_SERVICE_ROLE_KEY` | Privileged server key used only inside the narrow authorization adapter |
+| Variable                    | Purpose                                                                  |
+| --------------------------- | ------------------------------------------------------------------------ |
+| `CLERK_SECRET_KEY`          | Server credential used by `@clerk/backend`; never client-visible         |
+| `CLERK_PUBLISHABLE_KEY`     | Identifies the Clerk instance required by request authentication         |
+| `CLERK_AUTHORIZED_PARTIES`  | Exact HTTP(S) origins allowed when a session token carries browser `azp` |
+| `CLERK_JWT_KEY`             | Optional PEM public key for networkless session-token verification       |
+| `SUPABASE_URL`              | Server Data API URL                                                      |
+| `SUPABASE_SERVICE_ROLE_KEY` | Privileged server key used only inside the narrow authorization adapter  |
 
 `CLERK_AUTHORIZED_PARTIES` should normally include `http://localhost:3000` for local browser
 development and exact deployed admin origins in staging/production. Paths, wildcards, credentials,
@@ -49,6 +49,10 @@ fail startup/composition rather than producing a partially trusted boundary.
 4. Optionally copy the instance JWT public key to `CLERK_JWT_KEY` for networkless verification.
 5. Sign in through a staff client and send its short-lived Clerk session token normally. The API
    accepts only `session_token`, not Clerk organization roles or metadata as authorization.
+
+Browser session tokens carry `azp` and must match `CLERK_AUTHORIZED_PARTIES`. Native Expo tokens do
+not carry `azp`; after Clerk validates their signature and standard claims, the API skips only that
+inapplicable origin comparison. A present malformed or unlisted `azp` is always rejected.
 
 Clerk's official backend request-authentication reference is
 [`authenticateRequest()`](https://clerk.com/docs/reference/backend/authenticate-request). Clerk's

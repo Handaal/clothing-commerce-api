@@ -6,6 +6,19 @@ import {
   SupplierListResponseSchema,
   SupplierReceiptSchema,
   SupplierReceiptsResponseSchema,
+  RecordSupplierPurchaseRequestSchema,
+  SupplierPurchaseSchema,
+  SupplierPurchasesResponseSchema,
+  SupplierPurchaseItemsResponseSchema,
+  RecordSupplierPaymentRequestSchema,
+  SupplierPaymentSchema,
+  SupplierPaymentsResponseSchema,
+  SupplierDuesResponseSchema,
+  CreateSupplierReminderRequestSchema,
+  UpdateSupplierReminderRequestSchema,
+  SupplierReminderSchema,
+  SupplierRemindersResponseSchema,
+  DeleteSupplierReminderResponseSchema,
 } from "../contracts/management/suppliers";
 import {
   StaffSummarySchema,
@@ -310,6 +323,43 @@ function settingsWrite(
     security: clerkSecurity,
     parameters: [tenantHeaderParameter, idempotencyKeyHeaderParameter, ...parameters],
     requestBody: jsonRequestBody("Settings mutation payload", requestRef),
+    responses: {
+      "200": jsonResponse("Success", responseRef),
+      ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+    },
+  };
+}
+
+function supplierRead(operationId: string, responseRef: string, parameters: unknown[] = []) {
+  return {
+    operationId,
+    tags: ["suppliers"],
+    summary: operationId,
+    description: "Requires a tenant-wide suppliers.read grant.",
+    security: clerkSecurity,
+    parameters: [tenantHeaderParameter, ...parameters],
+    responses: {
+      "200": jsonResponse("Success", responseRef),
+      ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+    },
+  };
+}
+
+function supplierWrite(
+  operationId: string,
+  requestRef: string,
+  responseRef: string,
+  parameters: unknown[] = [],
+) {
+  return {
+    operationId,
+    tags: ["suppliers"],
+    summary: operationId,
+    description:
+      "Requires a tenant-wide suppliers.manage grant and Idempotency-Key. Exact replay returns the original response; changed intent conflicts.",
+    security: clerkSecurity,
+    parameters: [tenantHeaderParameter, idempotencyKeyHeaderParameter, ...parameters],
+    requestBody: jsonRequestBody("Supplier money mutation payload.", requestRef),
     responses: {
       "200": jsonResponse("Success", responseRef),
       ...errorResponses(400, 401, 403, 404, 409, 422, 500),
@@ -1303,6 +1353,82 @@ export function generateOpenApiDocument() {
             },
           },
         },
+      },
+      "/api/v1/suppliers/purchases": {
+        get: supplierRead(
+          "listSupplierPurchases",
+          "#/components/schemas/SupplierPurchasesResponse",
+          [
+            uuidQueryParameter("supplierId", "Filter purchases to one supplier."),
+            limitParameter(),
+            cursorParameter(),
+          ],
+        ),
+        post: supplierWrite(
+          "recordSupplierPurchase",
+          "#/components/schemas/RecordSupplierPurchaseRequest",
+          "#/components/schemas/SupplierPurchase",
+        ),
+      },
+      "/api/v1/suppliers/purchases/{purchaseId}/items": {
+        get: supplierRead(
+          "supplierPurchaseItems",
+          "#/components/schemas/SupplierPurchaseItemsResponse",
+          [settingsPathParameter("purchaseId")],
+        ),
+      },
+      "/api/v1/suppliers/{supplierId}/payments": {
+        get: supplierRead("listSupplierPayments", "#/components/schemas/SupplierPaymentsResponse", [
+          settingsPathParameter("supplierId"),
+          limitParameter(),
+          cursorParameter(),
+        ]),
+        post: supplierWrite(
+          "recordSupplierPayment",
+          "#/components/schemas/RecordSupplierPaymentRequest",
+          "#/components/schemas/SupplierPayment",
+          [settingsPathParameter("supplierId")],
+        ),
+      },
+      "/api/v1/suppliers/dues": {
+        get: supplierRead("supplierDues", "#/components/schemas/SupplierDuesResponse"),
+      },
+      "/api/v1/suppliers/reminders": {
+        get: supplierRead(
+          "listSupplierReminders",
+          "#/components/schemas/SupplierRemindersResponse",
+          [
+            uuidQueryParameter("supplierId", "Filter reminders to one supplier."),
+            enumQueryParameter("status", ["pending", "done"], undefined, "Filter reminder status."),
+            {
+              name: "dueOnly",
+              in: "query",
+              required: false,
+              description:
+                "Return only pending reminders whose tenant-local lead window has opened.",
+              schema: { type: "boolean" },
+            },
+          ],
+        ),
+        post: supplierWrite(
+          "createSupplierReminder",
+          "#/components/schemas/CreateSupplierReminderRequest",
+          "#/components/schemas/SupplierReminder",
+        ),
+      },
+      "/api/v1/suppliers/reminders/{reminderId}": {
+        patch: supplierWrite(
+          "updateSupplierReminder",
+          "#/components/schemas/UpdateSupplierReminderRequest",
+          "#/components/schemas/SupplierReminder",
+          [settingsPathParameter("reminderId")],
+        ),
+        delete: supplierWrite(
+          "deleteSupplierReminder",
+          "#/components/schemas/EmptyRequest",
+          "#/components/schemas/DeleteSupplierReminderResponse",
+          [settingsPathParameter("reminderId")],
+        ),
       },
       "/api/v1/staff": {
         get: {
@@ -2764,6 +2890,19 @@ export function generateOpenApiDocument() {
         SupplierListResponse: jsonSchema(SupplierListResponseSchema),
         SupplierReceipt: jsonSchema(SupplierReceiptSchema),
         SupplierReceiptsResponse: jsonSchema(SupplierReceiptsResponseSchema),
+        RecordSupplierPurchaseRequest: jsonSchema(RecordSupplierPurchaseRequestSchema),
+        SupplierPurchase: jsonSchema(SupplierPurchaseSchema),
+        SupplierPurchasesResponse: jsonSchema(SupplierPurchasesResponseSchema),
+        SupplierPurchaseItemsResponse: jsonSchema(SupplierPurchaseItemsResponseSchema),
+        RecordSupplierPaymentRequest: jsonSchema(RecordSupplierPaymentRequestSchema),
+        SupplierPayment: jsonSchema(SupplierPaymentSchema),
+        SupplierPaymentsResponse: jsonSchema(SupplierPaymentsResponseSchema),
+        SupplierDuesResponse: jsonSchema(SupplierDuesResponseSchema),
+        CreateSupplierReminderRequest: jsonSchema(CreateSupplierReminderRequestSchema),
+        UpdateSupplierReminderRequest: jsonSchema(UpdateSupplierReminderRequestSchema),
+        SupplierReminder: jsonSchema(SupplierReminderSchema),
+        SupplierRemindersResponse: jsonSchema(SupplierRemindersResponseSchema),
+        DeleteSupplierReminderResponse: jsonSchema(DeleteSupplierReminderResponseSchema),
 
         StaffSummary: jsonSchema(StaffSummarySchema),
         StaffDetail: jsonSchema(StaffDetailSchema),

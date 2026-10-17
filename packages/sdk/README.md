@@ -1,4 +1,11 @@
-# @shifted/clothing-commerce-sdk 0.12.1
+# @shifted/clothing-commerce-sdk 0.19.0
+
+Version 0.19.0 adds supplier purchase money, standalone due-settlement payments, server-computed
+dues, and payment-reminder CRUD. `recordSupplierPurchase` atomically records one multi-line clothing
+variant receipt plus immutable minor-unit supplier cost facts. Those costs are AP/history data only;
+they do not establish inventory valuation, FIFO/weighted costing, or COGS. Purchases use the tenant
+default currency, payments cannot create supplier credit, and purchase history presents standalone
+payments oldest-first without canonically allocating a payment to an invoice.
 
 Version 0.12.1 adds optional `getContext().access.promotions` UI guidance with independent
 `{ canRead, canManage }` booleans derived from effective tenant-wide `promotions.read` and
