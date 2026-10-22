@@ -101,9 +101,18 @@ describe("Staff request validation", () => {
 
 describe("Staff permission coupling", () => {
   const repository = new StaffRepository(createClient("https://example.test", "test-key"));
+  // The login provisioner is never reached in these permission-coupling tests (authorization fails first),
+  // so a throwing double proves no unauthorized call ever mints an external account.
+  const loginProvisioner = {
+    provisionLogin: vi.fn(async () => {
+      throw new Error("login provisioner must not be called");
+    }),
+    deleteLogin: vi.fn(async () => {}),
+  };
   const service = new StaffService(
     new AuthorizationService(new StubResourceRepository(new Map())),
     repository,
+    loginProvisioner,
   );
 
   it("denies missing permission before persistence", async () => {
@@ -113,6 +122,22 @@ describe("Staff permission coupling", () => {
     ).rejects.toMatchObject({ code: "PERMISSION_DENIED" });
     expect(spy).not.toHaveBeenCalled();
     spy.mockRestore();
+  });
+
+  it("denies createLogin without staff.manage and never mints an external account", async () => {
+    const peek = vi.spyOn(repository, "peekCommand");
+    await expect(
+      service.createLogin(contextWith([grant(["staff.read"])]), "key", {
+        displayName: "Dana",
+        username: "dana",
+        pin: "1234",
+        roleId: role,
+        accessScopeId: scope,
+      }),
+    ).rejects.toMatchObject({ code: "PERMISSION_DENIED" });
+    expect(loginProvisioner.provisionLogin).not.toHaveBeenCalled();
+    expect(peek).not.toHaveBeenCalled();
+    peek.mockRestore();
   });
 
   it("does not borrow tenant scope from a brand/branch-scoped grant", async () => {

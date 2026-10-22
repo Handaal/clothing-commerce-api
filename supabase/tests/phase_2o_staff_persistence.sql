@@ -188,6 +188,38 @@ begin
  d:=staff_private.set_staff_status(t,a,'stepdown',a,'deactivated','handover');
  assert d->>'status'='deactivated','admin may step down while another admin satisfies the invariant';
  assert (select status='active' from public.memberships where id=mem2),'the remaining admin is still active';
+
+ -- Phase 2O-B: email-less login provisioning. create_staff_login builds the whole graph (identity +
+ -- clerk binding + active membership + initial role/scope) for a PIN-only staff member. The subject here
+ -- stands in for the account the server mints out-of-band; it is never client-supplied in production. The
+ -- surviving admin mem2 is the actor, so the anti-escalation subset check has a live authority to measure.
+ created:=staff_private.create_staff_login(t,mem2,'login-1','clerk_pin_dana','dana.pin','Dana PIN',reader,sc);
+ m:=(created->>'membershipId')::uuid;
+ assert created->>'status'='active','login membership is active';
+ assert created->>'displayName'='Dana PIN','login display name projected';
+ assert created->>'email' is null,'login identity is email-less';
+ assert jsonb_array_length(created->'assignments')=1
+   and created->'assignments'->0->>'roleName'='Staff Reader','initial role+scope assigned at creation';
+ assert (select login_username='dana.pin' and primary_email is null and status='active'
+   from public.user_identities where id=(created->>'identityId')::uuid),'identity carries the login username and no email';
+ assert (select count(*)=1 from public.user_identity_provider_bindings
+   where provider='clerk' and provider_subject='clerk_pin_dana'
+     and user_identity_id=(created->>'identityId')::uuid and unlinked_at is null),'clerk binding recorded for the minted subject';
+ -- Idempotency: exact replay (normalized key) returns the same detail; a changed intent conflicts.
+ assert staff_private.create_staff_login(t,mem2,'LOGIN-1','clerk_pin_dana','dana.pin','Dana PIN',reader,sc)=created,'login exact replay';
+ begin perform staff_private.create_staff_login(t,mem2,'login-1','clerk_pin_dana','dana.pin','Someone Else',reader,sc); raise exception 'expected intent conflict';
+ exception when sqlstate 'ID409' then null; end;
+ -- Re-running with the SAME subject under a NEW key reuses the identity/membership (no duplicate graph).
+ assert (staff_private.create_staff_login(t,mem2,'login-again','clerk_pin_dana','dana.pin','Dana PIN',reader,sc)->>'membershipId')=m::text,'same subject reuses the existing membership';
+ -- Anti-escalation: a login may not be granted a role carrying a permission the actor does not hold.
+ begin perform staff_private.create_staff_login(t,mem2,'login-escalate','clerk_pin_boss','boss.pin','Boss PIN',privileged,sc); raise exception 'expected escalation block';
+ exception when sqlstate 'ST403' then null; end;
+ -- Login username is instance-global unique: a different subject cannot reuse a taken username.
+ begin perform staff_private.create_staff_login(t,mem2,'login-dup','clerk_pin_other','dana.pin','Other PIN',reader,sc); raise exception 'expected username collision';
+ exception when sqlstate '23505' then null; end;
+ -- Validation: a malformed username is rejected before any identity row is created.
+ begin perform staff_private.create_staff_login(t,mem2,'login-badname','clerk_pin_bad','BAD NAME',' Bad',reader,sc); raise exception 'expected invalid username';
+ exception when sqlstate '22023' then null; end;
 end $b$;
 reset role;
 select 'ALL_STAFF_PERSISTENCE_ASSERTIONS_PASSED';

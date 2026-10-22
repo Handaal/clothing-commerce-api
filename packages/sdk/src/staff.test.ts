@@ -43,6 +43,37 @@ describe("Staff SDK", () => {
     expect(JSON.parse(statusInit?.body as string)).toEqual({ status: "suspended" });
   });
 
+  it("provisions an email-less login over a tenant-scoped, idempotent POST", async () => {
+    const fetcher = vi.fn<typeof fetch>(async () => new Response(JSON.stringify(detail)));
+    const client = createCommerceClient({
+      baseUrl: "https://example.test",
+      getToken: () => "session",
+      fetch: fetcher,
+    }).withTenant(id);
+
+    const result = await client.createStaffLogin({
+      displayName: "Dana Cashier",
+      username: "dana",
+      pin: "1234",
+      roleId: id,
+      accessScopeId: id,
+      idempotencyKey: "create-login",
+    });
+    expect(result).toEqual(detail);
+    const [path, init] = fetcher.mock.calls[0];
+    expect(path).toBe("https://example.test/api/v1/staff/logins");
+    expect(init?.method).toBe("POST");
+    expect(JSON.parse(init?.body as string)).toEqual({
+      displayName: "Dana Cashier",
+      username: "dana",
+      pin: "1234",
+      roleId: id,
+      accessScopeId: id,
+    });
+    expect(new Headers(init?.headers).get("Idempotency-Key")).toBe("create-login");
+    expect(new Headers(init?.headers).get("X-Tenant-Id")).toBe(id);
+  });
+
   it("assigns and unassigns a role against the assignment sub-resource", async () => {
     const fetcher = vi.fn<typeof fetch>(async () => new Response(JSON.stringify(detail)));
     const client = createCommerceClient({

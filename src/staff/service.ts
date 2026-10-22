@@ -3,13 +3,16 @@ import { type AuthorizationContext, type AuthorizationService } from "../authori
 import {
   AssignStaffRoleRequestSchema,
   CreateStaffRequestSchema,
+  CreateStaffLoginRequestSchema,
   UnassignStaffRoleRequestSchema,
   UpdateStaffStatusRequestSchema,
   type AssignStaffRoleRequest,
   type CreateStaffRequest,
+  type CreateStaffLoginRequest,
   type UnassignStaffRoleRequest,
   type UpdateStaffStatusRequest,
 } from "../contracts/management/staff";
+import type { StaffLoginProvisioner } from "../authentication/staff-login-provisioner";
 import { StaffError } from "./errors";
 import {
   AssignmentCatalogQuerySchema,
@@ -44,6 +47,7 @@ export class StaffService {
   constructor(
     private readonly authorization: AuthorizationService,
     private readonly repository: StaffRepository,
+    private readonly loginProvisioner: StaffLoginProvisioner,
   ) {}
 
   // No resource target: the shared authorizer requires a permission-coupled tenant-wide grant, so a
@@ -103,6 +107,38 @@ export class StaffService {
       key,
       parse(CreateStaffRequestSchema, input),
     );
+  }
+
+  /**
+   * Provision an email-less staff LOGIN (external account + identity + binding + membership + initial
+   * assignment) in one step. The order is deliberate and fail-closed:
+   *   1. authorize tenant-wide staff.manage — an unauthorized caller never reaches the external provider;
+   *   2. replay-probe the ledger — a genuine idempotent retry returns the stored staff WITHOUT re-minting;
+   *   3. mint the external login and capture the SERVER-verified subject (never client-supplied);
+   *   4. persist the graph; the subset/anti-escalation and lifecycle rules all live in the RPC.
+   * If step 4 loses an idempotency race (two first-time submits of the same key), the just-minted external
+   * account is orphaned, so it is deleted best-effort before the conflict surfaces.
+   */
+  async createLogin(context: AuthorizationContext, key: string, input: CreateStaffLoginRequest) {
+    const proof = await this.authorize(context, StaffPermission.manage);
+    const parsed = parse(CreateStaffLoginRequestSchema, input);
+
+    const replay = await this.repository.peekCommand(proof, key);
+    if (replay !== null) return replay;
+
+    const subject = await this.loginProvisioner.provisionLogin({
+      username: parsed.username,
+      pin: parsed.pin,
+      displayName: parsed.displayName,
+    });
+    try {
+      return await this.repository.createLogin(proof, key, subject, parsed);
+    } catch (error) {
+      if (error instanceof StaffError && error.code === "IDEMPOTENCY_CONFLICT") {
+        await this.loginProvisioner.deleteLogin(subject);
+      }
+      throw error;
+    }
   }
 
   async updateStatus(

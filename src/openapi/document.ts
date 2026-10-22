@@ -32,6 +32,7 @@ import {
   AssignableStaffScopeSchema,
   AssignableStaffScopesResponseSchema,
   CreateStaffRequestSchema,
+  CreateStaffLoginRequestSchema,
   UpdateStaffStatusRequestSchema,
   AssignStaffRoleRequestSchema,
   UnassignStaffRoleRequestSchema,
@@ -1484,6 +1485,31 @@ export function generateOpenApiDocument() {
           },
         },
       },
+      "/api/v1/staff/logins": {
+        post: {
+          operationId: "createStaffLogin",
+          tags: ["staff"],
+          summary: "createStaffLogin",
+          description:
+            "Requires a tenant-wide staff.manage grant and Idempotency-Key. Provisions a brand-new, " +
+            "EMAIL-LESS staff login (external account + platform identity + provider binding + active " +
+            "membership + initial role+scope assignment) in one step — the onboarding path for POS floor " +
+            "staff who have no email. The provider subject is minted by the server and never accepted " +
+            "from the client. The assigned role must be a subset of the caller's own tenant-wide " +
+            "permissions (anti-escalation). Exact replay returns the original response; changed intent " +
+            "conflicts.",
+          security: clerkSecurity,
+          parameters: [tenantHeaderParameter, idempotencyKeyHeaderParameter],
+          requestBody: jsonRequestBody(
+            "New login to provision and link.",
+            "#/components/schemas/CreateStaffLoginRequest",
+          ),
+          responses: {
+            "200": jsonResponse("Success", "#/components/schemas/StaffDetail"),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
       "/api/v1/staff/eligible-identities": {
         get: {
           operationId: "findEligibleStaffIdentitiesByEmail",
@@ -2915,6 +2941,7 @@ export function generateOpenApiDocument() {
         AssignableStaffScope: jsonSchema(AssignableStaffScopeSchema),
         AssignableStaffScopesResponse: jsonSchema(AssignableStaffScopesResponseSchema),
         CreateStaffRequest: jsonSchema(CreateStaffRequestSchema),
+        CreateStaffLoginRequest: jsonSchema(CreateStaffLoginRequestSchema),
         UpdateStaffStatusRequest: jsonSchema(UpdateStaffStatusRequestSchema),
         AssignStaffRoleRequest: jsonSchema(AssignStaffRoleRequestSchema),
         UnassignStaffRoleRequest: jsonSchema(UnassignStaffRoleRequestSchema),

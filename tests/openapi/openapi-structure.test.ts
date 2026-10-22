@@ -57,6 +57,7 @@ describe("OpenAPI management surface", () => {
         "/api/v1/suppliers/{supplierId}/payments",
         "/api/v1/suppliers/{supplierId}/receipts",
         "/api/v1/staff",
+        "/api/v1/staff/logins",
         "/api/v1/staff/eligible-identities",
         "/api/v1/staff/assignable-roles",
         "/api/v1/staff/assignable-scopes",

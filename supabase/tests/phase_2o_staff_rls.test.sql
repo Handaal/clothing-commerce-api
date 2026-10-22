@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(30);
+select plan(35);
 
 -- Deny-by-default surface -------------------------------------------------------------------------
 select is((select count(*) from pg_class where relname='staff_commands' and relrowsecurity),1::bigint,'staff_commands enables RLS');
@@ -25,11 +25,29 @@ select ok(has_function_privilege('service_role','staff_private.unassign_role(uui
 select ok(not has_function_privilege('service_role','staff_private.begin_command(uuid,text,jsonb)','EXECUTE'),'idempotency helper is internal only');
 select ok(not has_function_privilege('service_role','staff_private.tenant_permission_keys(uuid,uuid)','EXECUTE'),'permission-set helper is internal only');
 
+-- Email-less login provisioning: transport may invoke it, clients may not; the replay probe is internal-safe.
+select ok(has_function_privilege('service_role','staff_private.create_staff_login(uuid,uuid,text,text,text,text,uuid,uuid)','EXECUTE'),'transport can provision an email-less staff login');
+select ok(not has_function_privilege('authenticated','staff_private.create_staff_login(uuid,uuid,text,text,text,text,uuid,uuid)','EXECUTE'),'client cannot provision a staff login directly');
+select ok(not has_function_privilege('authenticated','staff_private.peek_command(uuid,text)','EXECUTE'),'client cannot probe the idempotency ledger directly');
+
 -- Writer capability is exactly enough, and never destructive -----------------------------------------
 select ok(has_table_privilege('staff_writer','public.memberships','INSERT'),'writer can create memberships');
 select ok(not has_table_privilege('staff_writer','public.memberships','DELETE'),'writer cannot delete memberships (history preserved)');
 select ok(not has_table_privilege('staff_writer','public.membership_role_assignments','DELETE'),'writer cannot delete assignments (history preserved)');
 select ok(not has_table_privilege('staff_writer','public.roles','INSERT'),'writer cannot mint roles or escalate the catalog');
+
+-- Login provisioning grants the writer exactly INSERT on the two identity tables (never UPDATE/DELETE),
+-- and provider bindings remain unreadable to clients even though the writer can now read/insert them.
+select ok(
+  has_table_privilege('staff_writer','public.user_identities','INSERT')
+  and has_table_privilege('staff_writer','public.user_identity_provider_bindings','INSERT')
+  and has_table_privilege('staff_writer','public.user_identity_provider_bindings','SELECT'),
+  'writer can create email-less identities and their provider bindings');
+select ok(
+  not has_table_privilege('staff_writer','public.user_identities','DELETE')
+  and not has_table_privilege('staff_writer','public.user_identity_provider_bindings','DELETE')
+  and not has_table_privilege('staff_writer','public.user_identity_provider_bindings','UPDATE'),
+  'login provisioning is non-destructive: no identity/binding delete or binding rewrite');
 
 -- Assignment catalogs: transport-only reads that add no authoring capability ------------------------
 select ok(has_function_privilege('service_role','staff_private.list_assignable_roles(uuid,uuid,text,integer)','EXECUTE'),'transport can read the assignable role catalog');
