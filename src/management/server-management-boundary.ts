@@ -1,4 +1,5 @@
 import { createClerkRequestVerifier } from "../authentication/clerk-request-verifier";
+import { createClerkStaffLoginProvisioner } from "../authentication/staff-login-provisioner";
 import { createServerAuthorizationBoundary } from "../authentication/server-authorization-boundary";
 import { CatalogReadService } from "../catalog/catalog-read-service";
 import { createSupabaseCatalogReadRepository } from "../catalog/supabase-catalog-read-repository";
@@ -148,6 +149,10 @@ export function createManagementApiBoundary(
     staffService: new StaffService(
       authorizationService,
       createStaffRepository(supabaseConfiguration),
+      createClerkStaffLoginProvisioner({
+        secretKey: clerkConfiguration.secretKey,
+        publishableKey: clerkConfiguration.publishableKey,
+      }),
     ),
     attendanceService: new AttendanceService(
       authorizationService,

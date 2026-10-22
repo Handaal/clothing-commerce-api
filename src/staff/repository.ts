@@ -13,6 +13,7 @@ import {
   AssignableStaffScopesResponseSchema,
   type AssignStaffRoleRequest,
   type CreateStaffRequest,
+  type CreateStaffLoginRequest,
   type UpdateStaffStatusRequest,
 } from "../contracts/management/staff";
 import { InvalidCursorError } from "../management/cursor";
@@ -186,6 +187,45 @@ export class StaffRepository {
       p_actor: this.actor(proof),
       p_key: key,
       p_identity: input.identityId,
+    });
+    if (error) throw staffDatabaseError(error);
+    return StaffDetailSchema.parse(data);
+  }
+
+  /**
+   * Replay probe for the shared idempotency ledger: returns the stored staff detail when this (tenant, key)
+   * has already completed, or null to proceed. The login flow calls this BEFORE minting an external account
+   * so a genuine retry never creates a second login.
+   */
+  async peekCommand(proof: AuthorizedOperationContext, key: string) {
+    const { data, error } = await this.client.schema("staff_private").rpc("peek_command", {
+      p_tenant: this.tenant(proof),
+      p_key: key,
+    });
+    if (error) throw staffDatabaseError(error);
+    return data === null ? null : StaffDetailSchema.parse(data);
+  }
+
+  /**
+   * Create the full login graph (email-less identity + provider binding + active membership + initial
+   * assignment) for an already-minted external `subject`. The subject is produced by the server-side login
+   * provisioner, never by a client.
+   */
+  async createLogin(
+    proof: AuthorizedOperationContext,
+    key: string,
+    subject: string,
+    input: CreateStaffLoginRequest,
+  ) {
+    const { data, error } = await this.client.schema("staff_private").rpc("create_staff_login", {
+      p_tenant: this.tenant(proof),
+      p_actor: this.actor(proof),
+      p_key: key,
+      p_subject: subject,
+      p_username: input.username,
+      p_display_name: input.displayName,
+      p_role: input.roleId,
+      p_scope: input.accessScopeId,
     });
     if (error) throw staffDatabaseError(error);
     return StaffDetailSchema.parse(data);

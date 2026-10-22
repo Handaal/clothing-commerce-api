@@ -94,6 +94,7 @@ import {
   type AssignableStaffRolesResponse,
   type AssignableStaffScopesResponse,
   type CreateStaffRequest,
+  type CreateStaffLoginRequest,
   type UpdateStaffStatusRequest,
   type AssignStaffRoleRequest,
 } from "../../../src/contracts/management/staff";
@@ -114,6 +115,7 @@ export type {
   AssignableStaffScope,
   AssignableStaffScopesResponse,
   CreateStaffRequest,
+  CreateStaffLoginRequest,
   UpdateStaffStatusRequest,
   AssignStaffRoleRequest,
   UnassignStaffRoleRequest,
@@ -144,6 +146,8 @@ export interface AssignmentCatalogQuery {
   cursor?: string;
 }
 export type CreateStaffInput = CreateStaffRequest & IdempotentWrite;
+/** Provision an email-less staff login (external account + identity + membership + initial assignment). */
+export type CreateStaffLoginInput = CreateStaffLoginRequest & IdempotentWrite;
 export type UpdateStaffStatusInput = UpdateStaffStatusRequest &
   IdempotentWrite & { membershipId: string };
 export type AssignStaffRoleInput = AssignStaffRoleRequest &
@@ -821,6 +825,12 @@ export interface TenantCommerceClient {
   listAssignableStaffScopes(query?: AssignmentCatalogQuery): Promise<AssignableStaffScopesResponse>;
   getStaffMember(membershipId: string): Promise<StaffDetail>;
   createStaff(input: CreateStaffInput): Promise<StaffDetail>;
+  /**
+   * Provision a brand-new, email-less staff login and link it as active staff in one step. The server
+   * mints the external account; the caller supplies only the display name, username, PIN, and the initial
+   * role + scope.
+   */
+  createStaffLogin(input: CreateStaffLoginInput): Promise<StaffDetail>;
   updateStaffStatus(input: UpdateStaffStatusInput): Promise<StaffDetail>;
   assignStaffRole(input: AssignStaffRoleInput): Promise<StaffDetail>;
   unassignStaffRole(input: UnassignStaffRoleInput): Promise<StaffDetail>;
@@ -1369,6 +1379,13 @@ export function createCommerceClient({
         }),
       createStaff: ({ idempotencyKey, ...body }: CreateStaffInput) =>
         request("/api/v1/staff", StaffDetailSchema, {
+          tenantId,
+          method: "POST",
+          body,
+          idempotencyKey,
+        }),
+      createStaffLogin: ({ idempotencyKey, ...body }: CreateStaffLoginInput) =>
+        request("/api/v1/staff/logins", StaffDetailSchema, {
           tenantId,
           method: "POST",
           body,

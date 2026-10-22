@@ -2758,6 +2758,43 @@
         }
       }
     },
+    "/api/v1/staff/logins": {
+      "post": {
+        "operationId": "createStaffLogin",
+        "tags": ["staff"],
+        "summary": "createStaffLogin",
+        "description": "Requires a tenant-wide staff.manage grant and Idempotency-Key. Provisions a brand-new, EMAIL-LESS staff login (external account + platform identity + provider binding + active membership + initial role+scope assignment) in one step — the onboarding path for POS floor staff who have no email. The provider subject is minted by the server and never accepted from the client. The assigned role must be a subset of the caller's own tenant-wide permissions (anti-escalation). Exact replay returns the original response; changed intent conflicts.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          { "$ref": "#/components/parameters/IdempotencyKeyHeader" }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "New login to provision and link.",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateStaffLoginRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/StaffDetail" } }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "409": { "$ref": "#/components/responses/Error409" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
     "/api/v1/staff/eligible-identities": {
       "get": {
         "operationId": "findEligibleStaffIdentitiesByEmail",
@@ -6078,6 +6115,27 @@
           }
         },
         "required": ["identityId"],
+        "additionalProperties": false
+      },
+      "CreateStaffLoginRequest": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "displayName": { "type": "string", "minLength": 1, "maxLength": 120 },
+          "username": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{1,30}$" },
+          "pin": { "type": "string", "pattern": "^[0-9]{4,8}$" },
+          "roleId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "accessScopeId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          }
+        },
+        "required": ["displayName", "username", "pin", "roleId", "accessScopeId"],
         "additionalProperties": false
       },
       "UpdateStaffStatusRequest": {

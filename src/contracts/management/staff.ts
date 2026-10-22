@@ -158,6 +158,33 @@ const reasonField = z.string().trim().min(1).max(500).optional();
 
 export const CreateStaffRequestSchema = z.object({ identityId: UuidSchema }).strict();
 
+/**
+ * Provision a brand-new, EMAIL-LESS staff login (Connected POS floor staff) and link it as active staff in
+ * one step. Unlike {@link CreateStaffRequestSchema} (which links an already-provisioned identity by id),
+ * this creates the external account, the platform identity + binding, the membership, and the initial
+ * role+scope assignment together — the only onboarding path for staff who have no email.
+ *
+ * The provider subject is deliberately NOT part of this contract: the server mints the external account
+ * and records the verified subject itself. A client can never inject or choose an identity subject.
+ *
+ * `pin` is the sign-in secret (the external provider stores it; it is never persisted by Commerce). It is
+ * constrained to a 4–8 digit numeric PIN so it is usable on a POS number pad; the external instance must be
+ * configured to accept it. `username` is the instance-global sign-in identifier shown on the POS roster.
+ */
+export const CreateStaffLoginRequestSchema = z
+  .object({
+    displayName: z.string().trim().min(1).max(120),
+    username: z
+      .string()
+      .trim()
+      .toLowerCase()
+      .regex(/^[a-z0-9][a-z0-9._-]{1,30}$/, "Username must be 2–31 chars: letters, digits, . _ -"),
+    pin: z.string().regex(/^[0-9]{4,8}$/, "PIN must be 4–8 digits"),
+    roleId: UuidSchema,
+    accessScopeId: UuidSchema,
+  })
+  .strict();
+
 export const UpdateStaffStatusRequestSchema = z
   .object({ status: StaffStatusTargetSchema, reason: reasonField })
   .strict();
@@ -184,6 +211,7 @@ export type AssignableStaffScopeTarget = z.infer<typeof AssignableStaffScopeTarg
 export type AssignableStaffScope = z.infer<typeof AssignableStaffScopeSchema>;
 export type AssignableStaffScopesResponse = z.infer<typeof AssignableStaffScopesResponseSchema>;
 export type CreateStaffRequest = z.infer<typeof CreateStaffRequestSchema>;
+export type CreateStaffLoginRequest = z.infer<typeof CreateStaffLoginRequestSchema>;
 export type UpdateStaffStatusRequest = z.infer<typeof UpdateStaffStatusRequestSchema>;
 export type AssignStaffRoleRequest = z.infer<typeof AssignStaffRoleRequestSchema>;
 export type UnassignStaffRoleRequest = z.infer<typeof UnassignStaffRoleRequestSchema>;
