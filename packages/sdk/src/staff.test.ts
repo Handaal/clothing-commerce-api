@@ -74,6 +74,30 @@ describe("Staff SDK", () => {
     expect(new Headers(init?.headers).get("X-Tenant-Id")).toBe(id);
   });
 
+  it("sets an offline PIN over a tenant-scoped, idempotent PUT to the membership sub-resource", async () => {
+    const response = { membershipId: id, keyVersion: 1, updatedAt: "2026-10-24T00:00:00Z" };
+    const fetcher = vi.fn<typeof fetch>(async () => new Response(JSON.stringify(response)));
+    const client = createCommerceClient({
+      baseUrl: "https://example.test",
+      getToken: () => "session",
+      fetch: fetcher,
+    }).withTenant(id);
+
+    const result = await client.setStaffOfflinePin({
+      membershipId: id,
+      pin: "4821",
+      idempotencyKey: "set-pin",
+    });
+    expect(result).toEqual(response);
+    const [path, init] = fetcher.mock.calls[0];
+    expect(path).toBe(`https://example.test/api/v1/staff/${id}/offline-pin`);
+    expect(init?.method).toBe("PUT");
+    // The membershipId is a path segment and must NOT leak into the body.
+    expect(JSON.parse(init?.body as string)).toEqual({ pin: "4821" });
+    expect(new Headers(init?.headers).get("Idempotency-Key")).toBe("set-pin");
+    expect(new Headers(init?.headers).get("X-Tenant-Id")).toBe(id);
+  });
+
   it("assigns and unassigns a role against the assignment sub-resource", async () => {
     const fetcher = vi.fn<typeof fetch>(async () => new Response(JSON.stringify(detail)));
     const client = createCommerceClient({

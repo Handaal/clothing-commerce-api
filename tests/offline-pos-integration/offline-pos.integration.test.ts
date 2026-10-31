@@ -1,4 +1,4 @@
-import { generateKeyPairSync, sign } from "node:crypto";
+import { generateKeyPairSync, scryptSync, sign } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { beforeAll, describe, expect, it } from "vitest";
 
@@ -15,8 +15,12 @@ import {
   OfflineBootstrapResponseSchema,
   PosDeviceResponseSchema,
   RevokePosDeviceRequestSchema,
+  IngestOfflineCustomerPaymentRequestSchema,
+  IngestOfflineCustomerPaymentResponseSchema,
   canonicalizeOfflineSaleCommand,
+  canonicalizeOfflineCustomerPaymentCommand,
   type OfflineBootstrapResponse,
+  type OfflineCustomerPaymentCommand,
   type OfflineSaleCommand,
 } from "../../src/contracts";
 import {
@@ -26,6 +30,7 @@ import {
 } from "../../src/http/management-route";
 import { createSupabaseOrdersRepository } from "../../src/orders";
 import { OfflinePosService } from "../../src/pos/offline-service";
+import { encryptOfflinePin } from "../../src/pos/offline-pin-crypto";
 import { createSupabaseOfflinePosRepository } from "../../src/pos/supabase-offline-pos-repository";
 import { createSupabasePosSaleRepository } from "../../src/pos/supabase-pos-sale-repository";
 
@@ -47,6 +52,15 @@ const REGISTER = "2a000005-0000-4000-8000-000000000001";
 const REGISTER2 = "2a000005-0000-4000-8000-000000000002";
 const REGISTER3 = "2a000005-0000-4000-8000-000000000003";
 const VARIANT = "2a000007-0000-4000-8000-000000000001";
+// Offline-PIN roster fixtures: pos-full sells tenant-wide (INCLUDED); pos-no-payment lacks
+// payments.capture and pos-wrong-location holds inventory.issue only on location ...002 (both EXCLUDED).
+const POS_FULL_MEMBERSHIP = "2a000012-0000-4000-8000-000000000001";
+const POS_NO_PAYMENT_MEMBERSHIP = "2a000012-0000-4000-8000-000000000002";
+const POS_WRONG_LOCATION_MEMBERSHIP = "2a000012-0000-4000-8000-000000000004";
+const OFFLINE_PIN_KEK = process.env.POS_TEST_OFFLINE_PIN_KEK;
+if (!OFFLINE_PIN_KEK)
+  throw new Error("POS_TEST_OFFLINE_PIN_KEK is required for the Phase 2I roster test.");
+const kek = Buffer.from(OFFLINE_PIN_KEK, "base64");
 
 class FakeVerifier implements ExternalIdentityVerifier {
   async verifyRequest(request: Request): Promise<VerifiedExternalIdentity> {
@@ -73,6 +87,7 @@ beforeAll(async () => {
     new AuthorizationService(repository),
     createSupabasePosSaleRepository(config),
     createSupabaseOfflinePosRepository(config),
+    { kek, keyVersion: 1 },
   );
   void createSupabaseOrdersRepository;
 });
@@ -181,6 +196,55 @@ function signed(
     },
   };
 }
+// Seal a PIN with the run KEK and provision it through the real staff_private.set_offline_pin RPC, acting
+// as the tenant-wide pos-full admin (whose permissions are a superset of every target here).
+async function provisionPin(membershipId: string, pin: string) {
+  const sealed = encryptOfflinePin(pin, kek, 1);
+  const { error } = await admin.schema("staff_private").rpc("set_offline_pin", {
+    p_tenant: TENANT,
+    p_actor: POS_FULL_MEMBERSHIP,
+    p_key: `pin-${membershipId}`,
+    p_membership: membershipId,
+    p_key_version: 1,
+    p_cipher_algorithm: "aes-256-gcm",
+    p_ciphertext: sealed.ciphertextBase64,
+    p_iv: sealed.ivBase64,
+    p_auth_tag: sealed.authTagBase64,
+    p_scrypt_n: 16384,
+    p_scrypt_r: 8,
+    p_scrypt_p: 1,
+    p_key_length: 32,
+    p_salt_length: 16,
+  });
+  if (error) throw error;
+}
+
+function posVerifies(
+  verifier: {
+    saltBase64: string;
+    hashBase64: string;
+    n: number;
+    r: number;
+    p: number;
+    keyLength: number;
+  },
+  pin: string,
+  deviceId: string,
+): boolean {
+  const material = Buffer.concat([
+    Buffer.from(verifier.saltBase64, "base64"),
+    Buffer.from(deviceId, "utf8"),
+  ]);
+  return (
+    scryptSync(pin, material, verifier.keyLength, {
+      N: verifier.n,
+      r: verifier.r,
+      p: verifier.p,
+      maxmem: 256 * 1024 * 1024,
+    }).toString("base64") === verifier.hashBase64
+  );
+}
+
 async function ingest(payload: ReturnType<typeof signed>) {
   return runTenantDeviceWriteRoute({
     request: request(null, TENANT, payload.command.syncCommandId, payload),
@@ -189,6 +253,53 @@ async function ingest(payload: ReturnType<typeof signed>) {
     handler: ({ tenantId, body: parsed, idempotencyKey }) => {
       if (idempotencyKey !== parsed.command.syncCommandId) throw new RequestValidationError([]);
       return service.ingest(tenantId, parsed);
+    },
+  });
+}
+
+function paymentCommand(
+  grant: OfflineBootstrapResponse,
+  id: string,
+  customerId: string,
+  amountMinor: number,
+  acceptedAt = new Date().toISOString(),
+): OfflineCustomerPaymentCommand {
+  return {
+    schemaVersion: 1,
+    localPaymentId: `pay-${id}`,
+    syncCommandId: id,
+    grantId: grant.grantId,
+    deviceId: grant.deviceId,
+    registerId: grant.registerId,
+    acceptedAt,
+    currency: grant.currency,
+    customerId,
+    amountMinor,
+  };
+}
+function signedPayment(
+  commandValue: OfflineCustomerPaymentCommand,
+  credentialId: string,
+  privateKey = keyPair.privateKey,
+) {
+  const canonical = canonicalizeOfflineCustomerPaymentCommand(commandValue);
+  return {
+    command: commandValue,
+    signature: {
+      algorithm: "Ed25519" as const,
+      credentialId,
+      value: sign(null, Buffer.from(canonical), privateKey).toString("base64"),
+    },
+  };
+}
+async function ingestPayment(payload: ReturnType<typeof signedPayment>) {
+  return runTenantDeviceWriteRoute({
+    request: request(null, TENANT, payload.command.syncCommandId, payload),
+    requestSchema: IngestOfflineCustomerPaymentRequestSchema,
+    responseSchema: IngestOfflineCustomerPaymentResponseSchema,
+    handler: ({ tenantId, body: parsed, idempotencyKey }) => {
+      if (idempotencyKey !== parsed.command.syncCommandId) throw new RequestValidationError([]);
+      return service.ingestPayment(tenantId, parsed);
     },
   });
 }
@@ -226,10 +337,25 @@ describe.sequential("Phase 2I offline POS real HTTP/domain boundary", () => {
       registerId: REGISTER,
       inventoryLocationId: "2a000004-0000-4000-8000-000000000001",
       currency: "USD",
-      policy: { maxSaleAmountMinor: 6000, maxQuantityPerLine: 3, maxPendingOfflineSales: 3 },
+      policy: {
+        maxSaleAmountMinor: 6000,
+        maxQuantityPerLine: 3,
+        maxPendingOfflineSales: 3,
+        maxOfflineCreditExposureMinor: 8000,
+      },
     });
     expect(grant.catalog.flatMap((product) => product.variants)).toContainEqual(
       expect.objectContaining({ variantId: VARIANT, authorizedUnitPriceMinor: 2500, active: true }),
+    );
+    // Phase D: the offline bootstrap delivers the tenant's customers with their current balance so the
+    // till can attach installments and show running tabs offline.
+    expect(grant.customers).toContainEqual(
+      expect.objectContaining({
+        customerId: "2a000030-0000-4000-8000-000000000001",
+        name: "Layla Hassan",
+        phone: "+201000000000",
+        outstandingMinor: 0,
+      }),
     );
     const other = await enroll(REGISTER2, "offline-second", secondPublicKey);
     const otherDevice = String((await body(other)).deviceId);
@@ -241,6 +367,41 @@ describe.sequential("Phase 2I offline POS real HTTP/domain boundary", () => {
       thirdKeys.publicKey.export({ format: "der", type: "spki" }).toString("base64"),
     );
     expect((await bootstrap(String((await body(third)).deviceId), REGISTER3)).status).toBe(403);
+  });
+  it("emits a device-bound offline staff roster of exactly the register's authorized sellers", async () => {
+    // Give all three POS staff a PIN. Only pos-full is an authorized seller on REGISTER's branch AND
+    // location; the other two fail scope coverage (no payments.capture / wrong inventory location).
+    await provisionPin(POS_FULL_MEMBERSHIP, "4821");
+    await provisionPin(POS_NO_PAYMENT_MEMBERSHIP, "1111");
+    await provisionPin(POS_WRONG_LOCATION_MEMBERSHIP, "2222");
+
+    // Replaying the original grant (same idempotency key) returns the stored grant, but the roster is
+    // recomputed per bootstrap and is now populated and device-bound to THIS device.
+    // Replaying the original grant (same idempotency key) returns the stored grant over the real HTTP
+    // boundary, which also validates that the response contract accepts the new staffRoster field.
+    const rosterResponse = await bootstrap(deviceId);
+    const rosterText = await rosterResponse.text();
+    if (rosterResponse.status !== 200)
+      throw new Error(`roster bootstrap failed ${rosterResponse.status}: ${rosterText}`);
+    const rostered = OfflineBootstrapResponseSchema.parse(JSON.parse(rosterText));
+    expect(rostered.grantId).toBe(grant.grantId);
+    expect(rostered.staffRoster).toBeDefined();
+    const roster = rostered.staffRoster!;
+    expect(roster.map((entry) => entry.membershipId)).toEqual([POS_FULL_MEMBERSHIP]);
+    const entry = roster[0]!;
+    expect(entry).toMatchObject({
+      membershipId: POS_FULL_MEMBERSHIP,
+      username: "pos.full",
+      pinVerifier: { algorithm: "scrypt", n: 16384, r: 8, p: 1, keyLength: 32 },
+    });
+    expect(Buffer.from(entry.pinVerifier.saltBase64, "base64").length).toBeGreaterThanOrEqual(16);
+    // The POS KDF validates the correct PIN for THIS device, and rejects a wrong PIN or another device.
+    expect(posVerifies(entry.pinVerifier, "4821", deviceId)).toBe(true);
+    expect(posVerifies(entry.pinVerifier, "0000", deviceId)).toBe(false);
+    expect(posVerifies(entry.pinVerifier, "4821", "a-different-device")).toBe(false);
+    // The excluded sellers never leak into the roster even though they now have PINs.
+    expect(roster.map((e) => e.membershipId)).not.toContain(POS_NO_PAYMENT_MEMBERSHIP);
+    expect(roster.map((e) => e.membershipId)).not.toContain(POS_WRONG_LOCATION_MEMBERSHIP);
   });
   it("rejects tampering, wrong device, expired acceptance, and policy limits", async () => {
     const base = command(grant, "2a000030-0000-4000-8000-000000000001", 2, 1);
@@ -383,6 +544,26 @@ describe.sequential("Phase 2I offline POS real HTTP/domain boundary", () => {
       .single();
     expect(Number(balance.data?.on_hand_quantity)).toBe(0);
   });
+  it("verifies and rejects an offline paydown that exceeds the customer's outstanding", async () => {
+    // Phase D2: a signed paydown for the seeded customer (who has no debt) must verify end-to-end —
+    // signature, grant binding, credential, customer lookup — then be rejected as an overpayment (422),
+    // proving the record_offline_customer_payment path and its CA409 -> blocking mapping on a live DB.
+    const customer = "2a000030-0000-4000-8000-000000000001";
+    const rejected = await ingestPayment(
+      signedPayment(
+        paymentCommand(grant, "2a000030-0000-4000-8000-000000000051", customer, 500),
+        credentialId,
+      ),
+    );
+    expect(rejected.status).toBe(422);
+    // A tampered signature is rejected before any A/R work.
+    const tampered = signedPayment(
+      paymentCommand(grant, "2a000030-0000-4000-8000-000000000052", customer, 500),
+      credentialId,
+    );
+    tampered.command.amountMinor = 600;
+    expect((await ingestPayment(tampered)).status).toBe(401);
+  });
   it("revocation blocks grants but preserves queued commercial events for governed recovery", async () => {
     const queued = command(grant, "2a000030-0000-4000-8000-000000000030", 1, 3);
     const revokeBody = { registerId: REGISTER, reason: "integration test" };
@@ -412,6 +593,7 @@ describe.sequential("Phase 2I offline POS real HTTP/domain boundary", () => {
       "offline_device_management_commands",
       "offline_grants",
       "offline_sale_ingestions",
+      "offline_payment_ingestions",
       "offline_reconciliations",
       "offline_reconciliation_events",
     ]) {

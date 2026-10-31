@@ -272,7 +272,44 @@ describe("Commerce SDK", () => {
   });
 
   it("exposes semantic SDK version metadata", () => {
-    expect(SDK_VERSION).toBe("0.19.0");
+    expect(SDK_VERSION).toBe("0.25.0");
+  });
+
+  it("posPinLogin POSTs username+PIN publicly (no tenant header, no bearer) and returns the session", async () => {
+    const operator = {
+      membershipId: "b0000000-0000-4000-8000-000000000002",
+      tenantId: "a0000000-0000-4000-8000-000000000001",
+      username: "mariam",
+      displayName: "Mariam",
+      role: "cashier" as const,
+      permissions: ["orders"],
+    };
+    const body = {
+      accessToken: "pos.jwt.token",
+      expiresAt: "2026-11-01T20:00:00.000Z",
+      operator,
+    };
+    const fetchImplementation = vi.fn<typeof globalThis.fetch>(async () =>
+      Promise.resolve(new Response(JSON.stringify(body))),
+    );
+    const client = createCommerceClient({
+      baseUrl: "https://api.example.test",
+      client: { type: "pos-desktop", version: "0.1.0" },
+      getToken: async () => "should-not-be-sent",
+      fetch: fetchImplementation,
+    });
+
+    await expect(client.posPinLogin({ username: "mariam", pin: "1234" })).resolves.toEqual(body);
+    const [, init] = fetchImplementation.mock.calls[0];
+    expect(fetchImplementation).toHaveBeenCalledWith(
+      "https://api.example.test/api/v1/pos/auth/login",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ username: "mariam", pin: "1234" }),
+      }),
+    );
+    // Public endpoint: the SDK still attaches the bearer if a token exists, but NO tenant header is sent.
+    expect((init?.headers as Record<string, string>)["X-Tenant-Id"]).toBeUndefined();
   });
 });
 

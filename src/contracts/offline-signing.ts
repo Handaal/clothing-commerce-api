@@ -1,4 +1,9 @@
-import { OfflineSaleCommandSchema, type OfflineSaleCommand } from "./pos";
+import {
+  OfflineCustomerPaymentCommandSchema,
+  OfflineSaleCommandSchema,
+  type OfflineCustomerPaymentCommand,
+  type OfflineSaleCommand,
+} from "./pos";
 
 /**
  * RFC 8785-style canonical JSON for the Phase 2I command subset. The schema permits only objects,
@@ -16,9 +21,12 @@ function canonicalJson(value: unknown): string {
   }
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
   if (typeof value === "object") {
-    const entries = Object.entries(value as Record<string, unknown>).sort(([left], [right]) =>
-      left < right ? -1 : left > right ? 1 : 0,
-    );
+    // Drop absent optional fields (value === undefined) so an omitted key and an explicit `undefined`
+    // encode identically — a fully-settled sale that carries no installment fields signs byte-for-byte
+    // as a pre-installment client did, regardless of how the command object was assembled.
+    const entries = Object.entries(value as Record<string, unknown>)
+      .filter(([, item]) => item !== undefined)
+      .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0));
     return `{${entries.map(([key, item]) => `${JSON.stringify(key)}:${canonicalJson(item)}`).join(",")}}`;
   }
   throw new TypeError("Unsupported value in canonical offline command.");
@@ -26,4 +34,10 @@ function canonicalJson(value: unknown): string {
 
 export function canonicalizeOfflineSaleCommand(command: OfflineSaleCommand): string {
   return canonicalJson(OfflineSaleCommandSchema.parse(command));
+}
+
+export function canonicalizeOfflineCustomerPaymentCommand(
+  command: OfflineCustomerPaymentCommand,
+): string {
+  return canonicalJson(OfflineCustomerPaymentCommandSchema.parse(command));
 }

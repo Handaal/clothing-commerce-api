@@ -123,6 +123,21 @@ export const SetVariantPriceResponseSchema = z.object({
 });
 export type SetVariantPriceResponse = z.infer<typeof SetVariantPriceResponseSchema>;
 
+// ---- Cost ----
+// The variant's current cost basis in minor units (merchant currency), used for inventory valuation.
+export const SetVariantCostRequestSchema = z
+  .object({
+    unitCostMinor: NonNegativeIntegerSchema,
+  })
+  .strict();
+export type SetVariantCostRequest = z.infer<typeof SetVariantCostRequestSchema>;
+
+export const SetVariantCostResponseSchema = z.object({
+  variantId: UuidSchema,
+  unitCostMinor: NonNegativeIntegerSchema,
+});
+export type SetVariantCostResponse = z.infer<typeof SetVariantCostResponseSchema>;
+
 // ---- Media ----
 // The server owns the storage destination. The client declares intent (content type, optional
 // variant/file name); the server returns a tenant/product-scoped path and, when object storage is

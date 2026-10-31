@@ -10,7 +10,12 @@ import {
   CreatePosSaleRequestSchema,
   CreatePosSaleResponseSchema,
   PosContextResponseSchema,
+  RecordCustomerPaymentRequestSchema,
+  RecordCustomerPaymentResponseSchema,
+  CustomerDuesResponseSchema,
 } from "../../src/contracts";
+import { CustomersArService, createSupabaseCustomersArRepository } from "../../src/customers";
+import { CustomerPathSchema } from "../../src/management/request";
 import { FulfillmentService } from "../../src/fulfillments/fulfillment-service";
 import { createSupabaseFulfillmentRepository } from "../../src/fulfillments/supabase-fulfillment-repository";
 import {
@@ -53,6 +58,7 @@ class FakeVerifier implements ExternalIdentityVerifier {
 let resolver: AuthorizationContextResolver;
 let sales: PosSaleService;
 let managementOrders: OrdersReadService;
+let customersAr: CustomersArService;
 
 beforeAll(async () => {
   const { createSupabaseAuthorizationRepository } =
@@ -71,6 +77,7 @@ beforeAll(async () => {
     new OrderService(authorization, orderRepository),
     new FulfillmentService(authorization, createSupabaseFulfillmentRepository(config)),
   );
+  customersAr = new CustomersArService(authorization, createSupabaseCustomersArRepository(config));
 });
 
 function httpRequest(
@@ -129,6 +136,70 @@ async function getContext(subject: string) {
 
 async function json(response: Response): Promise<Record<string, unknown>> {
   return (await response.json()) as Record<string, unknown>;
+}
+
+// --- Installment (customer A/R) helpers ---
+
+async function postCustomerPayment(
+  subject: string,
+  customerId: string,
+  key: string,
+  body: { amountMinor: number; notes?: string | null },
+) {
+  const request = httpRequest(subject, TENANT, `/api/v1/customers/${customerId}/payments`, {
+    key,
+    body,
+  });
+  return runTenantManagementWriteRoute({
+    request,
+    contextResolver: resolver,
+    requestSchema: RecordCustomerPaymentRequestSchema,
+    responseSchema: RecordCustomerPaymentResponseSchema,
+    handler: ({ context, body: parsed, idempotencyKey }) =>
+      customersAr.recordPayment(
+        context,
+        CustomerPathSchema.parse({ customerId }).customerId,
+        idempotencyKey,
+        parsed,
+      ),
+  });
+}
+
+async function getDues(subject: string) {
+  const request = httpRequest(subject, TENANT, "/api/v1/customers/dues");
+  return runTenantManagementRoute({
+    request,
+    contextResolver: resolver,
+    responseSchema: CustomerDuesResponseSchema,
+    handler: (context) => customersAr.dues(context),
+  });
+}
+
+// Authoritative outstanding straight from the ledger (Σ owed − Σ paid), for cross-checking responses.
+async function outstanding(customerId: string): Promise<number> {
+  const [debts, payments] = await Promise.all([
+    admin
+      .from("customer_sale_debts")
+      .select("total_minor,initial_paid_minor")
+      .eq("tenant_id", TENANT)
+      .eq("customer_id", customerId),
+    admin
+      .from("customer_payments")
+      .select("amount_minor")
+      .eq("tenant_id", TENANT)
+      .eq("customer_id", customerId),
+  ]);
+  if (debts.error) throw new Error(debts.error.message);
+  if (payments.error) throw new Error(payments.error.message);
+  const owed = (debts.data as { total_minor: number; initial_paid_minor: number }[]).reduce(
+    (sum, row) => sum + (Number(row.total_minor) - Number(row.initial_paid_minor)),
+    0,
+  );
+  const paid = (payments.data as { amount_minor: number }[]).reduce(
+    (sum, row) => sum + Number(row.amount_minor),
+    0,
+  );
+  return Math.max(0, owed - paid);
 }
 
 async function state() {
@@ -349,5 +420,125 @@ describe.sequential("Connected POS Sale V1 real HTTP boundary", () => {
       if (previous === undefined) delete process.env.COMMERCE_CORS_ALLOWED_ORIGINS;
       else process.env.COMMERCE_CORS_ALLOWED_ORIGINS = previous;
     }
+  });
+});
+
+describe.sequential("Connected POS installment sale and customer A/R", () => {
+  // A unique phone so the installment customer is created fresh (and is the only one carrying a debt).
+  const CUSTOMER = { name: "Installment Buyer", phone: "+201000000111" };
+  let customerId: string;
+
+  function installmentBody(depositMinor: number, withCustomer = true) {
+    // net = 2 × 2500 = 5000; the deposit is captured now and (net − deposit) becomes a debt.
+    return {
+      registerId: REGISTER,
+      expectedTotalMinor: 5000,
+      cashReceivedMinor: depositMinor,
+      amountPaidMinor: depositMinor,
+      lines: [{ variantId: VARIANT, quantity: 2 }],
+      ...(withCustomer ? { customer: CUSTOMER } : {}),
+    };
+  }
+
+  it("captures a partial deposit, fulfils the goods, and records the remainder as a customer debt", async () => {
+    const before = await state();
+    const response = await postSale("pos-full", "sale-installment", installmentBody(2000));
+    expect(response.status).toBe(200);
+    const receipt = await json(response);
+    expect(receipt).toMatchObject({
+      saleStatus: "completed",
+      order: { channel: "pos", status: "placed", totalMinor: 5000, currency: "USD" },
+      payment: { status: "captured", amountMinor: 2000 },
+    });
+    // Order, payment, fulfillment, and sale all committed; stock dropped by the full quantity sold.
+    const after = await state();
+    expect(after.orders).toBe(before.orders + 1);
+    expect(after.payments).toBe(before.payments + 1);
+    expect(after.fulfillments).toBe(before.fulfillments + 1);
+    expect(after.sales).toBe(before.sales + 1);
+    expect(after.stock).toBe(before.stock - 2);
+
+    const debt = await admin
+      .from("customer_sale_debts")
+      .select("customer_id,total_minor,initial_paid_minor")
+      .eq("tenant_id", TENANT)
+      .eq("order_id", (receipt.order as Record<string, unknown>).id as string)
+      .single();
+    if (debt.error) throw new Error(debt.error.message);
+    customerId = debt.data.customer_id as string;
+    expect(Number(debt.data.total_minor)).toBe(5000);
+    expect(Number(debt.data.initial_paid_minor)).toBe(2000);
+    expect(await outstanding(customerId)).toBe(3000);
+  });
+
+  it("replays the installment sale with the same key without double-recording the debt", async () => {
+    const response = await postSale("pos-full", "sale-installment", installmentBody(2000));
+    expect(response.status).toBe(200);
+    const debts = await admin
+      .from("customer_sale_debts")
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", TENANT)
+      .eq("customer_id", customerId);
+    if (debts.error) throw new Error(debts.error.message);
+    expect(debts.count).toBe(1);
+    expect(await outstanding(customerId)).toBe(3000);
+  });
+
+  it("rejects an installment deposit with no customer to carry the balance", async () => {
+    const before = await state();
+    const response = await postSale(
+      "pos-full",
+      "sale-installment-nocustomer",
+      installmentBody(2000, false),
+    );
+    // Rejected at the contract boundary (the request schema requires a customer for a partial deposit).
+    expect(response.status).toBe(400);
+    expect(await state()).toEqual(before);
+  });
+
+  it("records a customer paydown and reduces the outstanding balance", async () => {
+    const response = await postCustomerPayment("pos-full", customerId, "cust-pay-1", {
+      amountMinor: 1000,
+      notes: "Second visit",
+    });
+    expect(response.status).toBe(200);
+    expect(await json(response)).toMatchObject({ amountMinor: 1000, outstandingMinor: 2000 });
+    expect(await outstanding(customerId)).toBe(2000);
+  });
+
+  it("replays a paydown with the same key without charging twice", async () => {
+    const response = await postCustomerPayment("pos-full", customerId, "cust-pay-1", {
+      amountMinor: 1000,
+      notes: "Second visit",
+    });
+    expect(response.status).toBe(200);
+    expect(await outstanding(customerId)).toBe(2000);
+  });
+
+  it("rejects a paydown that exceeds the outstanding balance", async () => {
+    const response = await postCustomerPayment("pos-full", customerId, "cust-pay-over", {
+      amountMinor: 999_999,
+    });
+    expect(response.status).toBe(409);
+    expect(await json(response)).toMatchObject({
+      error: { code: "PAYMENT_EXCEEDS_OUTSTANDING" },
+    });
+    expect(await outstanding(customerId)).toBe(2000);
+  });
+
+  it("lists the customer's remaining dues", async () => {
+    const response = await getDues("pos-full");
+    expect(response.status).toBe(200);
+    const body = await json(response);
+    expect(body.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          customerId,
+          purchasedMinor: 5000,
+          paidMinor: 3000,
+          outstandingMinor: 2000,
+        }),
+      ]),
+    );
   });
 });

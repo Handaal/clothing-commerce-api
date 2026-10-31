@@ -9,9 +9,13 @@ export type OfflinePosErrorCode =
   | "OFFLINE_GRANT_EXPIRED"
   | "OFFLINE_LIMIT_EXCEEDED"
   | "OFFLINE_SIGNATURE_INVALID"
+  | "OFFLINE_PIN_NOT_CONFIGURED"
+  | "OFFLINE_PIN_STAFF_NOT_FOUND"
+  | "OFFLINE_PIN_STAFF_INACTIVE"
+  | "OFFLINE_PIN_ESCALATION_DENIED"
   | "IDEMPOTENCY_CONFLICT";
 
-const status: Record<OfflinePosErrorCode, 401 | 403 | 404 | 409 | 422> = {
+const status: Record<OfflinePosErrorCode, 401 | 403 | 404 | 409 | 422 | 503> = {
   DEVICE_NOT_FOUND: 404,
   DEVICE_REVOKED: 409,
   DEVICE_ENROLLMENT_CONFLICT: 409,
@@ -22,6 +26,10 @@ const status: Record<OfflinePosErrorCode, 401 | 403 | 404 | 409 | 422> = {
   OFFLINE_GRANT_EXPIRED: 409,
   OFFLINE_LIMIT_EXCEEDED: 422,
   OFFLINE_SIGNATURE_INVALID: 401,
+  OFFLINE_PIN_NOT_CONFIGURED: 503,
+  OFFLINE_PIN_STAFF_NOT_FOUND: 404,
+  OFFLINE_PIN_STAFF_INACTIVE: 409,
+  OFFLINE_PIN_ESCALATION_DENIED: 403,
   IDEMPOTENCY_CONFLICT: 409,
 };
 
@@ -37,11 +45,16 @@ const message: Record<OfflinePosErrorCode, string> = {
   OFFLINE_GRANT_EXPIRED: "The offline sale was accepted outside the grant window.",
   OFFLINE_LIMIT_EXCEEDED: "The offline sale exceeds its grant policy.",
   OFFLINE_SIGNATURE_INVALID: "The offline sale signature is invalid.",
+  OFFLINE_PIN_NOT_CONFIGURED: "Offline PIN credentials are not configured on this server.",
+  OFFLINE_PIN_STAFF_NOT_FOUND: "The staff member does not exist.",
+  OFFLINE_PIN_STAFF_INACTIVE: "The staff member is not active.",
+  OFFLINE_PIN_ESCALATION_DENIED:
+    "Setting this PIN would grant offline access to permissions the caller does not hold.",
   IDEMPOTENCY_CONFLICT: "The sync command identity was reused with different signed intent.",
 };
 
 export class OfflinePosError extends Error {
-  readonly httpStatus: 401 | 403 | 404 | 409 | 422;
+  readonly httpStatus: 401 | 403 | 404 | 409 | 422 | 503;
   constructor(readonly code: OfflinePosErrorCode) {
     super(message[code]);
     this.name = "OfflinePosError";

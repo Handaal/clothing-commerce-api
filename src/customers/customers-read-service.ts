@@ -38,6 +38,7 @@ const EMPTY_AGGREGATE: CustomerAggregate = {
   totalSpentMinor: 0,
   lastOrderAt: null,
   currency: null,
+  outstandingMinor: 0,
 };
 
 /**
@@ -67,6 +68,7 @@ export class CustomersReadService {
       totalSpentMinor: aggregate.totalSpentMinor,
       lastOrderAt: aggregate.lastOrderAt,
       currency: aggregate.currency,
+      outstandingMinor: aggregate.outstandingMinor,
     };
   }
 

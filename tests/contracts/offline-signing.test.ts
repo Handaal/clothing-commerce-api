@@ -43,4 +43,55 @@ describe("offline command canonicalization", () => {
     ])
       expect(canonicalizeOfflineSaleCommand(changed)).not.toBe(original);
   });
+
+  // The installment fields are additive: a fully-settled command must encode (and thus sign) exactly as a
+  // pre-installment client produced it. Equivalently, omitting the fields and setting them to undefined
+  // must be indistinguishable, and the encoding must carry none of the installment keys.
+  it("keeps a full-pay command byte-identical to the pre-installment encoding", () => {
+    const canonical = canonicalizeOfflineSaleCommand(command);
+    for (const key of ["customerId", "amountPaidMinor", "outstandingMinor"]) {
+      expect(canonical).not.toContain(key);
+    }
+    expect(
+      canonicalizeOfflineSaleCommand({
+        ...command,
+        customerId: undefined,
+        amountPaidMinor: undefined,
+        outstandingMinor: undefined,
+      }),
+    ).toBe(canonical);
+  });
+
+  it("includes the installment fields and distinguishes them from a full-pay sale", () => {
+    const installment: OfflineSaleCommand = {
+      ...command,
+      cashReceivedMinor: 2000,
+      changeMinor: 0,
+      customerId: "10000000-0000-4000-8000-00000000000a",
+      amountPaidMinor: 2000,
+      outstandingMinor: 3198,
+    };
+    const canonical = canonicalizeOfflineSaleCommand(installment);
+    expect(canonical).toContain('"amountPaidMinor":2000');
+    expect(canonical).toContain('"outstandingMinor":3198');
+    expect(canonical).toContain('"customerId":"10000000-0000-4000-8000-00000000000a"');
+    expect(canonical).not.toBe(canonicalizeOfflineSaleCommand(command));
+  });
+
+  it("rejects an incoherent installment (partial fields or wrong remainder)", () => {
+    expect(() =>
+      canonicalizeOfflineSaleCommand({
+        ...command,
+        amountPaidMinor: 2000,
+      } as OfflineSaleCommand),
+    ).toThrow();
+    expect(() =>
+      canonicalizeOfflineSaleCommand({
+        ...command,
+        customerId: "10000000-0000-4000-8000-00000000000a",
+        amountPaidMinor: 2000,
+        outstandingMinor: 1,
+      } as OfflineSaleCommand),
+    ).toThrow();
+  });
 });

@@ -220,6 +220,38 @@ begin
  -- Validation: a malformed username is rejected before any identity row is created.
  begin perform staff_private.create_staff_login(t,mem2,'login-badname','clerk_pin_bad','BAD NAME',' Bad',reader,sc); raise exception 'expected invalid username';
  exception when sqlstate '22023' then null; end;
+
+ -- Phase 2O-C: offline-PIN credential store. set_offline_pin seals a PIN (the ciphertext/iv/tag are
+ -- produced by the API; this layer only persists them) under the SAME anti-escalation rule as assign_role.
+ -- Actor mem2 (holds staff.manage + staff.read) may credential the login m (holds only staff.read).
+ d:=staff_private.set_offline_pin(t,mem2,'setpin-1',m,1,'aes-256-gcm','Y2lwaGVydGV4dA==','aXZieXRlcw==','dGFnYnl0ZXM=',16384,8,1,32,16);
+ assert d->>'membershipId'=m::text,'offline PIN set returns the target membership';
+ assert (d->>'keyVersion')::int=1,'offline PIN set returns the sealing key version';
+ assert (select cipher_algorithm='aes-256-gcm' and kdf_algorithm='scrypt'
+     and scrypt_n=16384 and scrypt_r=8 and scrypt_p=1 and key_length=32 and salt_length=16
+     and ciphertext_base64='Y2lwaGVydGV4dA==' and set_by_membership_id=mem2
+   from public.staff_offline_pin_credentials where tenant_id=t and membership_id=m),'sealed credential row persisted with its KDF params and setter';
+ -- Idempotency: exact replay (normalized key) returns the same response WITHOUT a second write.
+ assert staff_private.set_offline_pin(t,mem2,'SETPIN-1',m,1,'aes-256-gcm','ZGlmZmVyZW50','ZGlmZml2','ZGlmZnRhZw==',16384,8,1,32,16)=d,'offline PIN set exact replay (new IV does not re-write under the same key)';
+ assert (select ciphertext_base64='Y2lwaGVydGV4dA==' from public.staff_offline_pin_credentials where tenant_id=t and membership_id=m),'replay left the original sealed material untouched';
+ -- Rotation under a new key overwrites in place (one live credential per membership).
+ d:=staff_private.set_offline_pin(t,mem2,'setpin-2',m,2,'aes-256-gcm','cm90YXRlZA==','cm90aXY=','cm90dGFn',16384,8,1,32,16);
+ assert (d->>'keyVersion')::int=2,'rotation returns the new key version';
+ assert (select key_version=2 and ciphertext_base64='cm90YXRlZA=='
+     and (select count(*)=1 from public.staff_offline_pin_credentials where tenant_id=t and membership_id=m)
+   from public.staff_offline_pin_credentials where tenant_id=t and membership_id=m),'rotation overwrites in place (single live credential)';
+ -- Anti-escalation: actor m (staff.read only) cannot credential mem2 (holds staff.manage it lacks).
+ begin perform staff_private.set_offline_pin(t,m,'esc-pin',mem2,1,'aes-256-gcm','eA==','eA==','eA==',16384,8,1,32,16); raise exception 'expected escalation block';
+ exception when sqlstate 'ST403' then null; end;
+ -- An inactive target is refused (a is deactivated after the handover above).
+ begin perform staff_private.set_offline_pin(t,mem2,'inactive-pin',a,1,'aes-256-gcm','eA==','eA==','eA==',16384,8,1,32,16); raise exception 'expected inactive target';
+ exception when sqlstate 'ST409' then null; end;
+ -- A missing target is a not-found.
+ begin perform staff_private.set_offline_pin(t,mem2,'missing-pin','2a000012-0000-4000-8000-0000000000ff',1,'aes-256-gcm','eA==','eA==','eA==',16384,8,1,32,16); raise exception 'expected missing target';
+ exception when sqlstate 'ST404' then null; end;
+ -- The roster RPC rejects an unknown/inactive register (branch/location cannot be resolved).
+ begin perform staff_private.offline_sell_roster(t,'2a000040-0000-4000-8000-0000000000ff'); raise exception 'expected register not found';
+ exception when sqlstate 'ST404' then null; end;
 end $b$;
 reset role;
 select 'ALL_STAFF_PERSISTENCE_ASSERTIONS_PASSED';

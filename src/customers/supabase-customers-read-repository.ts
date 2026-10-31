@@ -161,6 +161,7 @@ export class SupabaseCustomersReadRepository implements CustomersReadRepository 
           totalSpentMinor: spent,
           lastOrderAt: placedAt,
           currency: raw.currency,
+          outstandingMinor: 0,
         });
       } else {
         const newer = current.lastOrderAt === null || placedAt > current.lastOrderAt;
@@ -169,10 +170,74 @@ export class SupabaseCustomersReadRepository implements CustomersReadRepository 
           totalSpentMinor: current.totalSpentMinor + spent,
           lastOrderAt: newer ? placedAt : current.lastOrderAt,
           currency: newer ? raw.currency : current.currency,
+          outstandingMinor: current.outstandingMinor,
         });
       }
     }
+
+    // Overlay installment outstanding (sum of owed-minus-paid-at-sale, less later payments) per customer.
+    // A customer can carry a balance with zero placed-order aggregate, so seed any missing entries.
+    const outstanding = await this.outstandingFor(tenantId, customerIds);
+    for (const [customerId, owed] of outstanding) {
+      const current = result.get(customerId);
+      if (current === undefined) {
+        result.set(customerId, {
+          orderCount: 0,
+          totalSpentMinor: 0,
+          lastOrderAt: null,
+          currency: null,
+          outstandingMinor: owed,
+        });
+      } else {
+        result.set(customerId, { ...current, outstandingMinor: owed });
+      }
+    }
     return result;
+  }
+
+  // Aggregate installment balance per customer: Σ(total - initial_paid) across sale debts, minus
+  // Σ(customer payments), floored at zero. Two bounded queries over the requested customer ids.
+  private async outstandingFor(
+    tenantId: string,
+    customerIds: readonly string[],
+  ): Promise<Map<string, number>> {
+    const owed = new Map<string, number>();
+    if (customerIds.length === 0) return owed;
+    const debtRowSchema = z.object({
+      customer_id: z.string().uuid(),
+      total_minor: z.union([z.number(), z.string()]),
+      initial_paid_minor: z.union([z.number(), z.string()]),
+    });
+    const paymentRowSchema = z.object({
+      customer_id: z.string().uuid(),
+      amount_minor: z.union([z.number(), z.string()]),
+    });
+    const { data: debts, error: debtError } = await this.client
+      .from("customer_sale_debts")
+      .select("customer_id,total_minor,initial_paid_minor")
+      .eq("tenant_id", tenantId)
+      .in("customer_id", [...customerIds]);
+    requireNoQueryError(debtError);
+    const { data: payments, error: payError } = await this.client
+      .from("customer_payments")
+      .select("customer_id,amount_minor")
+      .eq("tenant_id", tenantId)
+      .in("customer_id", [...customerIds]);
+    requireNoQueryError(payError);
+
+    for (const row of parseRows(debtRowSchema, debts)) {
+      owed.set(
+        row.customer_id,
+        (owed.get(row.customer_id) ?? 0) +
+          toSafeInteger(row.total_minor) -
+          toSafeInteger(row.initial_paid_minor),
+      );
+    }
+    for (const row of parseRows(paymentRowSchema, payments)) {
+      owed.set(row.customer_id, (owed.get(row.customer_id) ?? 0) - toSafeInteger(row.amount_minor));
+    }
+    for (const [id, value] of owed) owed.set(id, Math.max(0, value));
+    return owed;
   }
 
   async listCustomerOrders(params: CustomerOrdersParams): Promise<CustomerOrderListRow[]> {

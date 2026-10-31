@@ -13,6 +13,7 @@ import type {
   PublishProductCommand,
   PublishResult,
   SetProductStatusCommand,
+  SetVariantCostCommand,
   SetVariantPriceCommand,
   UpdateProductCommand,
 } from "./catalog-write-repository";
@@ -89,6 +90,10 @@ const PriceRowSchema = z.object({
   price_id: z.string().uuid(),
   currency: z.string(),
   amount_minor: z.union([z.number(), z.string()]),
+});
+const CostRowSchema = z.object({
+  variant_id: z.string().uuid(),
+  unit_cost_minor: z.union([z.number(), z.string()]),
 });
 const PublishRowSchema = z.object({
   product_id: z.string().uuid(),
@@ -254,6 +259,25 @@ export class SupabaseCatalogWriteRepository implements CatalogWriteRepository {
       priceId: row.price_id,
       currency: row.currency,
       amountMinor: toSafeInteger(row.amount_minor),
+    };
+  }
+
+  async setVariantCost(
+    proof: AuthorizedOperationContext,
+    command: SetVariantCostCommand,
+  ): Promise<{ variantId: string; unitCostMinor: number }> {
+    assertAuthorizedOperationProof(proof);
+    const row = CostRowSchema.parse(
+      await this.callFunction("set_variant_cost", {
+        p_tenant_id: command.tenantId,
+        p_variant_id: command.variantId,
+        p_unit_cost_minor: command.unitCostMinor,
+        p_idempotency_key: command.idempotencyKey,
+      }),
+    );
+    return {
+      variantId: row.variant_id,
+      unitCostMinor: toSafeInteger(row.unit_cost_minor),
     };
   }
 

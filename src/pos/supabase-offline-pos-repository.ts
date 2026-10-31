@@ -4,13 +4,21 @@ import { z } from "zod";
 import { assertAuthorizedOperationProof, type AuthorizedOperationContext } from "../authorization";
 import type {
   EnrollPosDeviceRequest,
+  IngestOfflineCustomerPaymentResponse,
   IngestOfflineSaleResponse,
   OfflineBootstrapResponse,
+  OfflineCustomerPaymentCommand,
   OfflineSaleCommand,
   PosDeviceResponse,
 } from "../contracts";
+import type { SetStaffOfflinePinResponse } from "../contracts";
 import { OfflinePosError } from "./offline-errors";
-import type { OfflineCredential, OfflinePosRepository } from "./offline-repository";
+import type { EncryptedOfflinePin, ScryptVerifierParams } from "./offline-pin-crypto";
+import type {
+  OfflineCredential,
+  OfflinePosRepository,
+  SealedRosterEntry,
+} from "./offline-repository";
 
 const PRIVATE_SCHEMA = "offline_pos_private";
 const Uuid = z.string().uuid();
@@ -54,6 +62,15 @@ function mapError(error: DatabaseErrorLike): Error {
       return new OfflinePosError("OFFLINE_GRANT_INVALID");
     case "OS401":
       return new OfflinePosError("OFFLINE_SIGNATURE_INVALID");
+    // Customer A/R rejections surfaced by record_customer_payment during an offline paydown ingest. All
+    // are deterministic (not retryable): a stale offline view overpaying the authoritative outstanding
+    // (CA409), an invalid amount (CA422), or an unknown customer (CA404). Map to a blocking 4xx so the
+    // POS outbox marks the command for reconciliation instead of retrying it forever as a 5xx.
+    case "CA409":
+    case "CA422":
+      return new OfflinePosError("OFFLINE_LIMIT_EXCEEDED");
+    case "CA404":
+      return new OfflinePosError("OFFLINE_GRANT_INVALID");
     case "ID409":
     case "23505":
       return new OfflinePosError("IDEMPOTENCY_CONFLICT");
@@ -108,6 +125,15 @@ const GrantRow = z.object({
   max_cumulative_exposure_minor: NumberValue,
   max_quantity_per_line: NumberValue,
   max_pending_offline_sales: NumberValue,
+  max_offline_credit_exposure_minor: NumberValue,
+  customers_snapshot: z.array(
+    z.object({
+      customerId: Uuid,
+      name: z.string(),
+      phone: z.string(),
+      outstandingMinor: NumberValue,
+    }),
+  ),
   catalog_snapshot: z.array(
     z.object({
       productId: Uuid,
@@ -134,6 +160,48 @@ const GrantRow = z.object({
   ),
 });
 
+// The set/roster RPCs live in staff_private and raise the staff domain's SQLSTATEs; map them to the
+// offline-PIN error surface. ID409 is the shared idempotency-ledger conflict.
+function mapStaffPinError(error: DatabaseErrorLike): Error {
+  switch (error.code) {
+    case "ST404":
+      return new OfflinePosError("OFFLINE_PIN_STAFF_NOT_FOUND");
+    case "ST409":
+      return new OfflinePosError("OFFLINE_PIN_STAFF_INACTIVE");
+    case "ST403":
+      return new OfflinePosError("OFFLINE_PIN_ESCALATION_DENIED");
+    case "ID409":
+    case "23505":
+      return new OfflinePosError("IDEMPOTENCY_CONFLICT");
+    default:
+      return new Error(
+        `Unexpected offline-PIN persistence error (${error.code ?? "unknown"}: ${error.message ?? "no message"}).`,
+      );
+  }
+}
+
+const SetOfflinePinRow = z.object({
+  membershipId: Uuid,
+  keyVersion: z.number().int().positive(),
+  updatedAt: z.string(),
+});
+
+const RosterRow = z.object({
+  membership_id: Uuid,
+  username: z.string(),
+  display_name: z.string(),
+  key_version: z.number().int().positive(),
+  cipher_algorithm: z.literal("aes-256-gcm"),
+  ciphertext_base64: z.string(),
+  iv_base64: z.string(),
+  auth_tag_base64: z.string(),
+  scrypt_n: NumberValue,
+  scrypt_r: NumberValue,
+  scrypt_p: NumberValue,
+  key_length: NumberValue,
+  salt_length: NumberValue,
+});
+
 const IngestionRow = z.object({
   ingestion_id: Uuid,
   sync_status: z.enum(["synced", "needs_reconciliation"]),
@@ -141,6 +209,20 @@ const IngestionRow = z.object({
   payment_id: Uuid,
   fulfillment_id: Uuid.nullable(),
   reconciliation_id: Uuid.nullable(),
+  received_at: z.string(),
+});
+
+const PaymentIngestionRow = z.object({
+  ingestion_id: Uuid,
+  sync_status: z.literal("synced"),
+  payment: z.object({
+    id: Uuid,
+    customerId: Uuid,
+    currency: z.string(),
+    amountMinor: NumberValue,
+    paidAt: z.string(),
+    outstandingMinor: NumberValue,
+  }),
   received_at: z.string(),
 });
 
@@ -265,7 +347,9 @@ export class SupabaseOfflinePosRepository implements OfflinePosRepository {
         maxCumulativeExposureMinor: grant.max_cumulative_exposure_minor,
         maxQuantityPerLine: grant.max_quantity_per_line,
         maxPendingOfflineSales: grant.max_pending_offline_sales,
+        maxOfflineCreditExposureMinor: grant.max_offline_credit_exposure_minor,
       },
+      customers: grant.customers_snapshot,
       catalog: grant.catalog_snapshot.map((product) => ({
         ...product,
         variants: product.variants.map((variant) => ({
@@ -297,6 +381,69 @@ export class SupabaseOfflinePosRepository implements OfflinePosRepository {
     return row
       ? { deviceId: String(row.device_id), publicKeySpkiBase64: String(row.public_key_spki_base64) }
       : null;
+  }
+
+  async setOfflinePin(
+    proof: AuthorizedOperationContext,
+    tenantId: string,
+    actorMembershipId: string,
+    membershipId: string,
+    idempotencyKey: string,
+    material: EncryptedOfflinePin,
+    params: ScryptVerifierParams,
+  ): Promise<SetStaffOfflinePinResponse> {
+    assertAuthorizedOperationProof(proof);
+    const { data, error } = await this.client.schema("staff_private").rpc("set_offline_pin", {
+      p_tenant: tenantId,
+      p_actor: actorMembershipId,
+      p_key: idempotencyKey,
+      p_membership: membershipId,
+      p_key_version: material.keyVersion,
+      p_cipher_algorithm: material.cipherAlgorithm,
+      p_ciphertext: material.ciphertextBase64,
+      p_iv: material.ivBase64,
+      p_auth_tag: material.authTagBase64,
+      p_scrypt_n: params.n,
+      p_scrypt_r: params.r,
+      p_scrypt_p: params.p,
+      p_key_length: params.keyLength,
+      p_salt_length: params.saltLength,
+    });
+    if (error) throw mapStaffPinError(error);
+    const row = SetOfflinePinRow.parse(data);
+    return {
+      membershipId: row.membershipId,
+      keyVersion: row.keyVersion,
+      updatedAt: iso(row.updatedAt),
+    };
+  }
+
+  async getStaffRoster(tenantId: string, registerId: string): Promise<SealedRosterEntry[]> {
+    const { data, error } = await this.client.schema("staff_private").rpc("offline_sell_roster", {
+      p_tenant: tenantId,
+      p_register: registerId,
+    });
+    if (error) throw mapStaffPinError(error);
+    const rows = z.array(RosterRow).parse(data ?? []);
+    return rows.map((row) => ({
+      membershipId: row.membership_id,
+      username: row.username,
+      displayName: row.display_name,
+      material: {
+        keyVersion: row.key_version,
+        cipherAlgorithm: row.cipher_algorithm,
+        ciphertextBase64: row.ciphertext_base64,
+        ivBase64: row.iv_base64,
+        authTagBase64: row.auth_tag_base64,
+      },
+      params: {
+        n: row.scrypt_n,
+        r: row.scrypt_r,
+        p: row.scrypt_p,
+        keyLength: row.key_length,
+        saltLength: row.salt_length,
+      },
+    }));
   }
 
   async ingest(
@@ -458,6 +605,39 @@ export class SupabaseOfflinePosRepository implements OfflinePosRepository {
       payment: paymentResult,
       fulfillment,
       reconciliation,
+    };
+  }
+
+  async ingestPayment(
+    tenantId: string,
+    credentialId: string,
+    command: OfflineCustomerPaymentCommand,
+    canonicalCommand: string,
+    commandFingerprint: string,
+    signature: string,
+  ): Promise<IngestOfflineCustomerPaymentResponse> {
+    const rows = await this.rpc("record_offline_customer_payment", {
+      p_tenant_id: tenantId,
+      p_credential_id: credentialId,
+      p_command: command,
+      p_canonical: canonicalCommand,
+      p_fingerprint: commandFingerprint,
+      p_signature: signature,
+    });
+    const result = PaymentIngestionRow.parse(Array.isArray(rows) ? rows[0] : rows);
+    return {
+      syncStatus: result.sync_status,
+      ingestionId: result.ingestion_id,
+      localPaymentId: command.localPaymentId,
+      receivedAt: iso(result.received_at),
+      payment: {
+        id: result.payment.id,
+        customerId: result.payment.customerId,
+        currency: result.payment.currency,
+        amountMinor: result.payment.amountMinor,
+        paidAt: iso(result.payment.paidAt),
+        outstandingMinor: result.payment.outstandingMinor,
+      },
     };
   }
 }

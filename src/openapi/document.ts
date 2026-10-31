@@ -96,6 +96,10 @@ import {
   OfflineBootstrapResponseSchema,
   IngestOfflineSaleRequestSchema,
   IngestOfflineSaleResponseSchema,
+  IngestOfflineCustomerPaymentRequestSchema,
+  IngestOfflineCustomerPaymentResponseSchema,
+  SetStaffOfflinePinRequestSchema,
+  SetStaffOfflinePinResponseSchema,
   ReceiveInventoryRequestSchema,
   ReceiveInventoryResponseSchema,
   TransferInventoryRequestSchema,
@@ -111,6 +115,8 @@ import {
   CreateVariantResponseSchema,
   SetVariantPriceRequestSchema,
   SetVariantPriceResponseSchema,
+  SetVariantCostRequestSchema,
+  SetVariantCostResponseSchema,
   CreateMediaUploadIntentRequestSchema,
   MediaUploadIntentResponseSchema,
   RegisterProductMediaRequestSchema,
@@ -118,6 +124,17 @@ import {
   ArchiveProductMediaResponseSchema,
   PublicProductListResponseSchema,
   PublicProductDetailResponseSchema,
+  CollectionListResponseSchema,
+  CollectionDetailResponseSchema,
+  CreateCollectionRequestSchema,
+  UpdateCollectionRequestSchema,
+  SetCollectionStatusRequestSchema,
+  SetCollectionProductsRequestSchema,
+  CollectionWriteResponseSchema,
+  CollectionUpdatedResponseSchema,
+  SetCollectionProductsResponseSchema,
+  PublicCollectionListResponseSchema,
+  PublicCollectionDetailResponseSchema,
 } from "../contracts";
 import {
   BusinessSettingsSchema,
@@ -1672,6 +1689,40 @@ export function generateOpenApiDocument() {
           },
         },
       },
+      "/api/v1/staff/{membershipId}/offline-pin": {
+        put: {
+          operationId: "setStaffOfflinePin",
+          tags: ["staff"],
+          summary: "setStaffOfflinePin",
+          description:
+            "Requires a tenant-wide staff.manage grant and Idempotency-Key. Sets or rotates the staff " +
+            "member's OFFLINE-unlock PIN — a credential independent of their Clerk online password — used " +
+            "by the POS offline cashier when the device has no connection. The PIN is sealed server-side " +
+            "(AES-256-GCM) and never stored or returned in plaintext; the offline bootstrap later emits a " +
+            "device-bound scrypt verifier derived from it. Anti-escalation: the target's held permissions " +
+            "must be a subset of the caller's own tenant-wide permissions. Returns 503 when the server has " +
+            "no offline-PIN key configured.",
+          security: clerkSecurity,
+          parameters: [
+            tenantHeaderParameter,
+            {
+              name: "membershipId",
+              in: "path",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+            idempotencyKeyHeaderParameter,
+          ],
+          requestBody: jsonRequestBody(
+            "The offline-unlock PIN to set.",
+            "#/components/schemas/SetStaffOfflinePinRequest",
+          ),
+          responses: {
+            "200": jsonResponse("Success", "#/components/schemas/SetStaffOfflinePinResponse"),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
       "/api/v1/staff/{membershipId}/role-assignments/{assignmentId}": {
         delete: {
           operationId: "unassignStaffRole",
@@ -2376,6 +2427,39 @@ export function generateOpenApiDocument() {
           },
         },
       },
+      "/api/v1/variants/{variantId}/cost": {
+        put: {
+          operationId: "setVariantCost",
+          tags: ["catalog-management"],
+          summary: "Set a variant's current cost basis for inventory valuation.",
+          description:
+            "Overwrites the variant's current unit cost in minor units (the merchant cost basis used " +
+            "for inventory valuation). Requires catalog.author over the variant's brand and a " +
+            "required Idempotency-Key header.",
+          security: clerkSecurity,
+          parameters: [
+            tenantHeaderParameter,
+            idempotencyKeyHeaderParameter,
+            {
+              name: "variantId",
+              in: "path",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+          ],
+          requestBody: jsonRequestBody(
+            "The minor-unit unit cost.",
+            "#/components/schemas/SetVariantCostRequest",
+          ),
+          responses: {
+            "200": jsonResponse(
+              "The updated cost.",
+              "#/components/schemas/SetVariantCostResponse",
+            ),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
       "/api/v1/products/{productId}/media/upload-intent": {
         post: {
           operationId: "createProductMediaUploadIntent",
@@ -2534,6 +2618,192 @@ export function generateOpenApiDocument() {
             "200": jsonResponse(
               "The published product detail.",
               "#/components/schemas/PublicProductDetailResponse",
+            ),
+            ...errorResponses(400, 404, 500),
+          },
+        },
+      },
+      "/api/v1/collections": {
+        get: {
+          operationId: "listCollections",
+          tags: ["catalog-management"],
+          summary: "List collections in the caller's tenant.",
+          description:
+            "Lists all collections (any status) for the tenant with product counts. Requires " +
+            "catalog.author tenant-wide.",
+          security: clerkSecurity,
+          parameters: [tenantHeaderParameter],
+          responses: {
+            "200": jsonResponse(
+              "All collections for the tenant.",
+              "#/components/schemas/CollectionListResponse",
+            ),
+            ...errorResponses(400, 401, 403, 500),
+          },
+        },
+        post: {
+          operationId: "createCollection",
+          tags: ["catalog-management"],
+          summary: "Create a collection.",
+          description:
+            "Creates a draft collection. Requires catalog.author tenant-wide and an Idempotency-Key " +
+            "header; a replay with the same key and body returns the original collection, and the same " +
+            "key with a different body is a 409.",
+          security: clerkSecurity,
+          parameters: [tenantHeaderParameter, idempotencyKeyHeaderParameter],
+          requestBody: jsonRequestBody(
+            "The collection to create.",
+            "#/components/schemas/CreateCollectionRequest",
+          ),
+          responses: {
+            "200": jsonResponse(
+              "The created collection identity and status.",
+              "#/components/schemas/CollectionWriteResponse",
+            ),
+            ...errorResponses(400, 401, 403, 409, 422, 500),
+          },
+        },
+      },
+      "/api/v1/collections/{collectionId}": {
+        get: {
+          operationId: "getCollection",
+          tags: ["catalog-management"],
+          summary: "Read a collection with its ordered product membership.",
+          security: clerkSecurity,
+          parameters: [
+            tenantHeaderParameter,
+            {
+              name: "collectionId",
+              in: "path",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+          ],
+          responses: {
+            "200": jsonResponse(
+              "The collection detail and product ids.",
+              "#/components/schemas/CollectionDetailResponse",
+            ),
+            ...errorResponses(400, 401, 403, 404, 500),
+          },
+        },
+        patch: {
+          operationId: "updateCollection",
+          tags: ["catalog-management"],
+          summary: "Update a collection's name, slug and description.",
+          security: clerkSecurity,
+          parameters: [tenantHeaderParameter, idempotencyKeyHeaderParameter],
+          requestBody: jsonRequestBody(
+            "The collection fields to update.",
+            "#/components/schemas/UpdateCollectionRequest",
+          ),
+          responses: {
+            "200": jsonResponse(
+              "The updated collection id.",
+              "#/components/schemas/CollectionUpdatedResponse",
+            ),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
+      "/api/v1/collections/{collectionId}/status": {
+        post: {
+          operationId: "setCollectionStatus",
+          tags: ["catalog-management"],
+          summary: "Publish, unpublish (draft) or archive a collection.",
+          security: clerkSecurity,
+          parameters: [tenantHeaderParameter, idempotencyKeyHeaderParameter],
+          requestBody: jsonRequestBody(
+            "The target collection status.",
+            "#/components/schemas/SetCollectionStatusRequest",
+          ),
+          responses: {
+            "200": jsonResponse(
+              "The collection id and new status.",
+              "#/components/schemas/CollectionWriteResponse",
+            ),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
+      "/api/v1/collections/{collectionId}/products": {
+        put: {
+          operationId: "setCollectionProducts",
+          tags: ["catalog-management"],
+          summary: "Replace a collection's full ordered product membership.",
+          description:
+            "Sets the authoritative, position-ordered product list for the collection in one atomic " +
+            "command. An empty array clears the collection.",
+          security: clerkSecurity,
+          parameters: [tenantHeaderParameter, idempotencyKeyHeaderParameter],
+          requestBody: jsonRequestBody(
+            "The ordered product ids.",
+            "#/components/schemas/SetCollectionProductsRequest",
+          ),
+          responses: {
+            "200": jsonResponse(
+              "The collection id and resulting product count.",
+              "#/components/schemas/SetCollectionProductsResponse",
+            ),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
+      "/api/v1/storefront/collections": {
+        get: {
+          operationId: "listPublishedCollections",
+          tags: ["storefront"],
+          summary: "List published collections for a storefront tenant.",
+          description:
+            "Public, unauthenticated. Returns only active collections that own at least one publicly " +
+            "visible product, each with a cover image and product count.",
+          parameters: [
+            {
+              name: "tenantId",
+              in: "query",
+              required: true,
+              description: "The tenant the storefront serves.",
+              schema: { type: "string", format: "uuid" },
+            },
+            {
+              name: "limit",
+              in: "query",
+              required: false,
+              description: "Maximum collections (1-200, default 50).",
+              schema: { type: "integer", minimum: 1, maximum: 200, default: 50 },
+            },
+          ],
+          responses: {
+            "200": jsonResponse(
+              "A list of published collections.",
+              "#/components/schemas/PublicCollectionListResponse",
+            ),
+            ...errorResponses(400, 500),
+          },
+        },
+      },
+      "/api/v1/storefront/collections/{slug}": {
+        get: {
+          operationId: "getPublishedCollection",
+          tags: ["storefront"],
+          summary: "Read a single published collection by slug with its products.",
+          description:
+            "Public, unauthenticated. Returns the active collection for the given tenant and slug with " +
+            "its ordered, publicly visible products, or 404 if missing or not public.",
+          parameters: [
+            {
+              name: "tenantId",
+              in: "query",
+              required: true,
+              description: "The tenant the storefront serves.",
+              schema: { type: "string", format: "uuid" },
+            },
+            { name: "slug", in: "path", required: true, schema: { type: "string" } },
+          ],
+          responses: {
+            "200": jsonResponse(
+              "The published collection detail.",
+              "#/components/schemas/PublicCollectionDetailResponse",
             ),
             ...errorResponses(400, 404, 500),
           },
@@ -2861,6 +3131,28 @@ export function generateOpenApiDocument() {
           },
         },
       },
+      "/api/v1/pos/offline-customer-payments": {
+        post: {
+          operationId: "ingestOfflineCustomerPayment",
+          tags: ["pos"],
+          summary: "Ingest a customer installment paydown already accepted offline.",
+          description:
+            "Device-authenticated ingestion verifies canonical Ed25519 intent and the grant binding, then applies the paydown idempotently against the customer's outstanding balance. Idempotency records are retained indefinitely (minimum guaranteed queue window: 365 days).",
+          security: [],
+          parameters: [tenantHeaderParameter, idempotencyKeyHeaderParameter],
+          requestBody: jsonRequestBody(
+            "Signed immutable offline customer payment command.",
+            "#/components/schemas/IngestOfflineCustomerPaymentRequest",
+          ),
+          responses: {
+            "200": jsonResponse(
+              "Canonical payment ingestion result.",
+              "#/components/schemas/IngestOfflineCustomerPaymentResponse",
+            ),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
     },
     components: {
       securitySchemes: {
@@ -2999,6 +3291,8 @@ export function generateOpenApiDocument() {
         CreateVariantResponse: jsonSchema(CreateVariantResponseSchema),
         SetVariantPriceRequest: jsonSchema(SetVariantPriceRequestSchema),
         SetVariantPriceResponse: jsonSchema(SetVariantPriceResponseSchema),
+        SetVariantCostRequest: jsonSchema(SetVariantCostRequestSchema),
+        SetVariantCostResponse: jsonSchema(SetVariantCostResponseSchema),
         CreateMediaUploadIntentRequest: jsonSchema(CreateMediaUploadIntentRequestSchema),
         MediaUploadIntentResponse: jsonSchema(MediaUploadIntentResponseSchema),
         RegisterProductMediaRequest: jsonSchema(RegisterProductMediaRequestSchema),
@@ -3006,6 +3300,17 @@ export function generateOpenApiDocument() {
         ArchiveProductMediaResponse: jsonSchema(ArchiveProductMediaResponseSchema),
         PublicProductListResponse: jsonSchema(PublicProductListResponseSchema),
         PublicProductDetailResponse: jsonSchema(PublicProductDetailResponseSchema),
+        CollectionListResponse: jsonSchema(CollectionListResponseSchema),
+        CollectionDetailResponse: jsonSchema(CollectionDetailResponseSchema),
+        CreateCollectionRequest: jsonSchema(CreateCollectionRequestSchema),
+        UpdateCollectionRequest: jsonSchema(UpdateCollectionRequestSchema),
+        SetCollectionStatusRequest: jsonSchema(SetCollectionStatusRequestSchema),
+        SetCollectionProductsRequest: jsonSchema(SetCollectionProductsRequestSchema),
+        CollectionWriteResponse: jsonSchema(CollectionWriteResponseSchema),
+        CollectionUpdatedResponse: jsonSchema(CollectionUpdatedResponseSchema),
+        SetCollectionProductsResponse: jsonSchema(SetCollectionProductsResponseSchema),
+        PublicCollectionListResponse: jsonSchema(PublicCollectionListResponseSchema),
+        PublicCollectionDetailResponse: jsonSchema(PublicCollectionDetailResponseSchema),
         OrderSummary: jsonSchema(OrderSummarySchema),
         OrderListResponse: jsonSchema(OrderListResponseSchema),
         OrderDetailResponse: jsonSchema(OrderDetailResponseSchema),
@@ -3020,6 +3325,12 @@ export function generateOpenApiDocument() {
         OfflineBootstrapResponse: jsonSchema(OfflineBootstrapResponseSchema),
         IngestOfflineSaleRequest: jsonSchema(IngestOfflineSaleRequestSchema),
         IngestOfflineSaleResponse: jsonSchema(IngestOfflineSaleResponseSchema),
+        IngestOfflineCustomerPaymentRequest: jsonSchema(IngestOfflineCustomerPaymentRequestSchema),
+        IngestOfflineCustomerPaymentResponse: jsonSchema(
+          IngestOfflineCustomerPaymentResponseSchema,
+        ),
+        SetStaffOfflinePinRequest: jsonSchema(SetStaffOfflinePinRequestSchema),
+        SetStaffOfflinePinResponse: jsonSchema(SetStaffOfflinePinResponseSchema),
 
         BusinessSettings: jsonSchema(BusinessSettingsSchema),
         UpdateBusinessRequest: jsonSchema(UpdateBusinessRequestSchema),

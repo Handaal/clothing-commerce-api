@@ -7,8 +7,14 @@ import { CatalogManagementService } from "../catalog/catalog-management-service"
 import { createSupabaseCatalogWriteRepository } from "../catalog/supabase-catalog-write-repository";
 import { StorefrontCatalogService } from "../catalog/storefront-catalog-service";
 import { createSupabaseStorefrontCatalogRepository } from "../catalog/storefront-catalog-repository";
+import { CollectionManagementService } from "../catalog/collection-management-service";
+import { createSupabaseCollectionRepository } from "../catalog/collection-repository";
+import { StorefrontCollectionService } from "../catalog/storefront-collection-service";
+import { createSupabaseStorefrontCollectionRepository } from "../catalog/storefront-collection-repository";
 import {
   readClerkVerifierConfiguration,
+  readOfflinePinConfiguration,
+  readPosAuthSigningConfiguration,
   readSupabasePrivilegedConfiguration,
 } from "../config/auth-environment";
 import { FulfillmentService } from "../fulfillments";
@@ -20,8 +26,11 @@ import { createSupabaseInventoryRepository } from "../inventory/supabase-invento
 import { OrderService } from "../orders";
 import { createSupabaseOrdersRepository } from "../orders";
 import { OrdersReadService } from "../orders/orders-read-service";
-import { CustomersReadService } from "../customers";
-import { createSupabaseCustomersReadRepository } from "../customers";
+import { CustomersReadService, CustomersArService } from "../customers";
+import {
+  createSupabaseCustomersReadRepository,
+  createSupabaseCustomersArRepository,
+} from "../customers";
 import { SuppliersService } from "../suppliers/service";
 import { createSuppliersRepository } from "../suppliers/repository";
 import { StaffService } from "../staff/service";
@@ -39,7 +48,9 @@ import { createReturnsRepository } from "../returns/repository";
 import { createSupabaseOrdersReadRepository } from "../orders/supabase-orders-read-repository";
 import {
   OfflinePosService,
+  PosAuthService,
   PosSaleService,
+  createPosAuthRepository,
   createSupabaseOfflinePosRepository,
   createSupabasePosSaleRepository,
 } from "../pos";
@@ -58,6 +69,8 @@ export function createManagementApiBoundary(
 ) {
   const clerkConfiguration = readClerkVerifierConfiguration(environment);
   const supabaseConfiguration = readSupabasePrivilegedConfiguration(environment);
+  const offlinePinConfiguration = readOfflinePinConfiguration(environment);
+  const posAuthSigningConfiguration = readPosAuthSigningConfiguration(environment);
 
   const { contextResolver, authorizationService } = createServerAuthorizationBoundary(environment);
   const identityVerifier = createClerkRequestVerifier(clerkConfiguration);
@@ -85,6 +98,16 @@ export function createManagementApiBoundary(
   // The public Storefront read surface over the DB-enforced published-only boundary.
   const storefrontCatalogService = new StorefrontCatalogService(
     createSupabaseStorefrontCatalogRepository(supabaseConfiguration),
+  );
+
+  // Collections: tenant-wide merchandising groupings. The management surface authorizes catalog.author
+  // tenant-wide; the public surface reads the DB-enforced published-only collection boundary.
+  const collectionManagementService = new CollectionManagementService(
+    authorizationService,
+    createSupabaseCollectionRepository(supabaseConfiguration),
+  );
+  const storefrontCollectionService = new StorefrontCollectionService(
+    createSupabaseStorefrontCollectionRepository(supabaseConfiguration),
   );
 
   const inventoryReadService = new InventoryReadService(
@@ -119,6 +142,10 @@ export function createManagementApiBoundary(
   const customersReadService = new CustomersReadService(
     createSupabaseCustomersReadRepository(supabaseConfiguration),
   );
+  const customersArService = new CustomersArService(
+    authorizationService,
+    createSupabaseCustomersArRepository(supabaseConfiguration),
+  );
   const posSaleService = new PosSaleService(
     authorizationService,
     createSupabasePosSaleRepository(supabaseConfiguration),
@@ -128,6 +155,15 @@ export function createManagementApiBoundary(
     authorizationService,
     createSupabasePosSaleRepository(supabaseConfiguration),
     createSupabaseOfflinePosRepository(supabaseConfiguration),
+    offlinePinConfiguration,
+  );
+
+  // POS-native (pos_pin) authentication: public connected sign-in + admin account management. Dormant
+  // (login rejects with a clear config error) when POS_AUTH_SIGNING_KEY is unset.
+  const posAuthService = new PosAuthService(
+    authorizationService,
+    createPosAuthRepository(supabaseConfiguration),
+    posAuthSigningConfiguration,
   );
 
   return {
@@ -137,10 +173,13 @@ export function createManagementApiBoundary(
     catalogReadService,
     catalogManagementService,
     storefrontCatalogService,
+    collectionManagementService,
+    storefrontCollectionService,
     inventoryReadService,
     inventoryService,
     ordersReadService,
     customersReadService,
+    customersArService,
     returnsService,
     suppliersService: new SuppliersService(
       authorizationService,
@@ -172,6 +211,7 @@ export function createManagementApiBoundary(
     ),
     posSaleService,
     offlinePosService,
+    posAuthService,
   } as const;
 }
 
