@@ -140,6 +140,12 @@ const GrantRow = z.object({
       brandId: Uuid,
       name: z.string(),
       active: z.boolean(),
+      // Server-authoritative classification carried in the snapshot (see migration
+      // 20261101130000). brandName may be null if the brand was removed; categories is the
+      // product's non-archived collection memberships. Defaulted so a grant row issued before the
+      // migration (its stored snapshot lacks these keys) still re-reads cleanly as unclassified.
+      brandName: z.string().nullable().default(null),
+      categories: z.array(z.object({ id: Uuid, name: z.string() })).default([]),
       variants: z.array(
         z.object({
           variantId: Uuid,

@@ -272,7 +272,7 @@ describe("Commerce SDK", () => {
   });
 
   it("exposes semantic SDK version metadata", () => {
-    expect(SDK_VERSION).toBe("0.25.0");
+    expect(SDK_VERSION).toBe("0.26.0");
   });
 
   it("posPinLogin POSTs username+PIN publicly (no tenant header, no bearer) and returns the session", async () => {

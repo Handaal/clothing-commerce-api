@@ -327,11 +327,24 @@ const OfflineCatalogVariantSchema = z.object({
   }),
 });
 
+// Classification travels with the offline snapshot so the till browses by category and searches by
+// brand with the same server-authoritative data the connected clients use. `brandName` is nullable
+// (the brand may have been removed); `categories` is the product's non-archived collection memberships.
+const OfflineCatalogCategorySchema = z.object({
+  id: UuidSchema,
+  name: z.string(),
+});
+
 const OfflineCatalogProductSchema = z.object({
   productId: UuidSchema,
   brandId: UuidSchema,
   name: z.string(),
   active: z.boolean(),
+  // Defaulted so a client on this contract still validates a snapshot from a server that predates the
+  // classification migration (it simply sees an unbranded, uncategorized product) rather than failing
+  // the whole bootstrap. A current server always populates both.
+  brandName: z.string().nullable().default(null),
+  categories: z.array(OfflineCatalogCategorySchema).default([]),
   variants: z.array(OfflineCatalogVariantSchema),
 });
 

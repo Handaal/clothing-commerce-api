@@ -214,7 +214,16 @@ function mapError(error: unknown, requestId: string, request?: Request): Respons
       request,
     );
   }
-  // Unknown/internal (including ResponseContractError and any repository defect). Never leak details.
+  // Unknown/internal (including ResponseContractError and any repository defect). Never leak details to the
+  // client, but ALWAYS log the underlying cause server-side, keyed by the same requestId the response carries,
+  // so an otherwise-opaque 500 (e.g. a missing DB grant surfacing as SQLSTATE 42501) is diagnosable from the
+  // logs instead of silently swallowed. The request body is deliberately NOT logged — it may carry secrets
+  // (PINs, tokens); the method + path is enough to locate the route.
+  console.error(
+    `[management-route] Unhandled error requestId=${requestId}` +
+      (request ? ` ${request.method} ${new URL(request.url).pathname}` : ""),
+    error,
+  );
   return jsonResponse(
     500,
     errorBody("INTERNAL_ERROR", "An unexpected error occurred.", requestId),

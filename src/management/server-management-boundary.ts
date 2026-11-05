@@ -1,4 +1,6 @@
 import { createClerkRequestVerifier } from "../authentication/clerk-request-verifier";
+import { CompositeExternalIdentityVerifier } from "../authentication/composite-external-identity-verifier";
+import { PosTokenVerifier } from "../authentication/pos-token";
 import { createClerkStaffLoginProvisioner } from "../authentication/staff-login-provisioner";
 import { createServerAuthorizationBoundary } from "../authentication/server-authorization-boundary";
 import { CatalogReadService } from "../catalog/catalog-read-service";
@@ -73,7 +75,16 @@ export function createManagementApiBoundary(
   const posAuthSigningConfiguration = readPosAuthSigningConfiguration(environment);
 
   const { contextResolver, authorizationService } = createServerAuthorizationBoundary(environment);
-  const identityVerifier = createClerkRequestVerifier(clerkConfiguration);
+  // POS-native (pos_pin) tokens must bootstrap identity too (/me/tenants, /me/context), not just Clerk —
+  // the POS floor carries a pos token on every request. Mirror the authorization boundary's composite so
+  // the identity resolver accepts both; dormant (Clerk-only) when POS_AUTH_SIGNING_KEY is unset.
+  const posIdentityVerifier = posAuthSigningConfiguration
+    ? new PosTokenVerifier(new Uint8Array(posAuthSigningConfiguration.signingKey))
+    : null;
+  const identityVerifier = new CompositeExternalIdentityVerifier(
+    createClerkRequestVerifier(clerkConfiguration),
+    posIdentityVerifier,
+  );
 
   const identityMembershipResolver = new IdentityMembershipResolver(
     identityVerifier,

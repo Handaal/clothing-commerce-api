@@ -76,6 +76,14 @@ create policy staff_writer_pos_pin_write on public.staff_pos_pin_credentials
 create policy staff_writer_login_attempts_write on public.pos_login_attempts
   for all to staff_writer using (true) with check (true);
 
+-- update_pos_login renames the identity (user_identities.display_name), so staff_writer also needs UPDATE on
+-- the pre-existing identity table — it already holds SELECT (20260922180000) + INSERT (20261022120000). RLS
+-- is enabled on user_identities, so an UPDATE policy is required alongside the grant, mirroring the INSERT
+-- pair added in 20261022120000. Without this the rename raises permission-denied, surfacing as a 500.
+grant update on public.user_identities to staff_writer;
+create policy staff_writer_identity_update on public.user_identities
+  for update to staff_writer using (true) with check (true);
+
 -- ===== Provisioning RPC ================================================================================
 -- Create the full pos_pin login graph for an already-minted server subject, in one transaction:
 --   UserIdentity (email-less, login_username) -> pos_pin provider binding -> active Membership ->
