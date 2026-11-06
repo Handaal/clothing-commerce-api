@@ -42,7 +42,10 @@ export interface SetCollectionProductsCommand {
 }
 
 export interface CollectionRepository {
-  listCollections(proof: AuthorizedOperationContext, tenantId: string): Promise<CollectionSummary[]>;
+  listCollections(
+    proof: AuthorizedOperationContext,
+    tenantId: string,
+  ): Promise<CollectionSummary[]>;
   getCollection(
     proof: AuthorizedOperationContext,
     tenantId: string,
@@ -255,7 +258,8 @@ export class SupabaseCollectionRepository implements CollectionRepository {
         p_idempotency_key: command.idempotencyKey,
       }),
     );
-    const count = typeof row.product_count === "string" ? Number(row.product_count) : row.product_count;
+    const count =
+      typeof row.product_count === "string" ? Number(row.product_count) : row.product_count;
     return { collectionId: row.collection_id, productCount: count };
   }
 
@@ -263,7 +267,9 @@ export class SupabaseCollectionRepository implements CollectionRepository {
     functionName: string,
     params: Record<string, unknown>,
   ): Promise<unknown> {
-    const { data, error } = await this.client.schema(CATALOG_PRIVATE_SCHEMA).rpc(functionName, params);
+    const { data, error } = await this.client
+      .schema(CATALOG_PRIVATE_SCHEMA)
+      .rpc(functionName, params);
     if (error) {
       throw mapDatabaseError(error);
     }

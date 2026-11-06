@@ -6,7 +6,7 @@
 ## 1. Problem
 
 POS floor staff sign in with a short **username + numeric PIN** (min 4 digits). The current
-`feat/staff-pin-login` branch implements this by minting a **Clerk** account whose password *is* the
+`feat/staff-pin-login` branch implements this by minting a **Clerk** account whose password _is_ the
 PIN ([`staff-login-provisioner.ts`](../../src/authentication/staff-login-provisioner.ts),
 `skipPasswordChecks: true`). That works only because provisioning bypasses the policy server-side; at
 **sign-in** time Clerk still enforces its password policy, whose minimum length cannot be lowered to 4
@@ -17,7 +17,7 @@ We will **replace Clerk in the POS with a POS-native authentication provider** t
 own session tokens, while keeping Clerk for the mobile app. The PIN policy becomes ours (min 4), owned
 by the API, against the **same database and the same authorization model**.
 
-## 2. Key principle: new *authentication* provider, not a new *authorization* model
+## 2. Key principle: new _authentication_ provider, not a new _authorization_ model
 
 The authorization pipeline is already provider-neutral
 ([`context-resolver.ts`](../../src/authorization/context-resolver.ts)):
@@ -40,7 +40,7 @@ already carry a free-form `provider` string ([`model.ts`](../../src/authorizatio
 `ProviderBindingRecord`).
 
 **We add a second authentication provider, `pos_pin`. Everything downstream of `{ provider, subject }`
-is unchanged.** The `docs/api/authentication.md` invariant — "no second *authorization* model; a tenant
+is unchanged.** The `docs/api/authentication.md` invariant — "no second _authorization_ model; a tenant
 header / role name / `service_role` is never trusted" — still holds. This must be stated explicitly in
 the ADR so the boundary guarantee isn't read as weakened.
 
@@ -55,7 +55,7 @@ subject is treated today. This preserves the verified-identity → binding → m
 that commit 8ba2cf1 was careful to keep.
 
 Username lives where the branch already put it: `user_identities.login_username`
-(nullable, globally partial-unique). It is the login *identifier*, resolved to an identity at login.
+(nullable, globally partial-unique). It is the login _identifier_, resolved to an identity at login.
 
 ### 3.2 PIN storage
 
@@ -137,11 +137,11 @@ Mobile is untouched — Clerk tokens still route to the Clerk verifier.
 
 ## 6. Endpoints (`/api/v1/pos/auth`)
 
-| Method & path              | Body                                   | Returns                                             |
-|----------------------------|----------------------------------------|-----------------------------------------------------|
-| `POST /pos/auth/login`     | `{ username, pin, deviceId }`          | `{ accessToken, refreshToken, expiresAt, operator }`|
-| `POST /pos/auth/refresh`   | `{ refreshToken, deviceId }`           | rotated `{ accessToken, refreshToken, expiresAt }`  |
-| `POST /pos/auth/logout`    | `{ refreshToken }`                     | `204` (revokes the session)                         |
+| Method & path            | Body                          | Returns                                              |
+| ------------------------ | ----------------------------- | ---------------------------------------------------- |
+| `POST /pos/auth/login`   | `{ username, pin, deviceId }` | `{ accessToken, refreshToken, expiresAt, operator }` |
+| `POST /pos/auth/refresh` | `{ refreshToken, deviceId }`  | rotated `{ accessToken, refreshToken, expiresAt }`   |
+| `POST /pos/auth/logout`  | `{ refreshToken }`            | `204` (revokes the session)                          |
 
 - **Login**: resolve `login_username` → identity → `pos_pin` binding + online verifier → constant-time
   verify → mint tokens. `operator` = `{ membershipId, username, displayName }` (mirrors the offline

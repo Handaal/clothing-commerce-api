@@ -1,8 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import {
-  assertAuthorizedOperationProof,
-  type AuthorizedOperationContext,
-} from "../authorization";
+import { assertAuthorizedOperationProof, type AuthorizedOperationContext } from "../authorization";
 import {
   RecordCustomerPaymentResponseSchema,
   CustomerPaymentsResponseSchema,

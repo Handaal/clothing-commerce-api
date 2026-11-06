@@ -2452,10 +2452,7 @@ export function generateOpenApiDocument() {
             "#/components/schemas/SetVariantCostRequest",
           ),
           responses: {
-            "200": jsonResponse(
-              "The updated cost.",
-              "#/components/schemas/SetVariantCostResponse",
-            ),
+            "200": jsonResponse("The updated cost.", "#/components/schemas/SetVariantCostResponse"),
             ...errorResponses(400, 401, 403, 404, 409, 422, 500),
           },
         },
