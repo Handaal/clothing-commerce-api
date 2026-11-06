@@ -187,7 +187,7 @@ try {
     if (cycle === 1) {
       runPsql(
         [
-          "drop schema if exists settings_private cascade; drop schema if exists reporting_private cascade; drop schema if exists promotions_private cascade; drop schema if exists staff_private cascade; drop schema if exists attendance_private cascade; drop schema if exists suppliers_private cascade; drop schema if exists returns_private cascade; drop schema if exists online_private cascade; drop schema if exists offline_pos_private cascade;",
+          "drop schema if exists customers_ar_private cascade; drop schema if exists settings_private cascade; drop schema if exists reporting_private cascade; drop schema if exists promotions_private cascade; drop schema if exists staff_private cascade; drop schema if exists attendance_private cascade; drop schema if exists suppliers_private cascade; drop schema if exists returns_private cascade; drop schema if exists online_private cascade; drop schema if exists offline_pos_private cascade;",
           "drop schema if exists pos_sales_private cascade;",
           "drop schema if exists payments_private cascade;",
           "drop schema if exists fulfillments_private cascade;",
