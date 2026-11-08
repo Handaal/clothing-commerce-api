@@ -15,9 +15,16 @@ const UuidSchema = z.string().uuid();
 export const InventoryBalanceSchema = z.object({
   inventoryLocationId: UuidSchema,
   variantId: UuidSchema,
+  productId: UuidSchema,
+  // Owning brand, so the client can group/filter stock without a second product read.
+  brandId: UuidSchema,
   productName: z.string(),
   sku: z.string(),
   onHand: NonNegativeIntegerSchema,
+  // Current cost basis and active selling price in minor units; null when unset for the variant.
+  // Together with onHand these drive the inventory valuation (total stock value / total selling value).
+  unitCostMinor: NonNegativeIntegerSchema.nullable(),
+  sellingPriceMinor: NonNegativeIntegerSchema.nullable(),
   // Authoritative persisted balance version (0 for a key with no history). This is the same value
   // adjustInventory guards against; it is never a client-manufactured or onHand-derived number.
   version: NonNegativeIntegerSchema,

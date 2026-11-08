@@ -303,7 +303,7 @@ describe("development commerce fixture (local Postgres)", () => {
       display_name: "Dev Front Register",
       status: "active",
       default_inventory_location_id: LOCATION_ID,
-      selling_currency: "USD",
+      selling_currency: "EGP",
     });
     const { count: branchBrandCount } = await admin
       .from("branch_brands")

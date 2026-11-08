@@ -16,6 +16,7 @@ export interface CustomerAggregate {
   readonly totalSpentMinor: number;
   readonly lastOrderAt: string | null;
   readonly currency: string | null;
+  readonly outstandingMinor: number;
 }
 
 export interface CustomerListParams {

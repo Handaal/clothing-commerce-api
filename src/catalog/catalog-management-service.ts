@@ -76,6 +76,9 @@ export interface SetVariantPriceInput {
   currency: string;
   amountMinor: number;
 }
+export interface SetVariantCostInput {
+  unitCostMinor: number;
+}
 export interface RegisterMediaInput {
   variantId?: string;
   bucket: string;
@@ -224,6 +227,27 @@ export class CatalogManagementService {
           variantId,
           currency: input.currency,
           amountMinor: input.amountMinor,
+          idempotencyKey,
+        }),
+    });
+  }
+
+  async setVariantCost(
+    context: AuthorizationContext,
+    variantId: string,
+    idempotencyKey: string,
+    input: SetVariantCostInput,
+  ): Promise<{ variantId: string; unitCostMinor: number }> {
+    const brandId = await this.requireVariantBrand(context.tenant.id, variantId);
+    return executeAuthorizedOperation({
+      authorizationService: this.authorizationService,
+      context,
+      request: { permissionKey: CatalogPermission.author, resources: [brandResource(brandId)] },
+      operation: (proof) =>
+        this.repository.setVariantCost(proof, {
+          tenantId: context.tenant.id,
+          variantId,
+          unitCostMinor: input.unitCostMinor,
           idempotencyKey,
         }),
     });

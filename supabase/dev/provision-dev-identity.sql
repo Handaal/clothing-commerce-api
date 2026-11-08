@@ -111,7 +111,7 @@ begin
     end if;
   else
     insert into public.tenants (slug, display_name, status, onboarding_state, default_currency)
-    values ('dev-local', 'Dev Local', 'active', 'completed', 'USD')
+    values ('dev-local', 'Dev Local', 'active', 'completed', 'EGP')
     returning id into v_tenant_id;
     v_tenant_created := true;
   end if;

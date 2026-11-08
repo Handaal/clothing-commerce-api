@@ -23,7 +23,7 @@ export function corsHeaders(
   const allowOrigin = origin !== null && configuredOrigins(environment).has(origin) ? origin : null;
   return {
     "Access-Control-Allow-Headers": allowedHeaders,
-    "Access-Control-Allow-Methods": "GET, POST, PATCH, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
     "Access-Control-Expose-Headers": "X-Request-Id",
     "Cache-Control": "no-store",
     Vary: "Origin",

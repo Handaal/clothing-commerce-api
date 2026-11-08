@@ -12,7 +12,9 @@ import { ManagementNotFoundError } from "../management/errors";
 import { OrderError } from "../orders/errors";
 import { PosSaleError } from "../pos/errors";
 import { OfflinePosError } from "../pos/offline-errors";
+import { PosAuthError } from "../pos/pos-auth-errors";
 import { SupplierError } from "../suppliers/errors";
+import { CustomerArError } from "../customers/customers-ar-errors";
 import { StaffError } from "../staff/errors";
 import { AttendanceError } from "../attendance/errors";
 import { ReturnError } from "../returns/errors";
@@ -182,9 +184,11 @@ function mapError(error: unknown, requestId: string, request?: Request): Respons
     error instanceof InventoryError ||
     error instanceof PosSaleError ||
     error instanceof OfflinePosError ||
+    error instanceof PosAuthError ||
     error instanceof CatalogError ||
     error instanceof ReturnError ||
     error instanceof SupplierError ||
+    error instanceof CustomerArError ||
     error instanceof StaffError ||
     error instanceof AttendanceError ||
     error instanceof PromotionError ||
@@ -210,7 +214,16 @@ function mapError(error: unknown, requestId: string, request?: Request): Respons
       request,
     );
   }
-  // Unknown/internal (including ResponseContractError and any repository defect). Never leak details.
+  // Unknown/internal (including ResponseContractError and any repository defect). Never leak details to the
+  // client, but ALWAYS log the underlying cause server-side, keyed by the same requestId the response carries,
+  // so an otherwise-opaque 500 (e.g. a missing DB grant surfacing as SQLSTATE 42501) is diagnosable from the
+  // logs instead of silently swallowed. The request body is deliberately NOT logged — it may carry secrets
+  // (PINs, tokens); the method + path is enough to locate the route.
+  console.error(
+    `[management-route] Unhandled error requestId=${requestId}` +
+      (request ? ` ${request.method} ${new URL(request.url).pathname}` : ""),
+    error,
+  );
   return jsonResponse(
     500,
     errorBody("INTERNAL_ERROR", "An unexpected error occurred.", requestId),
@@ -405,6 +418,36 @@ export async function runTenantDeviceWriteRoute<TBody, TResult>(options: {
     const idempotencyKey = requireIdempotencyKey(options.request);
     const body = await parseJsonBody(options.request, options.requestSchema);
     const value = await options.handler({ tenantId, body, idempotencyKey });
+    return jsonResponse(
+      200,
+      validateResponse(options.responseSchema, value),
+      requestId,
+      options.request,
+    );
+  } catch (error) {
+    return mapError(error, requestId, options.request);
+  }
+}
+
+/**
+ * Runs a PUBLIC JSON body route: no tenant header, no authorization context, no idempotency key. It parses
+ * and validates the body, invokes the handler, validates the response contract, and maps thrown errors to
+ * the frozen envelope. This is the boundary for the pos_pin login endpoint, which is pre-tenant and pre-auth
+ * by nature — the credential itself (username + PIN) is what authenticates, verified inside the handler.
+ */
+export async function runPublicBodyRoute<TBody, TResult>(options: {
+  readonly request: Request;
+  readonly requestSchema: z.ZodType<TBody>;
+  readonly responseSchema: z.ZodType<TResult>;
+  readonly handler: (input: {
+    readonly body: TBody;
+    readonly requestId: string;
+  }) => Promise<TResult>;
+}): Promise<Response> {
+  const requestId = crypto.randomUUID();
+  try {
+    const body = await parseJsonBody(options.request, options.requestSchema);
+    const value = await options.handler({ body, requestId });
     return jsonResponse(
       200,
       validateResponse(options.responseSchema, value),

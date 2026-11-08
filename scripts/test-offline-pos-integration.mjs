@@ -95,6 +95,11 @@ try {
       POS_TEST_SUPABASE_URL: status.API_URL,
       POS_TEST_SUPABASE_SERVICE_ROLE_KEY: status.SERVICE_ROLE_KEY,
       POS_TEST_SUPABASE_ANON_KEY: status.ANON_KEY,
+      // Server KEK that seals offline-unlock PINs at rest. A base64-encoded 32-byte key, generated per
+      // run so the offline-PIN roster path is exercised with the same key the API would hold in prod.
+      POS_TEST_OFFLINE_PIN_KEK: Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString(
+        "base64",
+      ),
     },
     stdio: "inherit",
   });

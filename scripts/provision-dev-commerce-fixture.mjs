@@ -1,7 +1,7 @@
 // Development-only canonical commerce fixture for Admin Mobile and Connected POS acceptance.
 //
 // It seeds a small, deterministic, representative commerce graph (brand -> branch -> inventory location
-// -> active USD register -> products/variants/options/prices -> opening inventory -> one online order ->
+// -> active EGP register -> products/variants/options/prices -> opening inventory -> one online order ->
 // one partial fulfillment) into the EXISTING dev-local tenant so the API clients have real data to
 // exercise. It COMPLEMENTS
 // scripts/provision-dev-identity.mjs and requires the dev-local tenant to already exist.
@@ -27,7 +27,7 @@ const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]", "0.0.0.0"
 
 export const USAGE = `Usage: COMMERCE_DEV_FIXTURES=1 pnpm dev:provision-commerce-fixture
 
-Seeds a small deterministic commerce graph (brand, branch, inventory location, active USD register,
+Seeds a small deterministic commerce graph (brand, branch, inventory location, active EGP register,
 two products with variants/options/prices, opening inventory, one online order, one partial
 fulfillment, and a bounded offline policy) into the existing local dev-local tenant for API acceptance.
 

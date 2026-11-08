@@ -1,15 +1,29 @@
 import type { AuthorizedOperationContext } from "../authorization";
 import type {
   EnrollPosDeviceRequest,
+  IngestOfflineCustomerPaymentResponse,
   IngestOfflineSaleResponse,
   OfflineBootstrapResponse,
+  OfflineCustomerPaymentCommand,
   OfflineSaleCommand,
   PosDeviceResponse,
+  SetStaffOfflinePinResponse,
 } from "../contracts";
+import type { EncryptedOfflinePin, ScryptVerifierParams } from "./offline-pin-crypto";
 
 export interface OfflineCredential {
   readonly deviceId: string;
   readonly publicKeySpkiBase64: string;
+}
+
+/** A roster row as stored: the PIN is still SEALED. The service unseals it transiently to derive the
+ * device-bound verifier; the repository never touches plaintext or the KEK. */
+export interface SealedRosterEntry {
+  readonly membershipId: string;
+  readonly username: string;
+  readonly displayName: string;
+  readonly material: EncryptedOfflinePin;
+  readonly params: ScryptVerifierParams;
 }
 
 export interface OfflinePosRepository {
@@ -49,6 +63,16 @@ export interface OfflinePosRepository {
     credentialId: string,
     deviceId: string,
   ): Promise<OfflineCredential | null>;
+  setOfflinePin(
+    proof: AuthorizedOperationContext,
+    tenantId: string,
+    actorMembershipId: string,
+    membershipId: string,
+    idempotencyKey: string,
+    material: EncryptedOfflinePin,
+    params: ScryptVerifierParams,
+  ): Promise<SetStaffOfflinePinResponse>;
+  getStaffRoster(tenantId: string, registerId: string): Promise<SealedRosterEntry[]>;
   ingest(
     tenantId: string,
     credentialId: string,
@@ -57,4 +81,12 @@ export interface OfflinePosRepository {
     commandFingerprint: string,
     signature: string,
   ): Promise<IngestOfflineSaleResponse>;
+  ingestPayment(
+    tenantId: string,
+    credentialId: string,
+    command: OfflineCustomerPaymentCommand,
+    canonicalCommand: string,
+    commandFingerprint: string,
+    signature: string,
+  ): Promise<IngestOfflineCustomerPaymentResponse>;
 }

@@ -22,6 +22,7 @@ export interface RecordPosSaleCommand {
   readonly expectedTotalMinor: number;
   readonly cashReceivedMinor: number | null;
   readonly tenders: readonly PosTenderInput[] | null;
+  readonly amountPaidMinor: number | null;
   readonly lines: readonly ResolvedPosSaleLine[];
   readonly promotionCode: string | null;
   readonly customer: PosCustomerInput | null;

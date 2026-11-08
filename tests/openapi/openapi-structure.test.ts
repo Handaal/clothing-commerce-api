@@ -62,6 +62,7 @@ describe("OpenAPI management surface", () => {
         "/api/v1/staff/assignable-roles",
         "/api/v1/staff/assignable-scopes",
         "/api/v1/staff/{membershipId}",
+        "/api/v1/staff/{membershipId}/offline-pin",
         "/api/v1/staff/{membershipId}/role-assignments",
         "/api/v1/staff/{membershipId}/role-assignments/{assignmentId}",
         "/api/v1/inventory",
@@ -82,6 +83,7 @@ describe("OpenAPI management surface", () => {
         "/api/v1/pos/devices/{deviceId}/credentials",
         "/api/v1/pos/devices/{deviceId}/revoke",
         "/api/v1/pos/offline-bootstrap",
+        "/api/v1/pos/offline-customer-payments",
         "/api/v1/pos/offline-sales",
         "/api/v1/products",
         "/api/v1/products/{productId}",
@@ -92,10 +94,17 @@ describe("OpenAPI management surface", () => {
         "/api/v1/products/{productId}/media/upload-intent",
         "/api/v1/products/{productId}/media/{mediaId}",
         "/api/v1/variants/{variantId}/price",
+        "/api/v1/variants/{variantId}/cost",
+        "/api/v1/collections",
+        "/api/v1/collections/{collectionId}",
+        "/api/v1/collections/{collectionId}/status",
+        "/api/v1/collections/{collectionId}/products",
         "/api/v1/storefront/checkout",
         "/api/v1/storefront/quote",
         "/api/v1/storefront/products",
         "/api/v1/storefront/products/{slug}",
+        "/api/v1/storefront/collections",
+        "/api/v1/storefront/collections/{slug}",
         "/api/v1/pos/quote",
         "/api/v1/promotions",
         "/api/v1/promotions/{promotionId}",
@@ -212,6 +221,7 @@ describe("OpenAPI management surface", () => {
       "/api/v1/pos/devices/{deviceId}/revoke",
       "/api/v1/pos/offline-bootstrap",
       "/api/v1/pos/offline-sales",
+      "/api/v1/pos/offline-customer-payments",
     ])
       expect(hasIdempotencyHeader(path)).toBe(true);
   });
@@ -242,6 +252,7 @@ describe("OpenAPI management surface", () => {
       "/api/v1/pos/devices/{deviceId}/revoke",
       "/api/v1/pos/offline-bootstrap",
       "/api/v1/pos/offline-sales",
+      "/api/v1/pos/offline-customer-payments",
     ]) {
       expect(hasTenantHeader(tenantRoute)).toBe(true);
     }
@@ -270,6 +281,7 @@ describe("OpenAPI management surface", () => {
       expect(operationOf(managementRoute).security).toEqual([{ clerkSessionToken: [] }]);
     }
     expect(operationOf("/api/v1/pos/offline-sales").security).toEqual([]);
+    expect(operationOf("/api/v1/pos/offline-customer-payments").security).toEqual([]);
     expect(
       (paths["/api/v1/health"] as { get: { security?: unknown } }).get.security,
     ).toBeUndefined();

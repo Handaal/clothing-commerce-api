@@ -51,6 +51,13 @@ export interface SetVariantPriceCommand {
   readonly idempotencyKey: string;
 }
 
+export interface SetVariantCostCommand {
+  readonly tenantId: string;
+  readonly variantId: string;
+  readonly unitCostMinor: number;
+  readonly idempotencyKey: string;
+}
+
 export interface PublishProductCommand {
   readonly tenantId: string;
   readonly productId: string;
@@ -112,6 +119,10 @@ export interface CatalogWriteRepository {
     proof: AuthorizedOperationContext,
     command: SetVariantPriceCommand,
   ): Promise<{ priceId: string; currency: string; amountMinor: number }>;
+  setVariantCost(
+    proof: AuthorizedOperationContext,
+    command: SetVariantCostCommand,
+  ): Promise<{ variantId: string; unitCostMinor: number }>;
   publishProduct(
     proof: AuthorizedOperationContext,
     command: PublishProductCommand,

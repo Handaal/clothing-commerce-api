@@ -78,6 +78,8 @@ export type UpdateSupplierInput = UpdateSupplierRequest & IdempotentWrite & { su
 export type RecordSupplierPurchaseInput = RecordSupplierPurchaseRequest & IdempotentWrite;
 export type RecordSupplierPaymentInput = RecordSupplierPaymentRequest &
   IdempotentWrite & { supplierId: string };
+export type RecordCustomerPaymentInput = RecordCustomerPaymentRequest &
+  IdempotentWrite & { customerId: string };
 export type CreateSupplierReminderInput = CreateSupplierReminderRequest & IdempotentWrite;
 export type UpdateSupplierReminderInput = UpdateSupplierReminderRequest &
   IdempotentWrite & { reminderId: string };
@@ -148,7 +150,16 @@ export interface AssignmentCatalogQuery {
 export type CreateStaffInput = CreateStaffRequest & IdempotentWrite;
 /** Provision an email-less staff login (external account + identity + membership + initial assignment). */
 export type CreateStaffLoginInput = CreateStaffLoginRequest & IdempotentWrite;
+/** Set or rotate a staff member's offline-unlock PIN (independent of their Clerk online password). */
+export type SetStaffOfflinePinInput = SetStaffOfflinePinRequest &
+  IdempotentWrite & { membershipId: string };
 export type UpdateStaffStatusInput = UpdateStaffStatusRequest &
+  IdempotentWrite & { membershipId: string };
+/** Provision a pos_pin login (server-minted subject + online PIN verifier + membership + POS UI access). */
+export type CreatePosLoginInput = CreatePosLoginRequest & IdempotentWrite;
+export type UpdatePosLoginInput = UpdatePosLoginRequest &
+  IdempotentWrite & { membershipId: string };
+export type SetPosLoginPinInput = SetPosLoginPinRequest &
   IdempotentWrite & { membershipId: string };
 export type AssignStaffRoleInput = AssignStaffRoleRequest &
   IdempotentWrite & { membershipId: string };
@@ -529,6 +540,9 @@ import {
   CustomerDetailResponseSchema,
   CustomerOrdersResponseSchema,
   CustomerLookupResponseSchema,
+  RecordCustomerPaymentResponseSchema,
+  CustomerPaymentsResponseSchema,
+  CustomerDuesResponseSchema,
   ProductDetailResponseSchema,
   ProductListResponseSchema,
   PosContextResponseSchema,
@@ -536,6 +550,11 @@ import {
   PosDeviceResponseSchema,
   OfflineBootstrapResponseSchema,
   IngestOfflineSaleResponseSchema,
+  IngestOfflineCustomerPaymentResponseSchema,
+  SetStaffOfflinePinResponseSchema,
+  PosLoginResponseSchema,
+  SetPosLoginPinResponseSchema,
+  PosLoginListResponseSchema,
   ReceiveInventoryResponseSchema,
   TransferInventoryResponseSchema,
   ProductWriteResponseSchema,
@@ -544,17 +563,40 @@ import {
   UnpublishProductResponseSchema,
   CreateVariantResponseSchema,
   SetVariantPriceResponseSchema,
+  SetVariantCostResponseSchema,
   MediaUploadIntentResponseSchema,
   RegisterProductMediaResponseSchema,
   ArchiveProductMediaResponseSchema,
   PublicProductListResponseSchema,
   PublicProductDetailResponseSchema,
+  CollectionListResponseSchema,
+  CollectionDetailResponseSchema,
+  CollectionWriteResponseSchema,
+  CollectionUpdatedResponseSchema,
+  SetCollectionProductsResponseSchema,
+  PublicCollectionListResponseSchema,
+  PublicCollectionDetailResponseSchema,
+  type CollectionListResponse,
+  type CollectionDetailResponse,
+  type CollectionWriteResponse,
+  type CollectionUpdatedResponse,
+  type SetCollectionProductsResponse,
+  type CreateCollectionRequest,
+  type UpdateCollectionRequest,
+  type SetCollectionStatusRequest,
+  type CollectionStatus,
+  type PublicCollectionSummary,
+  type PublicCollectionListResponse,
+  type PublicCollectionDetail,
+  type PublicCollectionDetailResponse,
   type ProductWriteResponse,
   type ProductUpdatedResponse,
   type PublishProductResponse,
   type UnpublishProductResponse,
   type CreateVariantResponse,
   type SetVariantPriceResponse,
+  type SetVariantCostRequest,
+  type SetVariantCostResponse,
   type MediaUploadIntentResponse,
   type RegisterProductMediaResponse,
   type ArchiveProductMediaResponse,
@@ -576,6 +618,12 @@ import {
   type CustomerDetailResponse,
   type CustomerOrdersResponse,
   type CustomerLookupResponse,
+  type RecordCustomerPaymentRequest,
+  type RecordCustomerPaymentResponse,
+  type CustomerPayment,
+  type CustomerPaymentsResponse,
+  type CustomerDue,
+  type CustomerDuesResponse,
   type OrderStatus,
   type ProductDetailResponse,
   type ProductListResponse,
@@ -589,10 +637,38 @@ import {
   type OfflineSaleCommand,
   type IngestOfflineSaleRequest,
   type IngestOfflineSaleResponse,
+  type OfflineCustomerPaymentCommand,
+  type IngestOfflineCustomerPaymentRequest,
+  type IngestOfflineCustomerPaymentResponse,
+  type OfflineStaffRosterEntry,
+  type StaffPinVerifier,
+  type SetStaffOfflinePinRequest,
+  type SetStaffOfflinePinResponse,
+  type PosLoginRequest,
+  type PosLoginResponse,
+  type CreatePosLoginRequest,
+  type UpdatePosLoginRequest,
+  type SetPosLoginPinRequest,
+  type SetPosLoginPinResponse,
+  type PosLoginListResponse,
   type ReceiveInventoryResponse,
   type TransferInventoryResponse,
 } from "../../../src/contracts";
-export { canonicalizeOfflineSaleCommand } from "../../../src/contracts";
+export type {
+  PosLoginRequest,
+  PosLoginResponse,
+  PosOperator,
+  CreatePosLoginRequest,
+  UpdatePosLoginRequest,
+  SetPosLoginPinRequest,
+  SetPosLoginPinResponse,
+  PosLoginSummary,
+  PosLoginListResponse,
+} from "../../../src/contracts";
+export {
+  canonicalizeOfflineSaleCommand,
+  canonicalizeOfflineCustomerPaymentCommand,
+} from "../../../src/contracts";
 import packageMetadata from "../package.json";
 import type { z } from "zod";
 
@@ -695,6 +771,9 @@ export interface CreatePosSaleInput extends IdempotentWrite {
   // Optional customer captured at the register. The server matches/creates by normalized phone and
   // snapshots the contact onto the order. Omit for an anonymous sale.
   customer?: { name: string; phone: string };
+  // Installment deposit. Omit to settle in full. When below expectedTotalMinor the remainder becomes a
+  // customer debt, so a positive deposit and a customer are required.
+  amountPaidMinor?: number;
 }
 
 export interface EnrollPosDeviceInput extends EnrollPosDeviceRequest, IdempotentWrite {}
@@ -710,6 +789,8 @@ export interface RevokePosDeviceInput extends IdempotentWrite {
 }
 export interface OfflineBootstrapInput extends OfflineBootstrapRequest, IdempotentWrite {}
 export interface IngestOfflineSaleInput extends IngestOfflineSaleRequest, IdempotentWrite {}
+export interface IngestOfflineCustomerPaymentInput
+  extends IngestOfflineCustomerPaymentRequest, IdempotentWrite {}
 
 // ---- Phase 2J catalog management inputs ----
 export interface CreateProductInput extends IdempotentWrite {
@@ -744,6 +825,9 @@ export interface SetVariantPriceInput extends IdempotentWrite {
   currency: string;
   amountMinor: number;
 }
+export interface SetVariantCostInput extends IdempotentWrite, SetVariantCostRequest {
+  variantId: string;
+}
 export interface CreateProductMediaUploadIntentInput {
   productId: string;
   variantId?: string;
@@ -764,12 +848,33 @@ export interface ArchiveProductMediaInput extends IdempotentWrite {
   mediaId: string;
 }
 
+// ---- Collections management inputs ----
+export interface CreateCollectionInput extends IdempotentWrite, CreateCollectionRequest {}
+export interface UpdateCollectionInput extends IdempotentWrite, UpdateCollectionRequest {
+  collectionId: string;
+}
+export interface SetCollectionStatusInput extends IdempotentWrite, SetCollectionStatusRequest {
+  collectionId: string;
+}
+export interface SetCollectionProductsInput extends IdempotentWrite {
+  collectionId: string;
+  productIds: string[];
+}
+
 export interface PublicCatalogListQuery {
   tenantId: string;
   brandId?: string;
   limit?: number;
 }
 export interface PublicProductQuery {
+  tenantId: string;
+  slug: string;
+}
+export interface PublicCollectionListQuery {
+  tenantId: string;
+  limit?: number;
+}
+export interface PublicCollectionQuery {
   tenantId: string;
   slug: string;
 }
@@ -787,11 +892,18 @@ export interface TenantCommerceClient {
   unpublishProduct(input: PublishProductInput): Promise<UnpublishProductResponse>;
   createVariant(input: CreateVariantInput): Promise<CreateVariantResponse>;
   setVariantPrice(input: SetVariantPriceInput): Promise<SetVariantPriceResponse>;
+  setVariantCost(input: SetVariantCostInput): Promise<SetVariantCostResponse>;
   createProductMediaUploadIntent(
     input: CreateProductMediaUploadIntentInput,
   ): Promise<MediaUploadIntentResponse>;
   registerProductMedia(input: RegisterProductMediaInput): Promise<RegisterProductMediaResponse>;
   archiveProductMedia(input: ArchiveProductMediaInput): Promise<ArchiveProductMediaResponse>;
+  listCollections(): Promise<CollectionListResponse>;
+  getCollection(collectionId: string): Promise<CollectionDetailResponse>;
+  createCollection(input: CreateCollectionInput): Promise<CollectionWriteResponse>;
+  updateCollection(input: UpdateCollectionInput): Promise<CollectionUpdatedResponse>;
+  setCollectionStatus(input: SetCollectionStatusInput): Promise<CollectionWriteResponse>;
+  setCollectionProducts(input: SetCollectionProductsInput): Promise<SetCollectionProductsResponse>;
   listInventory(query?: InventoryListQuery): Promise<InventoryListResponse>;
   listSuppliers(query?: SupplierListQuery): Promise<SupplierListResponse>;
   getSupplier(supplierId: string): Promise<Supplier>;
@@ -831,6 +943,17 @@ export interface TenantCommerceClient {
    * role + scope.
    */
   createStaffLogin(input: CreateStaffLoginInput): Promise<StaffDetail>;
+  /** Admin "Team" surface for pos_pin accounts (the POS-native login the floor uses). */
+  listPosLogins(): Promise<PosLoginListResponse>;
+  createPosLogin(input: CreatePosLoginInput): Promise<StaffDetail>;
+  updatePosLogin(input: UpdatePosLoginInput): Promise<StaffDetail>;
+  setPosLoginPin(input: SetPosLoginPinInput): Promise<SetPosLoginPinResponse>;
+  /**
+   * Set or rotate a staff member's OFFLINE-unlock PIN — a credential independent of their Clerk online
+   * password, used by the POS offline cashier. The server seals the PIN; the offline bootstrap later emits
+   * a device-bound verifier derived from it.
+   */
+  setStaffOfflinePin(input: SetStaffOfflinePinInput): Promise<SetStaffOfflinePinResponse>;
   updateStaffStatus(input: UpdateStaffStatusInput): Promise<StaffDetail>;
   assignStaffRole(input: AssignStaffRoleInput): Promise<StaffDetail>;
   unassignStaffRole(input: UnassignStaffRoleInput): Promise<StaffDetail>;
@@ -876,6 +999,10 @@ export interface TenantCommerceClient {
   ): Promise<CustomerOrdersResponse>;
   /** Match an existing customer by phone (normalized server-side); null when none. */
   lookupCustomerByPhone(phone: string): Promise<CustomerLookupResponse>;
+  /** Installments / accounts receivable. Reads gated on orders.read; recording a paydown on payments.capture. */
+  recordCustomerPayment(input: RecordCustomerPaymentInput): Promise<RecordCustomerPaymentResponse>;
+  listCustomerPayments(customerId: string): Promise<CustomerPaymentsResponse>;
+  listCustomerDues(): Promise<CustomerDuesResponse>;
   getReturnEligibility(orderId: string): Promise<ReturnEligibilityResponse>;
   listReturns(
     orderId: string,
@@ -946,10 +1073,19 @@ export interface TenantCommerceClient {
   rotatePosDeviceCredential(input: RotatePosDeviceCredentialInput): Promise<PosDeviceResponse>;
   revokePosDevice(input: RevokePosDeviceInput): Promise<PosDeviceResponse>;
   createOfflineBootstrap(input: OfflineBootstrapInput): Promise<OfflineBootstrapResponse>;
+  ingestOfflineCustomerPayment(
+    input: IngestOfflineCustomerPaymentInput,
+  ): Promise<IngestOfflineCustomerPaymentResponse>;
   ingestOfflineSale(input: IngestOfflineSaleInput): Promise<IngestOfflineSaleResponse>;
 }
 
 export interface CommerceClient {
+  /**
+   * POS-native (pos_pin) connected sign-in: username + PIN. Public — no tenant context or bearer token is
+   * required (the credential IS the authentication). Returns a short-lived access token the POS then feeds
+   * to `getToken`, plus the operator to render and the tenant it resolved to.
+   */
+  posPinLogin(input: PosLoginRequest): Promise<PosLoginResponse>;
   checkout(input: CheckoutRequest & { idempotencyKey: string }): Promise<CheckoutResult>;
   /** Non-consuming Storefront pricing quote (no order, no reservation, no redemption). */
   quote(input: StorefrontQuoteRequest): Promise<StorefrontQuoteResponse>;
@@ -965,6 +1101,9 @@ export interface CommerceClient {
    */
   listPublishedProducts(query: PublicCatalogListQuery): Promise<PublicProductListResponse>;
   getPublishedProduct(query: PublicProductQuery): Promise<PublicProductDetailResponse>;
+  /** Public Storefront collection reads. Unauthenticated; tenant is an explicit query parameter. */
+  listPublishedCollections(query: PublicCollectionListQuery): Promise<PublicCollectionListResponse>;
+  getPublishedCollection(query: PublicCollectionQuery): Promise<PublicCollectionDetailResponse>;
 }
 
 export class CommerceSdkError extends Error {}
@@ -1205,6 +1344,12 @@ export function createCommerceClient({
           SetVariantPriceResponseSchema,
           { tenantId, method: "PUT", body, idempotencyKey },
         ),
+      setVariantCost: ({ idempotencyKey, variantId, ...body }: SetVariantCostInput) =>
+        request(
+          `/api/v1/variants/${encodeURIComponent(variantId)}/cost`,
+          SetVariantCostResponseSchema,
+          { tenantId, method: "PUT", body, idempotencyKey },
+        ),
       createProductMediaUploadIntent: ({
         productId,
         ...body
@@ -1225,6 +1370,43 @@ export function createCommerceClient({
           `/api/v1/products/${encodeURIComponent(productId)}/media/${encodeURIComponent(mediaId)}`,
           ArchiveProductMediaResponseSchema,
           { tenantId, method: "DELETE", body: {}, idempotencyKey },
+        ),
+      listCollections: () =>
+        request("/api/v1/collections", CollectionListResponseSchema, { tenantId }),
+      getCollection: (collectionId: string) =>
+        request(
+          `/api/v1/collections/${encodeURIComponent(collectionId)}`,
+          CollectionDetailResponseSchema,
+          { tenantId },
+        ),
+      createCollection: ({ idempotencyKey, ...body }: CreateCollectionInput) =>
+        request("/api/v1/collections", CollectionWriteResponseSchema, {
+          tenantId,
+          method: "POST",
+          body,
+          idempotencyKey,
+        }),
+      updateCollection: ({ idempotencyKey, collectionId, ...body }: UpdateCollectionInput) =>
+        request(
+          `/api/v1/collections/${encodeURIComponent(collectionId)}`,
+          CollectionUpdatedResponseSchema,
+          { tenantId, method: "PATCH", body, idempotencyKey },
+        ),
+      setCollectionStatus: ({ idempotencyKey, collectionId, ...body }: SetCollectionStatusInput) =>
+        request(
+          `/api/v1/collections/${encodeURIComponent(collectionId)}/status`,
+          CollectionWriteResponseSchema,
+          { tenantId, method: "POST", body, idempotencyKey },
+        ),
+      setCollectionProducts: ({
+        idempotencyKey,
+        collectionId,
+        ...body
+      }: SetCollectionProductsInput) =>
+        request(
+          `/api/v1/collections/${encodeURIComponent(collectionId)}/products`,
+          SetCollectionProductsResponseSchema,
+          { tenantId, method: "PUT", body, idempotencyKey },
         ),
       listInventory: (query = {}) =>
         request(
@@ -1391,6 +1573,34 @@ export function createCommerceClient({
           body,
           idempotencyKey,
         }),
+      listPosLogins: () =>
+        request("/api/v1/pos/staff-logins", PosLoginListResponseSchema, { tenantId }),
+      createPosLogin: ({ idempotencyKey, ...body }: CreatePosLoginInput) =>
+        request("/api/v1/pos/staff-logins", StaffDetailSchema, {
+          tenantId,
+          method: "POST",
+          body,
+          idempotencyKey,
+        }),
+      updatePosLogin: ({ membershipId, idempotencyKey, ...body }: UpdatePosLoginInput) =>
+        request(`/api/v1/pos/staff-logins/${encodeURIComponent(membershipId)}`, StaffDetailSchema, {
+          tenantId,
+          method: "PATCH",
+          body,
+          idempotencyKey,
+        }),
+      setPosLoginPin: ({ membershipId, idempotencyKey, ...body }: SetPosLoginPinInput) =>
+        request(
+          `/api/v1/pos/staff-logins/${encodeURIComponent(membershipId)}/pin`,
+          SetPosLoginPinResponseSchema,
+          { tenantId, method: "PUT", body, idempotencyKey },
+        ),
+      setStaffOfflinePin: ({ membershipId, idempotencyKey, ...body }: SetStaffOfflinePinInput) =>
+        request(
+          `/api/v1/staff/${encodeURIComponent(membershipId)}/offline-pin`,
+          SetStaffOfflinePinResponseSchema,
+          { tenantId, method: "PUT", body, idempotencyKey },
+        ),
       updateStaffStatus: ({ membershipId, idempotencyKey, ...body }: UpdateStaffStatusInput) =>
         request(`/api/v1/staff/${encodeURIComponent(membershipId)}`, StaffDetailSchema, {
           tenantId,
@@ -1583,6 +1793,29 @@ export function createCommerceClient({
         request(`/api/v1/customers/lookup${buildQuery({ phone })}`, CustomerLookupResponseSchema, {
           tenantId,
         }),
+      recordCustomerPayment: ({
+        customerId,
+        idempotencyKey,
+        ...body
+      }: RecordCustomerPaymentInput) =>
+        request(
+          `/api/v1/customers/${encodeURIComponent(customerId)}/payments`,
+          RecordCustomerPaymentResponseSchema,
+          {
+            tenantId,
+            method: "POST",
+            body,
+            idempotencyKey,
+          },
+        ),
+      listCustomerPayments: (customerId: string) =>
+        request(
+          `/api/v1/customers/${encodeURIComponent(customerId)}/payments`,
+          CustomerPaymentsResponseSchema,
+          { tenantId },
+        ),
+      listCustomerDues: () =>
+        request("/api/v1/customers/dues", CustomerDuesResponseSchema, { tenantId }),
       getPosContext: () => request("/api/v1/pos/context", PosContextResponseSchema, { tenantId }),
       getReturnEligibility: (orderId: string) =>
         request(
@@ -1973,10 +2206,24 @@ export function createCommerceClient({
           body,
           idempotencyKey,
         }),
+      ingestOfflineCustomerPayment: ({
+        idempotencyKey,
+        ...body
+      }: IngestOfflineCustomerPaymentInput) =>
+        request(
+          "/api/v1/pos/offline-customer-payments",
+          IngestOfflineCustomerPaymentResponseSchema,
+          { tenantId, method: "POST", body, idempotencyKey },
+        ),
     };
   }
 
   return {
+    posPinLogin: (body: PosLoginRequest) =>
+      request("/api/v1/pos/auth/login", PosLoginResponseSchema, {
+        method: "POST",
+        body,
+      }),
     checkout: ({ idempotencyKey, ...intent }) =>
       request("/api/v1/storefront/checkout", CheckoutResultSchema, {
         method: "POST",
@@ -2007,6 +2254,21 @@ export function createCommerceClient({
         })}`,
         PublicProductDetailResponseSchema,
       ),
+    listPublishedCollections: (query: PublicCollectionListQuery) =>
+      request(
+        `/api/v1/storefront/collections${buildQuery({
+          tenantId: query.tenantId,
+          limit: query.limit,
+        })}`,
+        PublicCollectionListResponseSchema,
+      ),
+    getPublishedCollection: (query: PublicCollectionQuery) =>
+      request(
+        `/api/v1/storefront/collections/${encodeURIComponent(query.slug)}${buildQuery({
+          tenantId: query.tenantId,
+        })}`,
+        PublicCollectionDetailResponseSchema,
+      ),
   };
 }
 
@@ -2028,24 +2290,47 @@ export type {
   CustomerDetailResponse,
   CustomerOrdersResponse,
   CustomerLookupResponse,
+  RecordCustomerPaymentRequest,
+  RecordCustomerPaymentResponse,
+  CustomerPayment,
+  CustomerPaymentsResponse,
+  CustomerDue,
+  CustomerDuesResponse,
   PosContextResponse,
   CreatePosSaleResponse,
   PosDeviceResponse,
   OfflineBootstrapResponse,
   OfflineSaleCommand,
   IngestOfflineSaleResponse,
+  OfflineCustomerPaymentCommand,
+  IngestOfflineCustomerPaymentResponse,
+  OfflineStaffRosterEntry,
+  StaffPinVerifier,
+  SetStaffOfflinePinRequest,
+  SetStaffOfflinePinResponse,
   ProductWriteResponse,
   ProductUpdatedResponse,
   PublishProductResponse,
   UnpublishProductResponse,
   CreateVariantResponse,
   SetVariantPriceResponse,
+  SetVariantCostResponse,
   MediaUploadIntentResponse,
   RegisterProductMediaResponse,
   ArchiveProductMediaResponse,
   PublicProduct,
   PublicProductListResponse,
   PublicProductDetailResponse,
+  CollectionListResponse,
+  CollectionDetailResponse,
+  CollectionWriteResponse,
+  CollectionUpdatedResponse,
+  SetCollectionProductsResponse,
+  CollectionStatus,
+  PublicCollectionSummary,
+  PublicCollectionListResponse,
+  PublicCollectionDetail,
+  PublicCollectionDetailResponse,
   StorefrontStatus,
 };
 import {

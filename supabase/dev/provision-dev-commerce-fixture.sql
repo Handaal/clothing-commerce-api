@@ -159,7 +159,7 @@ begin
     default_inventory_location_id, selling_currency
   ) values (
     c_register, v_tenant_id, v_branch_id, 'DEV-REG-1', 'Dev Front Register', 'active',
-    v_location_id, 'USD'
+    v_location_id, 'EGP'
   ) on conflict (tenant_id, branch_id, normalized_code) do nothing;
   select id into v_register_id from public.registers
   where tenant_id = v_tenant_id and branch_id = v_branch_id and normalized_code = 'dev-reg-1';
@@ -169,10 +169,10 @@ begin
   insert into public.offline_pos_policies (
     id, tenant_id, register_id, enabled, operator_lease_seconds, catalog_grant_seconds,
     max_sale_amount_minor, max_cumulative_exposure_minor, max_quantity_per_line,
-    max_pending_offline_sales
+    max_pending_offline_sales, max_offline_credit_exposure_minor
   ) values (
     c_offline_policy, v_tenant_id, v_register_id, true, 43200, 86400,
-    100000, 500000, 20, 50
+    100000, 500000, 20, 50, 300000
   ) on conflict (tenant_id, register_id) do nothing;
 
   -- 3. Product 1: an ACTIVE style with a Size option (M, L) and two active variants.
@@ -233,10 +233,10 @@ begin
   on conflict (tenant_id, variant_id, option_id) do nothing;
 
   insert into public.variant_prices (tenant_id, variant_id, currency, amount_minor, status)
-  values (v_tenant_id, v_variant_m_id, 'USD', 2599, 'active')
+  values (v_tenant_id, v_variant_m_id, 'EGP', 2599, 'active')
   on conflict (tenant_id, variant_id, currency) where status = 'active' do nothing;
   insert into public.variant_prices (tenant_id, variant_id, currency, amount_minor, status)
-  values (v_tenant_id, v_variant_l_id, 'USD', 2599, 'active')
+  values (v_tenant_id, v_variant_l_id, 'EGP', 2599, 'active')
   on conflict (tenant_id, variant_id, currency) where status = 'active' do nothing;
 
   -- 4. Product 2: a DRAFT style (different legitimate status) so list status rendering is visible. One
@@ -261,7 +261,7 @@ begin
   where tenant_id = v_tenant_id and normalized_sku = 'dev-ct-001';
 
   insert into public.variant_prices (tenant_id, variant_id, currency, amount_minor, status)
-  values (v_tenant_id, v_variant_2_id, 'USD', 1899, 'active')
+  values (v_tenant_id, v_variant_2_id, 'EGP', 1899, 'active')
   on conflict (tenant_id, variant_id, currency) where status = 'active' do nothing;
 
   -- 5. Opening inventory via the SOLE sanctioned inventory write path. A stable idempotency key makes a
@@ -286,7 +286,7 @@ begin
   select orders_private.create_order(
     v_tenant_id,
     'online',
-    'USD',
+    'EGP',
     v_brand_id,
     null,
     null,

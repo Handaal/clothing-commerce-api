@@ -10,8 +10,10 @@ import type {
 
 const IdRowSchema = z.object({ id: z.string().uuid() });
 
-// One joined statement: the on-hand balance plus the variant SKU and product name. The nested shape is
-// PostgREST embedding across the (tenant_id, variant_id) and (tenant_id, product_id) composite FKs.
+// One joined statement: the on-hand balance plus the variant SKU/cost, the product identity (id, brand,
+// name) and the active selling price. The nested shape is PostgREST embedding across the composite FKs;
+// variant_prices is a LEFT embed filtered to the active row, so a variant with no price yields an empty
+// array (null selling price) rather than dropping the stock row.
 const BalanceListRowSchema = z.object({
   inventory_location_id: z.string().uuid(),
   variant_id: z.string().uuid(),
@@ -19,7 +21,9 @@ const BalanceListRowSchema = z.object({
   version: z.union([z.number(), z.string()]),
   product_variants: z.object({
     sku: z.string(),
-    products: z.object({ name: z.string() }),
+    unit_cost_minor: z.union([z.number(), z.string()]).nullable(),
+    products: z.object({ id: z.string().uuid(), brand_id: z.string().uuid(), name: z.string() }),
+    variant_prices: z.array(z.object({ amount_minor: z.union([z.number(), z.string()]) })),
   }),
 });
 
@@ -58,9 +62,11 @@ export class SupabaseInventoryReadRepository implements InventoryReadRepository 
     let request = this.client
       .from("inventory_balances")
       .select(
-        "inventory_location_id,variant_id,on_hand_quantity,version,product_variants!inner(sku,products!inner(name))",
+        "inventory_location_id,variant_id,on_hand_quantity,version,product_variants!inner(sku,unit_cost_minor,products!inner(id,brand_id,name),variant_prices(amount_minor))",
       )
-      .eq("tenant_id", query.tenantId);
+      .eq("tenant_id", query.tenantId)
+      // Only the active price row contributes the selling price; archived history is excluded.
+      .eq("product_variants.variant_prices.status", "active");
 
     // Visibility predicate FIRST (before order/cursor/limit).
     if (!query.visibility.tenantWide) {
@@ -89,9 +95,19 @@ export class SupabaseInventoryReadRepository implements InventoryReadRepository 
       balance: {
         inventoryLocationId: row.inventory_location_id,
         variantId: row.variant_id,
+        productId: row.product_variants.products.id,
+        brandId: row.product_variants.products.brand_id,
         productName: row.product_variants.products.name,
         sku: row.product_variants.sku,
         onHand: toSafeInteger(row.on_hand_quantity),
+        unitCostMinor:
+          row.product_variants.unit_cost_minor === null
+            ? null
+            : toSafeInteger(row.product_variants.unit_cost_minor),
+        sellingPriceMinor:
+          row.product_variants.variant_prices.length === 0
+            ? null
+            : toSafeInteger(row.product_variants.variant_prices[0].amount_minor),
         version: toSafeInteger(row.version),
       },
       cursor: {

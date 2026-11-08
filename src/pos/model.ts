@@ -42,12 +42,40 @@ export const CreatePosSaleInputSchema = z
     expectedTotalMinor: MoneySchema,
     cashReceivedMinor: MoneySchema.optional(),
     tenders: z.array(PosTenderInputSchema).min(1).max(4).optional(),
+    // Deposit for an installment sale. When omitted the sale is settled in full. When present and less
+    // than expectedTotalMinor the remainder becomes a customer debt, so a customer is required.
+    amountPaidMinor: MoneySchema.optional(),
     lines: z.array(z.object({ variantId: UuidSchema, quantity: QuantitySchema }).strict()).min(1),
     promotionCode: PromotionCodeSchema,
     customer: PosCustomerInputSchema.optional(),
   })
   .strict()
   .superRefine((value, ctx) => {
+    if (value.amountPaidMinor !== undefined) {
+      if (value.amountPaidMinor > value.expectedTotalMinor) {
+        ctx.addIssue({
+          code: "custom",
+          message: "amountPaidMinor cannot exceed expectedTotalMinor",
+          path: ["amountPaidMinor"],
+        });
+      }
+      if (value.amountPaidMinor < value.expectedTotalMinor) {
+        if (value.amountPaidMinor <= 0) {
+          ctx.addIssue({
+            code: "custom",
+            message: "an installment sale requires a positive deposit",
+            path: ["amountPaidMinor"],
+          });
+        }
+        if (value.customer === undefined) {
+          ctx.addIssue({
+            code: "custom",
+            message: "an installment sale requires a customer",
+            path: ["customer"],
+          });
+        }
+      }
+    }
     const seen = new Set<string>();
     for (const [index, line] of value.lines.entries()) {
       if (seen.has(line.variantId)) {
@@ -188,6 +216,8 @@ export interface PosSaleIntent {
   readonly expectedTotalMinor: number;
   readonly cashReceivedMinor: number | null;
   readonly tenders: readonly PosTenderInput[] | null;
+  // Deposit for an installment sale; null means settle in full.
+  readonly amountPaidMinor: number | null;
   readonly lines: readonly { readonly variantId: string; readonly quantity: number }[];
   readonly promotionCode: string | null;
   readonly customer: PosCustomerInput | null;

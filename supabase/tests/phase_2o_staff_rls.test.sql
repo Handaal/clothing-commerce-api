@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(35);
+select plan(45);
 
 -- Deny-by-default surface -------------------------------------------------------------------------
 select is((select count(*) from pg_class where relname='staff_commands' and relrowsecurity),1::bigint,'staff_commands enables RLS');
@@ -67,6 +67,19 @@ select ok(
   and not has_table_privilege('staff_writer','public.access_scope_targets','INSERT')
   and not has_table_privilege('staff_writer','public.role_permissions','INSERT'),
   'writer cannot author scopes, scope targets or role permissions');
+
+-- Phase 2O-C: offline-PIN credential store. The sealed-PIN table is deny-by-default and never client-
+-- reachable; the transport may set/rotate and read the roster, clients and internals may not.
+select is((select count(*) from pg_class where relname='staff_offline_pin_credentials' and relrowsecurity),1::bigint,'staff_offline_pin_credentials enables RLS');
+select ok(not has_table_privilege('anon','public.staff_offline_pin_credentials','SELECT'),'anon cannot read sealed offline PINs');
+select ok(not has_table_privilege('authenticated','public.staff_offline_pin_credentials','SELECT'),'clients cannot read sealed offline PINs');
+select ok(not has_table_privilege('authenticated','public.staff_offline_pin_credentials','INSERT'),'clients cannot set offline PINs directly');
+select ok(not has_table_privilege('staff_writer','public.staff_offline_pin_credentials','DELETE'),'writer cannot delete offline PIN credentials (no destructive path)');
+select ok(has_function_privilege('service_role','staff_private.set_offline_pin(uuid,uuid,text,uuid,integer,text,text,text,text,integer,integer,integer,integer,integer)','EXECUTE'),'transport can set/rotate an offline PIN');
+select ok(not has_function_privilege('authenticated','staff_private.set_offline_pin(uuid,uuid,text,uuid,integer,text,text,text,text,integer,integer,integer,integer,integer)','EXECUTE'),'client cannot set an offline PIN directly');
+select ok(has_function_privilege('service_role','staff_private.offline_sell_roster(uuid,uuid)','EXECUTE'),'transport can read the offline-seller roster');
+select ok(not has_function_privilege('authenticated','staff_private.offline_sell_roster(uuid,uuid)','EXECUTE'),'client cannot read the offline-seller roster directly');
+select ok(not has_function_privilege('service_role','staff_private.covers_permission(uuid,uuid,text,uuid,uuid)','EXECUTE'),'scope-coverage helper is internal only');
 
 -- Every private entrypoint/helper is a hardened security-definer with an empty search_path.
 select is((select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='staff_private' and (not p.prosecdef or not p.proconfig @> array['search_path=""'])),0::bigint,'all staff_private functions are hardened');

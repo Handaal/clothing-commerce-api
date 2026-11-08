@@ -1,18 +1,35 @@
 import { createHash, createPublicKey, verify } from "node:crypto";
 
 import type { AuthorizationContext, AuthorizationService } from "../authorization";
-import { canonicalizeOfflineSaleCommand } from "../contracts/offline-signing";
+import type { OfflinePinConfiguration } from "../config/auth-environment";
+import {
+  canonicalizeOfflineCustomerPaymentCommand,
+  canonicalizeOfflineSaleCommand,
+} from "../contracts/offline-signing";
 import type {
   EnrollPosDeviceRequest,
+  IngestOfflineCustomerPaymentRequest,
+  IngestOfflineCustomerPaymentResponse,
   IngestOfflineSaleRequest,
   IngestOfflineSaleResponse,
   OfflineBootstrapResponse,
+  OfflineStaffRosterEntry,
   PosDeviceResponse,
+  SetStaffOfflinePinRequest,
+  SetStaffOfflinePinResponse,
 } from "../contracts";
 import { PosPermission } from "./model";
 import { OfflinePosError } from "./offline-errors";
+import {
+  DEFAULT_SCRYPT_PARAMS,
+  decryptOfflinePin,
+  deriveStaffPinVerifier,
+  encryptOfflinePin,
+} from "./offline-pin-crypto";
 import type { OfflinePosRepository } from "./offline-repository";
 import type { PosSaleRepository } from "./repository";
+
+const STAFF_MANAGE_PERMISSION = "staff.manage";
 
 function branch(id: string) {
   return { kind: "branch" as const, id };
@@ -37,6 +54,9 @@ export class OfflinePosService {
     private readonly authorization: AuthorizationService,
     private readonly posRepository: PosSaleRepository,
     private readonly repository: OfflinePosRepository,
+    // Null when the server has no offline-PIN key: set/rotate then rejects and the bootstrap omits the
+    // staff roster, leaving every other offline capability intact.
+    private readonly offlinePin: OfflinePinConfiguration | null = null,
   ) {}
 
   private async authorizeRegister(context: AuthorizationContext, registerId: string) {
@@ -111,13 +131,66 @@ export class OfflinePosService {
     idempotencyKey: string,
   ): Promise<OfflineBootstrapResponse> {
     const proof = await this.authorizeRegister(context, registerId);
-    return this.repository.createBootstrap(
+    const bootstrap = await this.repository.createBootstrap(
       proof,
       context.tenant.id,
       context.membership.id,
       deviceId,
       registerId,
       idempotencyKey,
+    );
+    const staffRoster = await this.buildStaffRoster(context.tenant.id, registerId, deviceId);
+    return staffRoster.length > 0 ? { ...bootstrap, staffRoster } : bootstrap;
+  }
+
+  /**
+   * Build the offline staff roster for the bootstrapping device: for each authorized seller with a sealed
+   * offline PIN, unseal the PIN transiently and compute the DEVICE-BOUND scrypt verifier the POS checks
+   * against. Returns [] when the server is not configured for offline PINs. The plaintext PIN exists only
+   * inside this function's stack frame and is never persisted or returned.
+   */
+  private async buildStaffRoster(
+    tenantId: string,
+    registerId: string,
+    deviceId: string,
+  ): Promise<OfflineStaffRosterEntry[]> {
+    if (this.offlinePin === null) return [];
+    const sealed = await this.repository.getStaffRoster(tenantId, registerId);
+    return sealed.map((entry) => {
+      const pin = decryptOfflinePin(entry.material, this.offlinePin!.kek);
+      return {
+        membershipId: entry.membershipId,
+        username: entry.username,
+        displayName: entry.displayName,
+        pinVerifier: deriveStaffPinVerifier(pin, deviceId, entry.params),
+      };
+    });
+  }
+
+  /**
+   * Set or rotate a staff member's offline-unlock PIN. Authorized by a tenant-wide staff.manage grant (the
+   * same grant every staff mutation requires); the RPC additionally enforces the anti-escalation subset
+   * check. The PIN is sealed with the server KEK before it ever reaches the database.
+   */
+  async setOfflinePin(
+    context: AuthorizationContext,
+    membershipId: string,
+    idempotencyKey: string,
+    input: SetStaffOfflinePinRequest,
+  ): Promise<SetStaffOfflinePinResponse> {
+    if (this.offlinePin === null) throw new OfflinePosError("OFFLINE_PIN_NOT_CONFIGURED");
+    const proof = await this.authorization.authorize(context, {
+      permissionKey: STAFF_MANAGE_PERMISSION,
+    });
+    const material = encryptOfflinePin(input.pin, this.offlinePin.kek, this.offlinePin.keyVersion);
+    return this.repository.setOfflinePin(
+      proof,
+      context.tenant.id,
+      context.membership.id,
+      membershipId,
+      idempotencyKey,
+      material,
+      DEFAULT_SCRYPT_PARAMS,
     );
   }
 
@@ -154,6 +227,48 @@ export class OfflinePosService {
     }
     const fingerprint = createHash("sha256").update(canonical, "utf8").digest("hex");
     return this.repository.ingest(
+      tenantId,
+      input.signature.credentialId,
+      input.command,
+      canonical,
+      fingerprint,
+      input.signature.value,
+    );
+  }
+
+  async ingestPayment(
+    tenantId: string,
+    input: IngestOfflineCustomerPaymentRequest,
+  ): Promise<IngestOfflineCustomerPaymentResponse> {
+    const canonical = canonicalizeOfflineCustomerPaymentCommand(input.command);
+    const credential = await this.repository.getCredential(
+      tenantId,
+      input.signature.credentialId,
+      input.command.deviceId,
+    );
+    if (!credential) throw new OfflinePosError("OFFLINE_SIGNATURE_INVALID");
+    try {
+      const key = createPublicKey({
+        key: Buffer.from(credential.publicKeySpkiBase64, "base64"),
+        format: "der",
+        type: "spki",
+      });
+      if (
+        !verify(
+          null,
+          Buffer.from(canonical, "utf8"),
+          key,
+          Buffer.from(input.signature.value, "base64"),
+        )
+      ) {
+        throw new OfflinePosError("OFFLINE_SIGNATURE_INVALID");
+      }
+    } catch (error) {
+      if (error instanceof OfflinePosError) throw error;
+      throw new OfflinePosError("OFFLINE_SIGNATURE_INVALID");
+    }
+    const fingerprint = createHash("sha256").update(canonical, "utf8").digest("hex");
+    return this.repository.ingestPayment(
       tenantId,
       input.signature.credentialId,
       input.command,

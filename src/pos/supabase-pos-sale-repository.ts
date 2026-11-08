@@ -211,6 +211,7 @@ export class SupabasePosSaleRepository implements PosSaleRepository {
           quantity: line.quantity,
         })),
         ...(intent.tenders ? { tenders: toDbTenders(intent.tenders) } : {}),
+        ...(intent.amountPaidMinor !== null ? { amount_paid_minor: intent.amountPaidMinor } : {}),
       },
     });
     if (error) throw mapError(error);
@@ -297,6 +298,7 @@ export class SupabasePosSaleRepository implements PosSaleRepository {
       p_customer: command.customer
         ? { name: command.customer.name, phone: command.customer.phone }
         : null,
+      p_amount_paid_minor: command.amountPaidMinor,
       p_lines: command.lines.map((line) => ({
         variant_id: line.variantId,
         product_id: line.productId,
