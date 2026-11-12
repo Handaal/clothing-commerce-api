@@ -98,6 +98,8 @@ import {
   IngestOfflineSaleResponseSchema,
   IngestOfflineCustomerPaymentRequestSchema,
   IngestOfflineCustomerPaymentResponseSchema,
+  IngestOfflineAttendanceRequestSchema,
+  IngestOfflineAttendanceResponseSchema,
   SetStaffOfflinePinRequestSchema,
   SetStaffOfflinePinResponseSchema,
   ReceiveInventoryRequestSchema,
@@ -3150,6 +3152,28 @@ export function generateOpenApiDocument() {
           },
         },
       },
+      "/api/v1/pos/offline-attendance": {
+        post: {
+          operationId: "ingestOfflineAttendance",
+          tags: ["pos"],
+          summary: "Ingest an attendance clock event already captured offline.",
+          description:
+            "Device-authenticated ingestion verifies canonical Ed25519 intent, the grant binding, and acceptedAt/eventAt skew, then appends an immutable, provisional clock event idempotently keyed to syncCommandId. The event is received as pending-policy; it is never payroll-final and never mutates attendance entries. Idempotency records are retained indefinitely (minimum guaranteed queue window: 365 days).",
+          security: [],
+          parameters: [tenantHeaderParameter, idempotencyKeyHeaderParameter],
+          requestBody: jsonRequestBody(
+            "Signed immutable offline attendance command.",
+            "#/components/schemas/IngestOfflineAttendanceRequest",
+          ),
+          responses: {
+            "200": jsonResponse(
+              "Canonical attendance ingestion receipt.",
+              "#/components/schemas/IngestOfflineAttendanceResponse",
+            ),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
     },
     components: {
       securitySchemes: {
@@ -3326,6 +3350,8 @@ export function generateOpenApiDocument() {
         IngestOfflineCustomerPaymentResponse: jsonSchema(
           IngestOfflineCustomerPaymentResponseSchema,
         ),
+        IngestOfflineAttendanceRequest: jsonSchema(IngestOfflineAttendanceRequestSchema),
+        IngestOfflineAttendanceResponse: jsonSchema(IngestOfflineAttendanceResponseSchema),
         SetStaffOfflinePinRequest: jsonSchema(SetStaffOfflinePinRequestSchema),
         SetStaffOfflinePinResponse: jsonSchema(SetStaffOfflinePinResponseSchema),
 

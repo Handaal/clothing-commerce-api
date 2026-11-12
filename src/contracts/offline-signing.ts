@@ -1,6 +1,8 @@
 import {
+  OfflineAttendanceCommandSchema,
   OfflineCustomerPaymentCommandSchema,
   OfflineSaleCommandSchema,
+  type OfflineAttendanceCommand,
   type OfflineCustomerPaymentCommand,
   type OfflineSaleCommand,
 } from "./pos";
@@ -40,4 +42,8 @@ export function canonicalizeOfflineCustomerPaymentCommand(
   command: OfflineCustomerPaymentCommand,
 ): string {
   return canonicalJson(OfflineCustomerPaymentCommandSchema.parse(command));
+}
+
+export function canonicalizeOfflineAttendanceCommand(command: OfflineAttendanceCommand): string {
+  return canonicalJson(OfflineAttendanceCommandSchema.parse(command));
 }

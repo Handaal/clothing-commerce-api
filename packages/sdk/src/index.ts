@@ -551,6 +551,7 @@ import {
   OfflineBootstrapResponseSchema,
   IngestOfflineSaleResponseSchema,
   IngestOfflineCustomerPaymentResponseSchema,
+  IngestOfflineAttendanceResponseSchema,
   SetStaffOfflinePinResponseSchema,
   PosLoginResponseSchema,
   SetPosLoginPinResponseSchema,
@@ -640,6 +641,10 @@ import {
   type OfflineCustomerPaymentCommand,
   type IngestOfflineCustomerPaymentRequest,
   type IngestOfflineCustomerPaymentResponse,
+  type OfflineAttendanceEventType,
+  type OfflineAttendanceCommand,
+  type IngestOfflineAttendanceRequest,
+  type IngestOfflineAttendanceResponse,
   type OfflineStaffRosterEntry,
   type StaffPinVerifier,
   type SetStaffOfflinePinRequest,
@@ -668,6 +673,7 @@ export type {
 export {
   canonicalizeOfflineSaleCommand,
   canonicalizeOfflineCustomerPaymentCommand,
+  canonicalizeOfflineAttendanceCommand,
 } from "../../../src/contracts";
 import packageMetadata from "../package.json";
 import type { z } from "zod";
@@ -791,6 +797,8 @@ export interface OfflineBootstrapInput extends OfflineBootstrapRequest, Idempote
 export interface IngestOfflineSaleInput extends IngestOfflineSaleRequest, IdempotentWrite {}
 export interface IngestOfflineCustomerPaymentInput
   extends IngestOfflineCustomerPaymentRequest, IdempotentWrite {}
+export interface IngestOfflineAttendanceInput
+  extends IngestOfflineAttendanceRequest, IdempotentWrite {}
 
 // ---- Phase 2J catalog management inputs ----
 export interface CreateProductInput extends IdempotentWrite {
@@ -1077,6 +1085,9 @@ export interface TenantCommerceClient {
     input: IngestOfflineCustomerPaymentInput,
   ): Promise<IngestOfflineCustomerPaymentResponse>;
   ingestOfflineSale(input: IngestOfflineSaleInput): Promise<IngestOfflineSaleResponse>;
+  ingestOfflineAttendance(
+    input: IngestOfflineAttendanceInput,
+  ): Promise<IngestOfflineAttendanceResponse>;
 }
 
 export interface CommerceClient {
@@ -2215,6 +2226,13 @@ export function createCommerceClient({
           IngestOfflineCustomerPaymentResponseSchema,
           { tenantId, method: "POST", body, idempotencyKey },
         ),
+      ingestOfflineAttendance: ({ idempotencyKey, ...body }: IngestOfflineAttendanceInput) =>
+        request("/api/v1/pos/offline-attendance", IngestOfflineAttendanceResponseSchema, {
+          tenantId,
+          method: "POST",
+          body,
+          idempotencyKey,
+        }),
     };
   }
 
@@ -2304,6 +2322,9 @@ export type {
   IngestOfflineSaleResponse,
   OfflineCustomerPaymentCommand,
   IngestOfflineCustomerPaymentResponse,
+  OfflineAttendanceEventType,
+  OfflineAttendanceCommand,
+  IngestOfflineAttendanceResponse,
   OfflineStaffRosterEntry,
   StaffPinVerifier,
   SetStaffOfflinePinRequest,

@@ -1,126 +1,105 @@
-import { spawn, spawnSync } from "node:child_process";
-import { generateKeyPairSync, sign } from "node:crypto";
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+// Online commerce DB/RLS/concurrency + real-API acceptance — restored on the per-run-isolated boundary.
+//
+// Boots the REAL Next.js API server on loopback against a disposable rt-<hex> Supabase and drives it over
+// HTTP (mirrors test-offline-pos-http-isolated). Replaces the shared-CLI stub that reset + stopped the
+// shared dev project. Never touches the shared dev project; cleans up only this run's resources.
+//
+// AUTH: the server verifies Clerk RS256 JWTs using CLERK_JWT_KEY with a per-run local test key — the
+// repo's standard local-test path, NOT a verifier override or production bypass (production sets
+// CLERK_JWT_KEY to the real Clerk key). No production auth is weakened.
+import { generateKeyPairSync, sign, webcrypto as crypto } from "node:crypto";
+import {
+  bootIsolatedApiServer,
+  createIsolatedStack,
+  EXCLUDE_KEEP_API,
+} from "./isolated-supabase-suite.mjs";
+import { sanitizedChildEnv } from "./supabase-isolation-guard.mjs";
+import { handleInterrupts } from "./returns-test-resources.mjs";
+import { join } from "node:path";
 
-const root = dirname(dirname(fileURLToPath(import.meta.url)));
-const supabase = join(root, "node_modules/supabase/dist/supabase.js");
-const excluded =
-  "realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor";
-function run(command, args, options = {}) {
-  const r = spawnSync(command, args, {
-    cwd: root,
-    encoding: "utf8",
-    windowsHide: true,
-    ...options,
-  });
-  if (r.status !== 0)
-    throw new Error(
-      `Local acceptance command failed: ${command} ${args.join(" ")}\n${options.redacted ? "Output redacted" : `${r.stdout ?? ""}\n${r.stderr ?? ""}`}`,
-    );
-  return r;
-}
-function sql(source) {
-  return run(
-    "docker",
-    [
-      "exec",
-      "-i",
-      "supabase_db_clothing-commerce-api",
-      "psql",
-      "-X",
-      "-v",
-      "ON_ERROR_STOP=1",
-      "-U",
-      "supabase_admin",
-      "-d",
-      "postgres",
-    ],
-    { input: source },
-  );
-}
-let server;
-let started = false;
+const stack = await createIsolatedStack({ excluded: EXCLUDE_KEEP_API, extraPorts: 1 });
+const nextPort = stack.ports.extra[0];
+let killServer = () => {};
+const removeInterruptHandlers = handleInterrupts(() => {
+  killServer();
+  stack.cleanup();
+});
 try {
-  started = true;
-  run(process.execPath, [supabase, "start", "--exclude", excluded], { redacted: true });
-  run(process.execPath, [supabase, "db", "reset", "--local", "--no-seed"], { stdio: "inherit" });
-  for (const file of ["phase_2h_pos_sale.setup.sql", "phase_2l_online.setup.sql"])
-    sql(readFileSync(join(root, "supabase/tests", file), "utf8"));
-  const local = JSON.parse(
-    run(process.execPath, [supabase, "status", "--output", "json"], { redacted: true }).stdout,
-  );
+  // phase_2l_online depends on phase_2h_pos_sale (shared tenant/brand FKs), so both are required.
+  stack.applyFixtures(["phase_2h_pos_sale.setup.sql", "phase_2l_online.setup.sql"]);
+  const status = stack.getStatus();
+
   const { publicKey, privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
-  const baseUrl = "http://127.0.0.1:3139";
+  const baseUrl = `http://127.0.0.1:${nextPort}`;
   const now = Math.floor(Date.now() / 1000);
   const part = (v) => Buffer.from(JSON.stringify(v)).toString("base64url");
-  const payload = `${part({ alg: "RS256", typ: "JWT", kid: "local-acceptance" })}.${part({ sub: "pos-full", sid: "sess_local_acceptance", iss: "https://clerk.local.test", azp: baseUrl, iat: now, nbf: now - 5, exp: now + 3600 })}`;
-  const token = `${payload}.${sign("RSA-SHA256", Buffer.from(payload), privateKey).toString("base64url")}`;
-  const env = {
-    ...process.env,
-    SUPABASE_URL: local.API_URL,
-    SUPABASE_SERVICE_ROLE_KEY: local.SERVICE_ROLE_KEY,
+  const payload =
+    part({ alg: "RS256", typ: "JWT", kid: "local-acceptance" }) +
+    "." +
+    part({
+      sub: "pos-full",
+      sid: "sess_local_acceptance",
+      iss: "https://clerk.local.test",
+      azp: baseUrl,
+      iat: now,
+      nbf: now - 5,
+      exp: now + 3600,
+    });
+  const token =
+    payload + "." + sign("RSA-SHA256", Buffer.from(payload), privateKey).toString("base64url");
+
+  const serverEnv = {
+    SUPABASE_URL: status.API_URL,
+    SUPABASE_SERVICE_ROLE_KEY: status.SERVICE_ROLE_KEY,
     CLERK_PUBLISHABLE_KEY: `pk_test_${Buffer.from("clerk.local.test$").toString("base64")}`,
     CLERK_SECRET_KEY: "sk_test_local_acceptance_only",
     CLERK_JWT_KEY: publicKey.export({ type: "spki", format: "pem" }).toString(),
     CLERK_AUTHORIZED_PARTIES: baseUrl,
-    ONLINE_TEST_URL: baseUrl,
-    ONLINE_TEST_TOKEN: token,
-    NEXT_TELEMETRY_DISABLED: "1",
+    OFFLINE_PIN_KEK: Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("base64"),
   };
-  server = spawn(
-    process.execPath,
-    [
-      join(root, "node_modules/next/dist/bin/next"),
-      "dev",
-      "--webpack",
-      "--hostname",
-      "127.0.0.1",
-      "--port",
-      "3139",
-    ],
-    { cwd: root, env, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] },
+  const server = await bootIsolatedApiServer({ stack, nextPort, env: serverEnv });
+  killServer = server.killer;
+  process.stdout.write(
+    "Real Next.js API + isolated Supabase ready; running online-commerce acceptance.\n",
   );
-  // Do not echo runtime environment or credentials. Capture a bounded diagnostic tail.
-  let diagnostic = "";
-  for (const stream of [server.stdout, server.stderr])
-    stream.on("data", (chunk) => {
-      diagnostic = (diagnostic + chunk.toString()).slice(-8000);
-    });
-  let ready = false;
-  for (let n = 0; n < 90; n++) {
-    if (server.exitCode !== null) throw new Error(`API server exited: ${diagnostic}`);
-    try {
-      if ((await fetch(`${baseUrl}/api/v1/health`)).ok) {
-        ready = true;
-        break;
-      }
-    } catch {
-      /* starting */
-    }
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+
+  try {
+    stack.run(
+      process.execPath,
+      [
+        join(stack.root, "node_modules/vitest/vitest.mjs"),
+        "run",
+        "tests/online-commerce-integration",
+        "--testTimeout=60000",
+        "--hookTimeout=60000",
+      ],
+      {
+        cwd: stack.root,
+        stdio: "inherit",
+        env: sanitizedChildEnv({
+          ONLINE_TEST_URL: server.baseUrl,
+          ONLINE_TEST_TOKEN: token,
+          // The suite re-reads the committed state directly from the disposable DB via the service-role
+          // client, so it requires SUPABASE_URL/SERVICE_ROLE_KEY (its own disposable-DB guard) in addition
+          // to the HTTP entrypoint. Point both at THIS run's isolated stack.
+          SUPABASE_URL: status.API_URL,
+          SUPABASE_SERVICE_ROLE_KEY: status.SERVICE_ROLE_KEY,
+          POS_TEST_SUPABASE_URL: status.API_URL,
+          POS_TEST_SUPABASE_SERVICE_ROLE_KEY: status.SERVICE_ROLE_KEY,
+          POS_TEST_SUPABASE_ANON_KEY: status.ANON_KEY,
+        }),
+      },
+    );
+  } catch (error) {
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    process.stderr.write(
+      `\n----- API server log tail -----\n${server.diagnosticTail()}\n----- end server log -----\n`,
+    );
+    throw error;
   }
-  if (!ready) throw new Error(`API server did not start: ${diagnostic}`);
-  process.stdout.write(
-    "Real Next.js API and local Supabase ready; using locally signed Clerk-verifiable test session.\n",
-  );
-  run(
-    process.execPath,
-    [join(root, "node_modules/vitest/vitest.mjs"), "run", "tests/online-commerce-integration"],
-    { env, stdio: "inherit" },
-  );
-  process.stdout.write(
-    "Online commerce database, RLS, concurrency and real API acceptance passed.\n",
-  );
+  process.stdout.write("Isolated online-commerce acceptance passed.\n");
 } finally {
-  if (server?.pid) {
-    if (process.platform === "win32")
-      spawnSync("taskkill", ["/pid", String(server.pid), "/t", "/f"], {
-        windowsHide: true,
-        stdio: "ignore",
-      });
-    else server.kill("SIGTERM");
-  }
-  if (started) run(process.execPath, [supabase, "stop", "--no-backup"], { redacted: true });
+  removeInterruptHandlers();
+  killServer();
+  stack.cleanup();
 }

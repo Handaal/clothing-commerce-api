@@ -206,6 +206,10 @@ export {
   OfflineCustomerPaymentCommandSchema,
   IngestOfflineCustomerPaymentRequestSchema,
   IngestOfflineCustomerPaymentResponseSchema,
+  OfflineAttendanceEventTypeSchema,
+  OfflineAttendanceCommandSchema,
+  IngestOfflineAttendanceRequestSchema,
+  IngestOfflineAttendanceResponseSchema,
   StaffPinVerifierSchema,
   OfflineStaffRosterEntrySchema,
   SetStaffOfflinePinRequestSchema,
@@ -237,6 +241,10 @@ export {
   type OfflineCustomerPaymentCommand,
   type IngestOfflineCustomerPaymentRequest,
   type IngestOfflineCustomerPaymentResponse,
+  type OfflineAttendanceEventType,
+  type OfflineAttendanceCommand,
+  type IngestOfflineAttendanceRequest,
+  type IngestOfflineAttendanceResponse,
   type StaffPinVerifier,
   type OfflineStaffRosterEntry,
   type SetStaffOfflinePinRequest,
@@ -260,6 +268,7 @@ export {
 export {
   canonicalizeOfflineSaleCommand,
   canonicalizeOfflineCustomerPaymentCommand,
+  canonicalizeOfflineAttendanceCommand,
 } from "./offline-signing";
 
 export {

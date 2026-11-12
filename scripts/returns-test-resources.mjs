@@ -21,7 +21,10 @@ export function docker(args) {
   return result.stdout.trim();
 }
 
-export function createResources() {
+export function createResources(options = {}) {
+  // dockerExec is injectable so the isolation guard tests can exercise the real resource/marker/label
+  // minting and the empty-namespace precondition without a Docker daemon. Production callers omit it.
+  const initialDockerExec = options.dockerExec ?? docker;
   const runId = randomUUID().replaceAll("-", "");
   // Supabase truncates project IDs over 40 characters. Keep the entire UUID intact.
   const projectId = `rt-${runId}`;
@@ -127,7 +130,7 @@ export function createResources() {
     rmSync(workdir, { recursive: true });
   }
   // A cryptographically fresh project must start empty; never reuse another run's resources.
-  const initial = plan();
+  const initial = plan(initialDockerExec);
   if (Object.values(initial).some((items) => items.length))
     throw new Error("Test namespace already exists");
   return { runId, projectId, workdir, labelArgs, assertOwner, bindConfig, plan, cleanup };

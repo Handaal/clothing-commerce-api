@@ -1,8 +1,10 @@
 import type { AuthorizedOperationContext } from "../authorization";
 import type {
   EnrollPosDeviceRequest,
+  IngestOfflineAttendanceResponse,
   IngestOfflineCustomerPaymentResponse,
   IngestOfflineSaleResponse,
+  OfflineAttendanceCommand,
   OfflineBootstrapResponse,
   OfflineCustomerPaymentCommand,
   OfflineSaleCommand,
@@ -89,4 +91,12 @@ export interface OfflinePosRepository {
     commandFingerprint: string,
     signature: string,
   ): Promise<IngestOfflineCustomerPaymentResponse>;
+  ingestAttendance(
+    tenantId: string,
+    credentialId: string,
+    command: OfflineAttendanceCommand,
+    canonicalCommand: string,
+    commandFingerprint: string,
+    signature: string,
+  ): Promise<IngestOfflineAttendanceResponse>;
 }
