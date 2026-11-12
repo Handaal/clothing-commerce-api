@@ -1,89 +1,11 @@
-import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+// Phase 1C tenant RLS — restored on the per-run-isolated boundary (replaces the shared-CLI stub).
+// Runs the real pgTAP plan against a disposable rt-<hex> Supabase; never touches the shared dev project.
+import { runIsolatedSupabaseSuite } from "./isolated-supabase-suite.mjs";
 
-const repositoryRoot = dirname(dirname(fileURLToPath(import.meta.url)));
-const supabaseEntrypoint = join(repositoryRoot, "node_modules", "supabase", "dist", "supabase.js");
-const testFile = join("supabase", "tests", "phase_1c_b_tenant_rls.test.sql");
-const expectedTestCount = 87;
-const excludedServices = [
-  "gotrue",
-  "realtime",
-  "storage-api",
-  "imgproxy",
-  "kong",
-  "mailpit",
-  "postgrest",
-  "postgres-meta",
-  "studio",
-  "edge-runtime",
-  "logflare",
-  "vector",
-  "supavisor",
-];
-
-function run(command, args, { allowFailure = false } = {}) {
-  const result = spawnSync(command, args, {
-    cwd: repositoryRoot,
-    encoding: "utf8",
-    stdio: "inherit",
-    windowsHide: true,
-  });
-
-  if (!allowFailure && result.status !== 0) {
-    throw new Error(
-      `${command} ${args.join(" ")} failed with exit code ${result.status ?? "none"}`,
-    );
-  }
-
-  return result;
-}
-
-function runSupabase(args, options) {
-  return run(process.execPath, [supabaseEntrypoint, ...args], options);
-}
-
-function verifyExpectedTestPlan() {
-  const testSource = readFileSync(join(repositoryRoot, testFile), "utf8");
-  const planMatches = [...testSource.matchAll(/\bselect\s+plan\(\s*(\d+)\s*\)\s*;/giu)];
-
-  if (planMatches.length !== 1) {
-    throw new Error(`Expected exactly one pgTAP plan declaration, found ${planMatches.length}.`);
-  }
-
-  const declaredTestCount = Number(planMatches[0][1]);
-
-  if (declaredTestCount !== expectedTestCount) {
-    throw new Error(
-      `Expected a ${expectedTestCount}-assertion pgTAP plan, found ${declaredTestCount}.`,
-    );
-  }
-
-  process.stdout.write(`Verified expected pgTAP plan: ${expectedTestCount} assertions.\n`);
-}
-
-verifyExpectedTestPlan();
-run("docker", ["version", "--format", "Docker engine {{.Server.Version}}"]);
-runSupabase(["--version"]);
-
-let startAttempted = false;
-
-try {
-  startAttempted = true;
-  runSupabase(["start", "--exclude", excludedServices.join(",")]);
-  runSupabase(["db", "reset", "--local", "--no-seed"]);
-  runSupabase(["test", "db", testFile, "--local"]);
-  process.stdout.write("Phase 1C-B Supabase RLS tests passed from a reset database.\n");
-} finally {
-  if (startAttempted) {
-    const cleanup = runSupabase(["stop", "--no-backup"], { allowFailure: true });
-
-    if (cleanup.status !== 0) {
-      process.stderr.write("Failed to stop the local Supabase stack and remove its test data.\n");
-      process.exitCode = 1;
-    } else {
-      process.stdout.write("Stopped the local Supabase stack and removed its disposable data.\n");
-    }
-  }
-}
+await runIsolatedSupabaseSuite({
+  name: "Phase 1C tenant RLS",
+  rls: {
+    files: ["supabase/tests/phase_1c_b_tenant_rls.test.sql"],
+    plans: [{ file: "phase_1c_b_tenant_rls.test.sql", expected: 87 }],
+  },
+});

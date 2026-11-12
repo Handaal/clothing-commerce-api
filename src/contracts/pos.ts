@@ -602,6 +602,60 @@ export const IngestOfflineCustomerPaymentResponseSchema = z.object({
   }),
 });
 
+// Phase 9 (Decision C) — an attendance clock event (clock-in / clock-out) captured while OFFLINE and
+// synced later. Signed with the same device key as offline sales and bound to the active grant. It is
+// APPEND-ONLY and PROVISIONAL: the server records an immutable, auditable received event keyed to
+// syncCommandId; it does NOT compute payroll, shift attribution, grace periods or rounding, and it does
+// not mutate prior events. `eventType` is the operator's clock action; `eventAt` is the device-clock
+// time evidence available from the lease model (bounded by the acceptedAt skew window at ingestion).
+export const OfflineAttendanceEventTypeSchema = z.enum(["clock_in", "clock_out"]);
+
+export const OfflineAttendanceCommandSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    localEventId: z.string().trim().min(1).max(200),
+    syncCommandId: UuidSchema,
+    grantId: UuidSchema,
+    deviceId: UuidSchema,
+    registerId: UuidSchema,
+    // The offline-PIN roster operator who clocked (Decision C-i recommendation). Attribution to a
+    // payroll subject beyond this authenticated identity remains an open owner policy decision.
+    operatorMembershipId: UuidSchema,
+    eventType: OfflineAttendanceEventTypeSchema,
+    // Trustworthy device-clock time of the clock action. Bounded against the grant/skew window server-side.
+    eventAt: IsoDateTimeSchema,
+    // When the command was accepted on the device (for the same ±skew authority check as offline sales).
+    acceptedAt: IsoDateTimeSchema,
+  })
+  .strict();
+
+export const IngestOfflineAttendanceRequestSchema = z
+  .object({
+    command: OfflineAttendanceCommandSchema,
+    signature: z.object({
+      algorithm: z.literal("Ed25519"),
+      credentialId: UuidSchema,
+      value: Base64Schema,
+    }),
+  })
+  .strict();
+
+export const IngestOfflineAttendanceResponseSchema = z.object({
+  // "received" — the event is durably stored and awaiting policy adjudication; it is explicitly NOT
+  // "synced as final payroll attendance". The client shows it as server-received, not canonical.
+  syncStatus: z.literal("received"),
+  ingestionId: UuidSchema,
+  localEventId: z.string(),
+  receivedAt: IsoDateTimeSchema,
+  event: z.object({
+    membershipId: UuidSchema,
+    eventType: OfflineAttendanceEventTypeSchema,
+    eventAt: IsoDateTimeSchema,
+    // Adjudication state so the UI never implies payroll finality. Always "pending_policy" in V1.
+    adjudication: z.literal("pending_policy"),
+  }),
+});
+
 // ---- POS-native (pos_pin) authentication (ADR-040) ----------------------------------------------------
 // A numeric PIN of 4–12 digits (the offline credential uses the same shape). Login accepts a loosely-bounded
 // username (the server lowercases + resolves it); provisioning enforces the strict instance-global format.
@@ -714,6 +768,10 @@ export type IngestOfflineCustomerPaymentRequest = z.infer<
 export type IngestOfflineCustomerPaymentResponse = z.infer<
   typeof IngestOfflineCustomerPaymentResponseSchema
 >;
+export type OfflineAttendanceEventType = z.infer<typeof OfflineAttendanceEventTypeSchema>;
+export type OfflineAttendanceCommand = z.infer<typeof OfflineAttendanceCommandSchema>;
+export type IngestOfflineAttendanceRequest = z.infer<typeof IngestOfflineAttendanceRequestSchema>;
+export type IngestOfflineAttendanceResponse = z.infer<typeof IngestOfflineAttendanceResponseSchema>;
 export type OfflineBootstrapRequest = z.infer<typeof OfflineBootstrapRequestSchema>;
 export type OfflineBootstrapResponse = z.infer<typeof OfflineBootstrapResponseSchema>;
 export type StaffPinVerifier = z.infer<typeof StaffPinVerifierSchema>;

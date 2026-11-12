@@ -1,101 +1,27 @@
-import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+// Phase 2L online RLS (+ shared tenant/catalog/inventory/orders/fulfillment RLS) — restored on the
+// per-run-isolated boundary. Runs the full pgTAP set against a disposable rt-<hex> Supabase in one
+// `supabase test db` invocation; never touches the shared dev project. Plan integrity is verified for
+// every file before Docker starts (stronger than the original stub, which only checked phase_2l).
+import { runIsolatedSupabaseSuite } from "./isolated-supabase-suite.mjs";
 
-const repositoryRoot = dirname(dirname(fileURLToPath(import.meta.url)));
-const supabaseEntrypoint = join(repositoryRoot, "node_modules", "supabase", "dist", "supabase.js");
-const testFile = join("supabase", "tests", "phase_2l_online_rls.test.sql");
-const expectedTestCount = 20;
-const excludedServices = [
-  "gotrue",
-  "realtime",
-  "storage-api",
-  "imgproxy",
-  "kong",
-  "mailpit",
-  "postgrest",
-  "postgres-meta",
-  "studio",
-  "edge-runtime",
-  "logflare",
-  "vector",
-  "supavisor",
-];
-
-function run(command, args, { allowFailure = false } = {}) {
-  const result = spawnSync(command, args, {
-    cwd: repositoryRoot,
-    encoding: "utf8",
-    stdio: "inherit",
-    windowsHide: true,
-  });
-
-  if (!allowFailure && result.status !== 0) {
-    throw new Error(
-      `${command} ${args.join(" ")} failed with exit code ${result.status ?? "none"}`,
-    );
-  }
-
-  return result;
-}
-
-function runSupabase(args, options) {
-  return run(process.execPath, [supabaseEntrypoint, ...args], options);
-}
-
-function verifyExpectedTestPlan() {
-  const testSource = readFileSync(join(repositoryRoot, testFile), "utf8");
-  const planMatches = [...testSource.matchAll(/\bselect\s+plan\(\s*(\d+)\s*\)\s*;/giu)];
-
-  if (planMatches.length !== 1) {
-    throw new Error(`Expected exactly one pgTAP plan declaration, found ${planMatches.length}.`);
-  }
-
-  const declaredTestCount = Number(planMatches[0][1]);
-
-  if (declaredTestCount !== expectedTestCount) {
-    throw new Error(
-      `Expected a ${expectedTestCount}-assertion pgTAP plan, found ${declaredTestCount}.`,
-    );
-  }
-
-  process.stdout.write(`Verified expected pgTAP plan: ${expectedTestCount} assertions.\n`);
-}
-
-verifyExpectedTestPlan();
-run("docker", ["version", "--format", "Docker engine {{.Server.Version}}"]);
-runSupabase(["--version"]);
-
-let startAttempted = false;
-
-try {
-  startAttempted = true;
-  runSupabase(["start", "--exclude", excludedServices.join(",")]);
-  runSupabase(["db", "reset", "--local", "--no-seed"]);
-  runSupabase([
-    "test",
-    "db",
-    testFile,
-    "supabase/tests/phase_1c_b_tenant_rls.test.sql",
-    "supabase/tests/phase_2a_catalog_rls.test.sql",
-    "supabase/tests/phase_2b_inventory_rls.test.sql",
-    "supabase/tests/phase_2d_orders_rls.test.sql",
-    "supabase/tests/phase_2e_fulfillment_rls.test.sql",
-    "--local",
-  ]);
-  process.stdout.write(
-    "Phase 2L and shared inventory/order/fulfillment RLS tests passed from a reset database.\n",
-  );
-} finally {
-  if (startAttempted) {
-    const cleanup = runSupabase(["stop", "--no-backup"], { allowFailure: true });
-
-    if (cleanup.status !== 0) {
-      process.stderr.write("Failed to stop the local Supabase stack and remove its test data.\n");
-      process.exitCode = 1;
-    } else {
-      process.stdout.write("Stopped the local Supabase stack and removed its disposable data.\n");
-    }
-  }
-}
+await runIsolatedSupabaseSuite({
+  name: "Phase 2L online RLS + shared RLS set",
+  rls: {
+    files: [
+      "supabase/tests/phase_2l_online_rls.test.sql",
+      "supabase/tests/phase_1c_b_tenant_rls.test.sql",
+      "supabase/tests/phase_2a_catalog_rls.test.sql",
+      "supabase/tests/phase_2b_inventory_rls.test.sql",
+      "supabase/tests/phase_2d_orders_rls.test.sql",
+      "supabase/tests/phase_2e_fulfillment_rls.test.sql",
+    ],
+    plans: [
+      { file: "phase_2l_online_rls.test.sql", expected: 20 },
+      { file: "phase_1c_b_tenant_rls.test.sql", expected: 87 },
+      { file: "phase_2a_catalog_rls.test.sql", expected: 43 },
+      { file: "phase_2b_inventory_rls.test.sql", expected: 30 },
+      { file: "phase_2d_orders_rls.test.sql", expected: 12 },
+      { file: "phase_2e_fulfillment_rls.test.sql", expected: 14 },
+    ],
+  },
+});

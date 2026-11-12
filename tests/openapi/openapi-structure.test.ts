@@ -82,6 +82,7 @@ describe("OpenAPI management surface", () => {
         "/api/v1/pos/devices",
         "/api/v1/pos/devices/{deviceId}/credentials",
         "/api/v1/pos/devices/{deviceId}/revoke",
+        "/api/v1/pos/offline-attendance",
         "/api/v1/pos/offline-bootstrap",
         "/api/v1/pos/offline-customer-payments",
         "/api/v1/pos/offline-sales",
@@ -222,6 +223,7 @@ describe("OpenAPI management surface", () => {
       "/api/v1/pos/offline-bootstrap",
       "/api/v1/pos/offline-sales",
       "/api/v1/pos/offline-customer-payments",
+      "/api/v1/pos/offline-attendance",
     ])
       expect(hasIdempotencyHeader(path)).toBe(true);
   });
@@ -253,6 +255,7 @@ describe("OpenAPI management surface", () => {
       "/api/v1/pos/offline-bootstrap",
       "/api/v1/pos/offline-sales",
       "/api/v1/pos/offline-customer-payments",
+      "/api/v1/pos/offline-attendance",
     ]) {
       expect(hasTenantHeader(tenantRoute)).toBe(true);
     }
@@ -282,6 +285,7 @@ describe("OpenAPI management surface", () => {
     }
     expect(operationOf("/api/v1/pos/offline-sales").security).toEqual([]);
     expect(operationOf("/api/v1/pos/offline-customer-payments").security).toEqual([]);
+    expect(operationOf("/api/v1/pos/offline-attendance").security).toEqual([]);
     expect(
       (paths["/api/v1/health"] as { get: { security?: unknown } }).get.security,
     ).toBeUndefined();

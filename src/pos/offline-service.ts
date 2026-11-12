@@ -3,11 +3,14 @@ import { createHash, createPublicKey, verify } from "node:crypto";
 import type { AuthorizationContext, AuthorizationService } from "../authorization";
 import type { OfflinePinConfiguration } from "../config/auth-environment";
 import {
+  canonicalizeOfflineAttendanceCommand,
   canonicalizeOfflineCustomerPaymentCommand,
   canonicalizeOfflineSaleCommand,
 } from "../contracts/offline-signing";
 import type {
   EnrollPosDeviceRequest,
+  IngestOfflineAttendanceRequest,
+  IngestOfflineAttendanceResponse,
   IngestOfflineCustomerPaymentRequest,
   IngestOfflineCustomerPaymentResponse,
   IngestOfflineSaleRequest,
@@ -269,6 +272,48 @@ export class OfflinePosService {
     }
     const fingerprint = createHash("sha256").update(canonical, "utf8").digest("hex");
     return this.repository.ingestPayment(
+      tenantId,
+      input.signature.credentialId,
+      input.command,
+      canonical,
+      fingerprint,
+      input.signature.value,
+    );
+  }
+
+  async ingestAttendance(
+    tenantId: string,
+    input: IngestOfflineAttendanceRequest,
+  ): Promise<IngestOfflineAttendanceResponse> {
+    const canonical = canonicalizeOfflineAttendanceCommand(input.command);
+    const credential = await this.repository.getCredential(
+      tenantId,
+      input.signature.credentialId,
+      input.command.deviceId,
+    );
+    if (!credential) throw new OfflinePosError("OFFLINE_SIGNATURE_INVALID");
+    try {
+      const key = createPublicKey({
+        key: Buffer.from(credential.publicKeySpkiBase64, "base64"),
+        format: "der",
+        type: "spki",
+      });
+      if (
+        !verify(
+          null,
+          Buffer.from(canonical, "utf8"),
+          key,
+          Buffer.from(input.signature.value, "base64"),
+        )
+      ) {
+        throw new OfflinePosError("OFFLINE_SIGNATURE_INVALID");
+      }
+    } catch (error) {
+      if (error instanceof OfflinePosError) throw error;
+      throw new OfflinePosError("OFFLINE_SIGNATURE_INVALID");
+    }
+    const fingerprint = createHash("sha256").update(canonical, "utf8").digest("hex");
+    return this.repository.ingestAttendance(
       tenantId,
       input.signature.credentialId,
       input.command,

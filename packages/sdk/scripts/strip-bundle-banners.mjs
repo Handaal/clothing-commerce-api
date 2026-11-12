@@ -6,8 +6,11 @@
 // bundled code and real comments are preserved.
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const distDirectory = new URL("../dist/", import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1");
+// Use fileURLToPath (not URL.pathname) so a workspace path containing spaces or other characters is
+// percent-decoded correctly — `.pathname` would leave e.g. `%20` in the path and fail to open the dir.
+const distDirectory = fileURLToPath(new URL("../dist/", import.meta.url));
 const bannerPattern = /^\/\/ \.\.\/.*\r?\n/gm;
 
 for (const file of readdirSync(distDirectory)) {

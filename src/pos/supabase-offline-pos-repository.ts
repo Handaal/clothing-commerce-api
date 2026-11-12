@@ -4,8 +4,10 @@ import { z } from "zod";
 import { assertAuthorizedOperationProof, type AuthorizedOperationContext } from "../authorization";
 import type {
   EnrollPosDeviceRequest,
+  IngestOfflineAttendanceResponse,
   IngestOfflineCustomerPaymentResponse,
   IngestOfflineSaleResponse,
+  OfflineAttendanceCommand,
   OfflineBootstrapResponse,
   OfflineCustomerPaymentCommand,
   OfflineSaleCommand,
@@ -229,6 +231,15 @@ const PaymentIngestionRow = z.object({
     paidAt: z.string(),
     outstandingMinor: NumberValue,
   }),
+  received_at: z.string(),
+});
+
+const AttendanceIngestionRow = z.object({
+  ingestion_id: Uuid,
+  sync_status: z.literal("received"),
+  membership_id: Uuid,
+  event_type: z.enum(["clock_in", "clock_out"]),
+  event_at: z.string(),
   received_at: z.string(),
 });
 
@@ -486,18 +497,20 @@ export class SupabaseOfflinePosRepository implements OfflinePosRepository {
         .eq("tenant_id", tenantId)
         .eq("order_id", result.order_id)
         .order("line_number"),
+      // Load EVERY captured tender for the order (a split sale has more than one), ordered by tender
+      // sequence. Never a single-row/method assumption: a card/instapay/wallet tender is stored by
+      // record_offline_sale's capture_payments branch and must be reported with its true method.
       this.client
         .from("payments")
         .select("*")
         .eq("tenant_id", tenantId)
-        .eq("id", result.payment_id)
-        .single(),
+        .eq("order_id", result.order_id)
+        .order("tender_sequence", { ascending: true }),
     ]);
     if (orderError) throw mapError(orderError);
     if (lineError) throw mapError(lineError);
     if (paymentError) throw mapError(paymentError);
     const order = orderData as Record<string, unknown>;
-    const payment = paymentData as Record<string, unknown>;
     const orderResult = {
       id: String(order.id),
       orderNumber: String(order.order_number),
@@ -530,20 +543,28 @@ export class SupabaseOfflinePosRepository implements OfflinePosRepository {
           line.option_summary_snapshot == null ? null : String(line.option_summary_snapshot),
       })),
     };
-    const paymentResult = {
-      id: String(payment.id),
-      orderId: String(payment.order_id),
-      method: "cash" as const,
+    const mapPayment = (p: Record<string, unknown>): IngestOfflineSaleResponse["payment"] => ({
+      id: String(p.id),
+      orderId: String(p.order_id),
+      // The stored method is authoritative — preserve it exactly (cash/card/instapay/wallet). The
+      // response schema re-validates it, so an unexpected method fails closed rather than masquerading.
+      method: String(p.method) as IngestOfflineSaleResponse["payment"]["method"],
       status: "captured" as const,
-      currency: String(payment.currency),
-      amountMinor: Number(payment.amount_minor),
-      cashReceivedMinor: Number(payment.cash_received_minor),
-      changeMinor: Number(payment.change_minor),
-      capturedByMembershipId: String(payment.captured_by_membership_id),
-      capturedAt: iso(String(payment.captured_at)),
-      createdAt: iso(String(payment.created_at)),
-      updatedAt: iso(String(payment.updated_at)),
-    };
+      currency: String(p.currency),
+      amountMinor: Number(p.amount_minor),
+      cashReceivedMinor: p.cash_received_minor == null ? null : Number(p.cash_received_minor),
+      changeMinor: p.change_minor == null ? null : Number(p.change_minor),
+      capturedByMembershipId: String(p.captured_by_membership_id),
+      capturedAt: iso(String(p.captured_at)),
+      createdAt: iso(String(p.created_at)),
+      updatedAt: iso(String(p.updated_at)),
+    });
+    const payments = ((paymentData ?? []) as Array<Record<string, unknown>>).map(mapPayment);
+    // The primary payment is the one record_offline_sale returned (cash-or-first); fall back to the first.
+    const paymentResult =
+      payments.find((candidate) => candidate.id === result.payment_id) ?? payments[0];
+    if (!paymentResult)
+      throw new Error("Offline sale ingestion returned an order with no captured payment.");
     let fulfillment: IngestOfflineSaleResponse["fulfillment"] = null;
     if (result.fulfillment_id) {
       const [
@@ -609,6 +630,7 @@ export class SupabaseOfflinePosRepository implements OfflinePosRepository {
       receivedAt: iso(result.received_at),
       order: orderResult,
       payment: paymentResult,
+      payments,
       fulfillment,
       reconciliation,
     };
@@ -643,6 +665,37 @@ export class SupabaseOfflinePosRepository implements OfflinePosRepository {
         amountMinor: result.payment.amountMinor,
         paidAt: iso(result.payment.paidAt),
         outstandingMinor: result.payment.outstandingMinor,
+      },
+    };
+  }
+
+  async ingestAttendance(
+    tenantId: string,
+    credentialId: string,
+    command: OfflineAttendanceCommand,
+    canonicalCommand: string,
+    commandFingerprint: string,
+    signature: string,
+  ): Promise<IngestOfflineAttendanceResponse> {
+    const rows = await this.rpc("record_offline_attendance", {
+      p_tenant_id: tenantId,
+      p_credential_id: credentialId,
+      p_command: command,
+      p_canonical: canonicalCommand,
+      p_fingerprint: commandFingerprint,
+      p_signature: signature,
+    });
+    const result = AttendanceIngestionRow.parse(Array.isArray(rows) ? rows[0] : rows);
+    return {
+      syncStatus: result.sync_status,
+      ingestionId: result.ingestion_id,
+      localEventId: command.localEventId,
+      receivedAt: iso(result.received_at),
+      event: {
+        membershipId: result.membership_id,
+        eventType: result.event_type,
+        eventAt: iso(result.event_at),
+        adjudication: "pending_policy",
       },
     };
   }
