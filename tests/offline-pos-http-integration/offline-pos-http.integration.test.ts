@@ -555,7 +555,9 @@ describe.sequential("Phase 9 offline attendance over the real HTTP server", () =
   });
 
   it("case A2 — clock-out is accepted and attributed to the same operator", async () => {
-    const result = await ingestAttendance(signAttendance(attendanceCommand({ eventType: "clock_out" })));
+    const result = await ingestAttendance(
+      signAttendance(attendanceCommand({ eventType: "clock_out" })),
+    );
     expect(result.syncStatus).toBe("received");
     expect(result.event.eventType).toBe("clock_out");
     expect(result.event.membershipId).toBe(grant.operatorMembershipId);
@@ -632,9 +634,13 @@ describe.sequential("Phase 9 offline attendance over the real HTTP server", () =
   });
 
   it("case A8 — the provisional attendance store is invisible to an anon client (tenant RLS)", async () => {
-    const anon = createClient(supabaseUrl!, process.env.POS_TEST_SUPABASE_ANON_KEY ?? serviceRoleKey!, {
-      auth: { autoRefreshToken: false, detectSessionInUrl: false, persistSession: false },
-    });
+    const anon = createClient(
+      supabaseUrl!,
+      process.env.POS_TEST_SUPABASE_ANON_KEY ?? serviceRoleKey!,
+      {
+        auth: { autoRefreshToken: false, detectSessionInUrl: false, persistSession: false },
+      },
+    );
     const { data, error } = await anon
       .from("offline_attendance_ingestions")
       .select("id")

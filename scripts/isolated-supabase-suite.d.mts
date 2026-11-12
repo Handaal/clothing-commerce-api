@@ -15,7 +15,10 @@ export interface IsolatedSuiteSpec {
   setupSql?: string[];
   extraSql?: string;
   rls?: { files: string[]; plans?: Array<{ file: string; expected?: number }> };
-  vitest?: { dir: string; env: (status: Record<string, string>) => Record<string, string | undefined> };
+  vitest?: {
+    dir: string;
+    env: (status: Record<string, string>) => Record<string, string | undefined>;
+  };
 }
 
 export declare function selectExcluded(spec: {
