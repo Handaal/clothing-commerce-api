@@ -50,7 +50,16 @@ const OptionValueRowSchema = z.object({
   option_id: z.string().uuid(),
   display_value: z.string(),
   position: z.number().int(),
+  swatch_hex: z.string().nullable().optional(),
 });
+
+const VariantSelectionRowSchema = z.object({
+  variant_id: z.string().uuid(),
+  option_id: z.string().uuid(),
+  option_value_id: z.string().uuid(),
+});
+
+const ProductCategoryRowSchema = z.object({ category_id: z.string().uuid() });
 
 const PriceRowSchema = z.object({
   variant_id: z.string().uuid(),
@@ -157,31 +166,53 @@ export class SupabaseCatalogReadRepository implements CatalogReadRepository {
     }
     const product = productRows[0];
 
-    const [variantResult, optionResult, optionValueResult] = await Promise.all([
-      this.client
-        .from("product_variants")
-        .select("id,sku,display_name,status")
-        .eq("tenant_id", tenantId)
-        .eq("product_id", productId)
-        .order("created_at", { ascending: true })
-        .order("id", { ascending: true }),
-      this.client
-        .from("product_options")
-        .select("id,name,position")
-        .eq("tenant_id", tenantId)
-        .eq("product_id", productId)
-        .eq("status", "active")
-        .order("position", { ascending: true })
-        .order("id", { ascending: true }),
-      this.client
-        .from("product_option_values")
-        .select("id,option_id,display_value,position")
-        .eq("tenant_id", tenantId)
-        .eq("product_id", productId)
-        .eq("status", "active")
-        .order("position", { ascending: true })
-        .order("id", { ascending: true }),
-    ]);
+    const [variantResult, optionResult, optionValueResult, selectionResult, categoryResult] =
+      await Promise.all([
+        this.client
+          .from("product_variants")
+          .select("id,sku,display_name,status")
+          .eq("tenant_id", tenantId)
+          .eq("product_id", productId)
+          .order("created_at", { ascending: true })
+          .order("id", { ascending: true }),
+        this.client
+          .from("product_options")
+          .select("id,name,position")
+          .eq("tenant_id", tenantId)
+          .eq("product_id", productId)
+          .eq("status", "active")
+          .order("position", { ascending: true })
+          .order("id", { ascending: true }),
+        this.client
+          .from("product_option_values")
+          .select("id,option_id,display_value,position,swatch_hex")
+          .eq("tenant_id", tenantId)
+          .eq("product_id", productId)
+          .eq("status", "active")
+          .order("position", { ascending: true })
+          .order("id", { ascending: true }),
+        this.client
+          .from("variant_option_values")
+          .select("variant_id,option_id,option_value_id")
+          .eq("tenant_id", tenantId)
+          .eq("product_id", productId),
+        this.client
+          .from("product_categories")
+          .select("category_id")
+          .eq("tenant_id", tenantId)
+          .eq("product_id", productId),
+      ]);
+    requireNoQueryError(selectionResult.error);
+    requireNoQueryError(categoryResult.error);
+    const selectionsByVariant = new Map<string, { optionId: string; valueId: string }[]>();
+    for (const row of parseRows(VariantSelectionRowSchema, selectionResult.data)) {
+      const bucket = selectionsByVariant.get(row.variant_id) ?? [];
+      bucket.push({ optionId: row.option_id, valueId: row.option_value_id });
+      selectionsByVariant.set(row.variant_id, bucket);
+    }
+    const categoryIds = parseRows(ProductCategoryRowSchema, categoryResult.data).map(
+      (row) => row.category_id,
+    );
     requireNoQueryError(variantResult.error);
     requireNoQueryError(optionResult.error);
     requireNoQueryError(optionValueResult.error);
@@ -207,10 +238,18 @@ export class SupabaseCatalogReadRepository implements CatalogReadRepository {
     );
     const prices = await this.loadActivePrices(tenantId, variantIds);
 
-    const valuesByOption = new Map<string, { id: string; value: string }[]>();
+    const valuesByOption = new Map<
+      string,
+      { id: string; value: string; swatchHex: string | null; position: number }[]
+    >();
     for (const value of optionValues) {
       const bucket = valuesByOption.get(value.option_id) ?? [];
-      bucket.push({ id: value.id, value: value.display_value });
+      bucket.push({
+        id: value.id,
+        value: value.display_value,
+        swatchHex: value.swatch_hex ?? null,
+        position: value.position,
+      });
       valuesByOption.set(value.option_id, bucket);
     }
 
@@ -228,6 +267,7 @@ export class SupabaseCatalogReadRepository implements CatalogReadRepository {
         barcode: barcodes.get(variant.id) ?? null,
         displayName: variant.display_name,
         status: variant.status,
+        optionValues: selectionsByVariant.get(variant.id) ?? [],
       })),
       options: options.map((option) => ({
         id: option.id,
@@ -235,6 +275,7 @@ export class SupabaseCatalogReadRepository implements CatalogReadRepository {
         values: valuesByOption.get(option.id) ?? [],
       })),
       prices,
+      categoryIds,
     };
   }
 

@@ -151,6 +151,19 @@ import {
   PublishProductResponseSchema,
   UnpublishProductResponseSchema,
   CreateVariantRequestSchema,
+  SetVariantOptionsRequestSchema,
+  SetVariantOptionsResponseSchema,
+  UpdateOptionValuesRequestSchema,
+  UpdateOptionValuesResponseSchema,
+  CategoryListResponseSchema,
+  CreateCategoryRequestSchema,
+  UpdateCategoryRequestSchema,
+  SetCategoryStatusRequestSchema,
+  CategoryWriteResponseSchema,
+  CategoryUpdatedResponseSchema,
+  SetProductCategoriesRequestSchema,
+  SetProductCategoriesResponseSchema,
+  PublicCategoryListResponseSchema,
   CreateVariantResponseSchema,
   SetVariantPriceRequestSchema,
   SetVariantPriceResponseSchema,
@@ -2930,6 +2943,203 @@ export function generateOpenApiDocument() {
           },
         },
       },
+      "/api/v1/categories": {
+        get: {
+          operationId: "listCategories",
+          tags: ["catalog-management"],
+          summary: "List categories in the caller's tenant.",
+          description:
+            "Lists every category (any status) with its parent and direct product count. Requires " +
+            "catalog.author tenant-wide.",
+          security: clerkSecurity,
+          parameters: [tenantHeaderParameter],
+          responses: {
+            "200": jsonResponse("All categories.", "#/components/schemas/CategoryListResponse"),
+            ...errorResponses(400, 401, 403, 500),
+          },
+        },
+        post: {
+          operationId: "createCategory",
+          tags: ["catalog-management"],
+          summary: "Create a category.",
+          description:
+            "Creates an active category, optionally under a parent (e.g. Men → T-Shirts). Requires catalog.author tenant-wide and an Idempotency-Key header.",
+          security: clerkSecurity,
+          parameters: [tenantHeaderParameter, idempotencyKeyHeaderParameter],
+          requestBody: jsonRequestBody(
+            "Create a category.",
+            "#/components/schemas/CreateCategoryRequest",
+          ),
+          responses: {
+            "200": jsonResponse(
+              "The created category id and status.",
+              "#/components/schemas/CategoryWriteResponse",
+            ),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
+      "/api/v1/categories/{categoryId}": {
+        patch: {
+          operationId: "updateCategory",
+          tags: ["catalog-management"],
+          summary: "Update a category.",
+          description:
+            "Updates name, slug, description, parent and position. Moving a category inside itself or a descendant is rejected (409 CATEGORY_CYCLE).",
+          security: clerkSecurity,
+          parameters: [
+            tenantHeaderParameter,
+            idempotencyKeyHeaderParameter,
+            {
+              name: "categoryId",
+              in: "path",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+          ],
+          requestBody: jsonRequestBody(
+            "Update a category.",
+            "#/components/schemas/UpdateCategoryRequest",
+          ),
+          responses: {
+            "200": jsonResponse(
+              "The updated category id.",
+              "#/components/schemas/CategoryUpdatedResponse",
+            ),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
+      "/api/v1/categories/{categoryId}/status": {
+        post: {
+          operationId: "setCategoryStatus",
+          tags: ["catalog-management"],
+          summary: "Archive or restore a category.",
+          description:
+            "Archived categories, and their descendants, are hidden from the Storefront.",
+          security: clerkSecurity,
+          parameters: [
+            tenantHeaderParameter,
+            idempotencyKeyHeaderParameter,
+            {
+              name: "categoryId",
+              in: "path",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+          ],
+          requestBody: jsonRequestBody(
+            "Archive or restore a category.",
+            "#/components/schemas/SetCategoryStatusRequest",
+          ),
+          responses: {
+            "200": jsonResponse(
+              "The category id and new status.",
+              "#/components/schemas/CategoryWriteResponse",
+            ),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
+      "/api/v1/products/{productId}/categories": {
+        put: {
+          operationId: "setProductCategories",
+          tags: ["catalog-management"],
+          summary: "Replace a product's category membership.",
+          description:
+            "Sets the product's complete list of categories in one atomic command. An empty array removes the product from every category.",
+          security: clerkSecurity,
+          parameters: [
+            tenantHeaderParameter,
+            idempotencyKeyHeaderParameter,
+            {
+              name: "productId",
+              in: "path",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+          ],
+          requestBody: jsonRequestBody(
+            "Replace a product's category membership.",
+            "#/components/schemas/SetProductCategoriesRequest",
+          ),
+          responses: {
+            "200": jsonResponse(
+              "The product id and category count.",
+              "#/components/schemas/SetProductCategoriesResponse",
+            ),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
+      "/api/v1/products/{productId}/variants/{variantId}/options": {
+        put: {
+          operationId: "setVariantOptions",
+          tags: ["catalog-management"],
+          summary: "Replace a variant's option values.",
+          description:
+            "Sets the variant's complete option selection (e.g. Size M, Colour Black). Options and values are product-local, matched case-insensitively and created on first use. Two variants of one product cannot share the same selection (409 VARIANT_OPTIONS_CONFLICT).",
+          security: clerkSecurity,
+          parameters: [
+            tenantHeaderParameter,
+            idempotencyKeyHeaderParameter,
+            {
+              name: "productId",
+              in: "path",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+            {
+              name: "variantId",
+              in: "path",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+          ],
+          requestBody: jsonRequestBody(
+            "Replace a variant's option values.",
+            "#/components/schemas/SetVariantOptionsRequest",
+          ),
+          responses: {
+            "200": jsonResponse(
+              "The variant id and canonical option signature.",
+              "#/components/schemas/SetVariantOptionsResponse",
+            ),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
+      "/api/v1/products/{productId}/option-values": {
+        patch: {
+          operationId: "updateOptionValues",
+          tags: ["catalog-management"],
+          summary: "Set swatch colours and order of option values.",
+          description:
+            "Updates the swatch colour (#rrggbb, null clears) and display position of existing option values of the product.",
+          security: clerkSecurity,
+          parameters: [
+            tenantHeaderParameter,
+            idempotencyKeyHeaderParameter,
+            {
+              name: "productId",
+              in: "path",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+          ],
+          requestBody: jsonRequestBody(
+            "Set swatch colours and order of option values.",
+            "#/components/schemas/UpdateOptionValuesRequest",
+          ),
+          responses: {
+            "200": jsonResponse(
+              "The product id and number of values updated.",
+              "#/components/schemas/UpdateOptionValuesResponse",
+            ),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
       "/api/v1/sales": {
         get: {
           operationId: "listSales",
@@ -3140,6 +3350,33 @@ export function generateOpenApiDocument() {
             "200": jsonResponse(
               "Storefront content",
               "#/components/schemas/PublicStorefrontContent",
+            ),
+            ...errorResponses(400, 500),
+          },
+        },
+      },
+      "/api/v1/storefront/categories": {
+        get: {
+          operationId: "listStorefrontCategories",
+          tags: ["storefront"],
+          summary: "List the storefront tenant's category tree.",
+          description:
+            "Public, unauthenticated. Returns active categories (with an all-active ancestry) that hold " +
+            "at least one publicly visible product directly or in a descendant. Use parentId to build " +
+            "the tree; productCount includes descendants.",
+          parameters: [
+            {
+              name: "tenantId",
+              in: "query",
+              required: true,
+              description: "The tenant the storefront serves.",
+              schema: { type: "string", format: "uuid" },
+            },
+          ],
+          responses: {
+            "200": jsonResponse(
+              "The published category list.",
+              "#/components/schemas/PublicCategoryListResponse",
             ),
             ...errorResponses(400, 500),
           },
@@ -4262,6 +4499,19 @@ export function generateOpenApiDocument() {
         PublishProductResponse: jsonSchema(PublishProductResponseSchema),
         UnpublishProductResponse: jsonSchema(UnpublishProductResponseSchema),
         CreateVariantRequest: jsonSchema(CreateVariantRequestSchema),
+        SetVariantOptionsRequest: jsonSchema(SetVariantOptionsRequestSchema),
+        SetVariantOptionsResponse: jsonSchema(SetVariantOptionsResponseSchema),
+        UpdateOptionValuesRequest: jsonSchema(UpdateOptionValuesRequestSchema),
+        UpdateOptionValuesResponse: jsonSchema(UpdateOptionValuesResponseSchema),
+        CategoryListResponse: jsonSchema(CategoryListResponseSchema),
+        CreateCategoryRequest: jsonSchema(CreateCategoryRequestSchema),
+        UpdateCategoryRequest: jsonSchema(UpdateCategoryRequestSchema),
+        SetCategoryStatusRequest: jsonSchema(SetCategoryStatusRequestSchema),
+        CategoryWriteResponse: jsonSchema(CategoryWriteResponseSchema),
+        CategoryUpdatedResponse: jsonSchema(CategoryUpdatedResponseSchema),
+        SetProductCategoriesRequest: jsonSchema(SetProductCategoriesRequestSchema),
+        SetProductCategoriesResponse: jsonSchema(SetProductCategoriesResponseSchema),
+        PublicCategoryListResponse: jsonSchema(PublicCategoryListResponseSchema),
         CreateVariantResponse: jsonSchema(CreateVariantResponseSchema),
         SetVariantPriceRequest: jsonSchema(SetVariantPriceRequestSchema),
         SetVariantPriceResponse: jsonSchema(SetVariantPriceResponseSchema),

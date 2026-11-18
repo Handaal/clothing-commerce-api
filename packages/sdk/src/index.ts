@@ -734,6 +734,25 @@ import {
   SetCollectionProductsResponseSchema,
   PublicCollectionListResponseSchema,
   PublicCollectionDetailResponseSchema,
+  SetVariantOptionsResponseSchema,
+  UpdateOptionValuesResponseSchema,
+  CategoryListResponseSchema,
+  CategoryWriteResponseSchema,
+  CategoryUpdatedResponseSchema,
+  SetProductCategoriesResponseSchema,
+  PublicCategoryListResponseSchema,
+  type VariantOptionSelection,
+  type SetVariantOptionsResponse,
+  type UpdateOptionValuesRequest,
+  type UpdateOptionValuesResponse,
+  type CategoryListResponse,
+  type CategoryWriteResponse,
+  type CategoryUpdatedResponse,
+  type CreateCategoryRequest,
+  type UpdateCategoryRequest,
+  type SetCategoryStatusRequest,
+  type SetProductCategoriesResponse,
+  type PublicCategoryListResponse,
   type CollectionListResponse,
   type CollectionDetailResponse,
   type CollectionWriteResponse,
@@ -852,6 +871,26 @@ export {
   canonicalizeOfflineReturnCommand,
   canonicalizeOfflineCustomerCommand,
   canonicalizeOfflineSaleHoldCommand,
+} from "../../../src/contracts";
+export type {
+  VariantOptionSelection,
+  SetVariantOptionsResponse,
+  UpdateOptionValuesRequest,
+  UpdateOptionValuesResponse,
+  CategoryListResponse,
+  CategorySummary,
+  CategoryStatus,
+  CategoryWriteResponse,
+  CategoryUpdatedResponse,
+  CreateCategoryRequest,
+  UpdateCategoryRequest,
+  SetCategoryStatusRequest,
+  SetProductCategoriesResponse,
+  PublicCategory,
+  PublicCategoryListResponse,
+  PublicProductOption,
+  PublicProductCategory,
+  PublicVariantOptionValue,
 } from "../../../src/contracts";
 import packageMetadata from "../package.json";
 import type { z } from "zod";
@@ -1034,6 +1073,30 @@ export interface CreateVariantInput extends IdempotentWrite {
   productId: string;
   sku: string;
   displayName?: string;
+  /** Create the variant with these option values (e.g. Size M, Colour Black) atomically. */
+  options?: VariantOptionSelection[];
+}
+export interface SetVariantOptionsInput extends IdempotentWrite {
+  productId: string;
+  variantId: string;
+  /** The complete selection; an empty array clears the variant's options. */
+  options: VariantOptionSelection[];
+}
+export interface UpdateOptionValuesInput extends IdempotentWrite, UpdateOptionValuesRequest {
+  productId: string;
+}
+
+// ---- Categories management inputs ----
+export interface CreateCategoryInput extends IdempotentWrite, CreateCategoryRequest {}
+export interface UpdateCategoryInput extends IdempotentWrite, UpdateCategoryRequest {
+  categoryId: string;
+}
+export interface SetCategoryStatusInput extends IdempotentWrite, SetCategoryStatusRequest {
+  categoryId: string;
+}
+export interface SetProductCategoriesInput extends IdempotentWrite {
+  productId: string;
+  categoryIds: string[];
 }
 export interface SetVariantPriceInput extends IdempotentWrite {
   variantId: string;
@@ -1093,6 +1156,9 @@ export interface PublicCollectionQuery {
   tenantId: string;
   slug: string;
 }
+export interface PublicCategoryListQuery {
+  tenantId: string;
+}
 
 /** Tenant-scoped management surface, obtained via `client.withTenant(tenantId)`. */
 export interface TenantCommerceClient {
@@ -1119,6 +1185,13 @@ export interface TenantCommerceClient {
   updateCollection(input: UpdateCollectionInput): Promise<CollectionUpdatedResponse>;
   setCollectionStatus(input: SetCollectionStatusInput): Promise<CollectionWriteResponse>;
   setCollectionProducts(input: SetCollectionProductsInput): Promise<SetCollectionProductsResponse>;
+  setVariantOptions(input: SetVariantOptionsInput): Promise<SetVariantOptionsResponse>;
+  updateOptionValues(input: UpdateOptionValuesInput): Promise<UpdateOptionValuesResponse>;
+  listCategories(): Promise<CategoryListResponse>;
+  createCategory(input: CreateCategoryInput): Promise<CategoryWriteResponse>;
+  updateCategory(input: UpdateCategoryInput): Promise<CategoryUpdatedResponse>;
+  setCategoryStatus(input: SetCategoryStatusInput): Promise<CategoryWriteResponse>;
+  setProductCategories(input: SetProductCategoriesInput): Promise<SetProductCategoriesResponse>;
   listInventory(query?: InventoryListQuery): Promise<InventoryListResponse>;
   listSuppliers(query?: SupplierListQuery): Promise<SupplierListResponse>;
   getSupplier(supplierId: string): Promise<Supplier>;
@@ -1405,6 +1478,8 @@ export interface CommerceClient {
   /** Public Storefront collection reads. Unauthenticated; tenant is an explicit query parameter. */
   listPublishedCollections(query: PublicCollectionListQuery): Promise<PublicCollectionListResponse>;
   getPublishedCollection(query: PublicCollectionQuery): Promise<PublicCollectionDetailResponse>;
+  /** Public Storefront category tree (active categories with publicly visible products). */
+  listStorefrontCategories(query: PublicCategoryListQuery): Promise<PublicCategoryListResponse>;
   /** Public Storefront home-page content (hero + featured picks). Unauthenticated. */
   getPublicStorefrontContent(query: PublicStorefrontContentQuery): Promise<PublicStorefrontContent>;
 }
@@ -1709,6 +1784,49 @@ export function createCommerceClient({
         request(
           `/api/v1/collections/${encodeURIComponent(collectionId)}/products`,
           SetCollectionProductsResponseSchema,
+          { tenantId, method: "PUT", body, idempotencyKey },
+        ),
+      setVariantOptions: ({
+        idempotencyKey,
+        productId,
+        variantId,
+        ...body
+      }: SetVariantOptionsInput) =>
+        request(
+          `/api/v1/products/${encodeURIComponent(productId)}/variants/${encodeURIComponent(variantId)}/options`,
+          SetVariantOptionsResponseSchema,
+          { tenantId, method: "PUT", body, idempotencyKey },
+        ),
+      updateOptionValues: ({ idempotencyKey, productId, ...body }: UpdateOptionValuesInput) =>
+        request(
+          `/api/v1/products/${encodeURIComponent(productId)}/option-values`,
+          UpdateOptionValuesResponseSchema,
+          { tenantId, method: "PATCH", body, idempotencyKey },
+        ),
+      listCategories: () => request("/api/v1/categories", CategoryListResponseSchema, { tenantId }),
+      createCategory: ({ idempotencyKey, ...body }: CreateCategoryInput) =>
+        request("/api/v1/categories", CategoryWriteResponseSchema, {
+          tenantId,
+          method: "POST",
+          body,
+          idempotencyKey,
+        }),
+      updateCategory: ({ idempotencyKey, categoryId, ...body }: UpdateCategoryInput) =>
+        request(
+          `/api/v1/categories/${encodeURIComponent(categoryId)}`,
+          CategoryUpdatedResponseSchema,
+          { tenantId, method: "PATCH", body, idempotencyKey },
+        ),
+      setCategoryStatus: ({ idempotencyKey, categoryId, ...body }: SetCategoryStatusInput) =>
+        request(
+          `/api/v1/categories/${encodeURIComponent(categoryId)}/status`,
+          CategoryWriteResponseSchema,
+          { tenantId, method: "POST", body, idempotencyKey },
+        ),
+      setProductCategories: ({ idempotencyKey, productId, ...body }: SetProductCategoriesInput) =>
+        request(
+          `/api/v1/products/${encodeURIComponent(productId)}/categories`,
+          SetProductCategoriesResponseSchema,
           { tenantId, method: "PUT", body, idempotencyKey },
         ),
       listInventory: (query = {}) =>
@@ -2811,6 +2929,11 @@ export function createCommerceClient({
           tenantId: query.tenantId,
         })}`,
         PublicCollectionDetailResponseSchema,
+      ),
+    listStorefrontCategories: (query: PublicCategoryListQuery) =>
+      request(
+        `/api/v1/storefront/categories${buildQuery({ tenantId: query.tenantId })}`,
+        PublicCategoryListResponseSchema,
       ),
     getPublicStorefrontContent: (query: PublicStorefrontContentQuery) =>
       request(

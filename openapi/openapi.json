@@ -4456,6 +4456,298 @@
         }
       }
     },
+    "/api/v1/categories": {
+      "get": {
+        "operationId": "listCategories",
+        "tags": ["catalog-management"],
+        "summary": "List categories in the caller's tenant.",
+        "description": "Lists every category (any status) with its parent and direct product count. Requires catalog.author tenant-wide.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/TenantIdHeader" }],
+        "responses": {
+          "200": {
+            "description": "All categories.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/CategoryListResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      },
+      "post": {
+        "operationId": "createCategory",
+        "tags": ["catalog-management"],
+        "summary": "Create a category.",
+        "description": "Creates an active category, optionally under a parent (e.g. Men → T-Shirts). Requires catalog.author tenant-wide and an Idempotency-Key header.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          { "$ref": "#/components/parameters/IdempotencyKeyHeader" }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Create a category.",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateCategoryRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The created category id and status.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/CategoryWriteResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "409": { "$ref": "#/components/responses/Error409" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/v1/categories/{categoryId}": {
+      "patch": {
+        "operationId": "updateCategory",
+        "tags": ["catalog-management"],
+        "summary": "Update a category.",
+        "description": "Updates name, slug, description, parent and position. Moving a category inside itself or a descendant is rejected (409 CATEGORY_CYCLE).",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          { "$ref": "#/components/parameters/IdempotencyKeyHeader" },
+          {
+            "name": "categoryId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Update a category.",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateCategoryRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated category id.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/CategoryUpdatedResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "409": { "$ref": "#/components/responses/Error409" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/v1/categories/{categoryId}/status": {
+      "post": {
+        "operationId": "setCategoryStatus",
+        "tags": ["catalog-management"],
+        "summary": "Archive or restore a category.",
+        "description": "Archived categories, and their descendants, are hidden from the Storefront.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          { "$ref": "#/components/parameters/IdempotencyKeyHeader" },
+          {
+            "name": "categoryId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Archive or restore a category.",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SetCategoryStatusRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The category id and new status.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/CategoryWriteResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "409": { "$ref": "#/components/responses/Error409" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/v1/products/{productId}/categories": {
+      "put": {
+        "operationId": "setProductCategories",
+        "tags": ["catalog-management"],
+        "summary": "Replace a product's category membership.",
+        "description": "Sets the product's complete list of categories in one atomic command. An empty array removes the product from every category.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          { "$ref": "#/components/parameters/IdempotencyKeyHeader" },
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Replace a product's category membership.",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SetProductCategoriesRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The product id and category count.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SetProductCategoriesResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "409": { "$ref": "#/components/responses/Error409" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/v1/products/{productId}/variants/{variantId}/options": {
+      "put": {
+        "operationId": "setVariantOptions",
+        "tags": ["catalog-management"],
+        "summary": "Replace a variant's option values.",
+        "description": "Sets the variant's complete option selection (e.g. Size M, Colour Black). Options and values are product-local, matched case-insensitively and created on first use. Two variants of one product cannot share the same selection (409 VARIANT_OPTIONS_CONFLICT).",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          { "$ref": "#/components/parameters/IdempotencyKeyHeader" },
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          },
+          {
+            "name": "variantId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Replace a variant's option values.",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SetVariantOptionsRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The variant id and canonical option signature.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SetVariantOptionsResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "409": { "$ref": "#/components/responses/Error409" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/v1/products/{productId}/option-values": {
+      "patch": {
+        "operationId": "updateOptionValues",
+        "tags": ["catalog-management"],
+        "summary": "Set swatch colours and order of option values.",
+        "description": "Updates the swatch colour (#rrggbb, null clears) and display position of existing option values of the product.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          { "$ref": "#/components/parameters/IdempotencyKeyHeader" },
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Set swatch colours and order of option values.",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateOptionValuesRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The product id and number of values updated.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/UpdateOptionValuesResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "409": { "$ref": "#/components/responses/Error409" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
     "/api/v1/sales": {
       "get": {
         "operationId": "listSales",
@@ -4769,6 +5061,35 @@
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/PublicStorefrontContent" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/v1/storefront/categories": {
+      "get": {
+        "operationId": "listStorefrontCategories",
+        "tags": ["storefront"],
+        "summary": "List the storefront tenant's category tree.",
+        "description": "Public, unauthenticated. Returns active categories (with an all-active ancestry) that hold at least one publicly visible product directly or in a descendant. Use parentId to build the tree; productCount includes descendants.",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "query",
+            "required": true,
+            "description": "The tenant the storefront serves.",
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The published category list.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PublicCategoryListResponse" }
               }
             }
           },
@@ -10630,7 +10951,27 @@
                 "sku": { "type": "string" },
                 "barcode": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
                 "displayName": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
-                "status": { "type": "string", "enum": ["draft", "active", "archived"] }
+                "status": { "type": "string", "enum": ["draft", "active", "archived"] },
+                "optionValues": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "optionId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      },
+                      "valueId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      }
+                    },
+                    "required": ["optionId", "valueId"],
+                    "additionalProperties": false
+                  }
+                }
               },
               "required": ["id", "sku", "displayName", "status"],
               "additionalProperties": false
@@ -10657,7 +10998,9 @@
                         "format": "uuid",
                         "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
                       },
-                      "value": { "type": "string" }
+                      "value": { "type": "string" },
+                      "swatchHex": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                      "position": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
                     },
                     "required": ["id", "value"],
                     "additionalProperties": false
@@ -10683,6 +11026,14 @@
               },
               "required": ["variantId", "currency", "amountMinor"],
               "additionalProperties": false
+            }
+          },
+          "categoryIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
             }
           }
         },
@@ -11369,9 +11720,319 @@
         "type": "object",
         "properties": {
           "sku": { "type": "string", "minLength": 1, "maxLength": 100 },
-          "displayName": { "type": "string", "minLength": 1, "maxLength": 200 }
+          "displayName": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "options": {
+            "maxItems": 3,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": { "type": "string", "minLength": 1, "maxLength": 60 },
+                "value": { "type": "string", "minLength": 1, "maxLength": 60 }
+              },
+              "required": ["name", "value"],
+              "additionalProperties": false
+            }
+          }
         },
         "required": ["sku"],
+        "additionalProperties": false
+      },
+      "SetVariantOptionsRequest": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "options": {
+            "maxItems": 3,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": { "type": "string", "minLength": 1, "maxLength": 60 },
+                "value": { "type": "string", "minLength": 1, "maxLength": 60 }
+              },
+              "required": ["name", "value"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["options"],
+        "additionalProperties": false
+      },
+      "SetVariantOptionsResponse": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "variantId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "optionSignature": { "type": "string" }
+        },
+        "required": ["variantId", "optionSignature"],
+        "additionalProperties": false
+      },
+      "UpdateOptionValuesRequest": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "values": {
+            "minItems": 1,
+            "maxItems": 200,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "valueId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "swatchHex": {
+                  "anyOf": [
+                    { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+                    { "type": "null" }
+                  ]
+                },
+                "position": { "type": "integer", "minimum": 0, "maximum": 1000 }
+              },
+              "required": ["valueId", "swatchHex"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["values"],
+        "additionalProperties": false
+      },
+      "UpdateOptionValuesResponse": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "productId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "updatedCount": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+        },
+        "required": ["productId", "updatedCount"],
+        "additionalProperties": false
+      },
+      "CategoryListResponse": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "categories": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "parentId": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "name": { "type": "string" },
+                "slug": { "type": "string" },
+                "description": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                "position": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+                "status": { "type": "string", "enum": ["active", "archived"] },
+                "productCount": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+              },
+              "required": [
+                "id",
+                "parentId",
+                "name",
+                "slug",
+                "description",
+                "position",
+                "status",
+                "productCount"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["categories"],
+        "additionalProperties": false
+      },
+      "CreateCategoryRequest": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "parentId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              { "type": "null" }
+            ]
+          },
+          "name": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "slug": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "pattern": "^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$"
+          },
+          "description": { "type": "string", "minLength": 1, "maxLength": 2000 },
+          "position": { "type": "integer", "minimum": 0, "maximum": 1000 }
+        },
+        "required": ["name", "slug"],
+        "additionalProperties": false
+      },
+      "UpdateCategoryRequest": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "parentId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              { "type": "null" }
+            ]
+          },
+          "name": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "slug": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "pattern": "^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$"
+          },
+          "description": { "type": "string", "minLength": 1, "maxLength": 2000 },
+          "position": { "type": "integer", "minimum": 0, "maximum": 1000 }
+        },
+        "required": ["parentId", "name", "slug"],
+        "additionalProperties": false
+      },
+      "SetCategoryStatusRequest": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "status": { "type": "string", "enum": ["active", "archived"] },
+          "archiveReason": { "type": "string", "minLength": 1, "maxLength": 500 }
+        },
+        "required": ["status"],
+        "additionalProperties": false
+      },
+      "CategoryWriteResponse": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "categoryId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "status": { "type": "string", "enum": ["active", "archived"] }
+        },
+        "required": ["categoryId", "status"],
+        "additionalProperties": false
+      },
+      "CategoryUpdatedResponse": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "categoryId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          }
+        },
+        "required": ["categoryId"],
+        "additionalProperties": false
+      },
+      "SetProductCategoriesRequest": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "categoryIds": {
+            "maxItems": 50,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            }
+          }
+        },
+        "required": ["categoryIds"],
+        "additionalProperties": false
+      },
+      "SetProductCategoriesResponse": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "productId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "categoryCount": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+        },
+        "required": ["productId", "categoryCount"],
+        "additionalProperties": false
+      },
+      "PublicCategoryListResponse": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "categories": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "parentId": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "slug": { "type": "string" },
+                "name": { "type": "string" },
+                "description": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                "position": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+                "productCount": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+              },
+              "required": [
+                "id",
+                "parentId",
+                "slug",
+                "name",
+                "description",
+                "position",
+                "productCount"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["categories"],
         "additionalProperties": false
       },
       "CreateVariantResponse": {
@@ -11607,6 +12268,18 @@
                       "sku": { "type": "string" },
                       "displayName": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
                       "optionSignature": { "type": "string" },
+                      "optionValues": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "name": { "type": "string" },
+                            "value": { "type": "string" }
+                          },
+                          "required": ["name", "value"],
+                          "additionalProperties": false
+                        }
+                      },
                       "prices": {
                         "type": "array",
                         "items": {
@@ -11665,6 +12338,51 @@
                       }
                     },
                     "required": ["id", "name", "buyQuantity", "getQuantity"],
+                    "additionalProperties": false
+                  }
+                },
+                "options": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": { "type": "string" },
+                      "values": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "value": { "type": "string" },
+                            "swatchHex": {
+                              "anyOf": [
+                                { "type": "string", "pattern": "^#[0-9a-f]{6}$" },
+                                { "type": "null" }
+                              ]
+                            }
+                          },
+                          "required": ["value", "swatchHex"],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": ["name", "values"],
+                    "additionalProperties": false
+                  }
+                },
+                "categories": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      },
+                      "slug": { "type": "string" },
+                      "name": { "type": "string" }
+                    },
+                    "required": ["id", "slug", "name"],
                     "additionalProperties": false
                   }
                 }
@@ -11756,6 +12474,15 @@
                 "sku": { "type": "string" },
                 "displayName": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
                 "optionSignature": { "type": "string" },
+                "optionValues": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": { "name": { "type": "string" }, "value": { "type": "string" } },
+                    "required": ["name", "value"],
+                    "additionalProperties": false
+                  }
+                },
                 "prices": {
                   "type": "array",
                   "items": {
@@ -11807,6 +12534,51 @@
                 }
               },
               "required": ["id", "name", "buyQuantity", "getQuantity"],
+              "additionalProperties": false
+            }
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": { "type": "string" },
+                "values": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "value": { "type": "string" },
+                      "swatchHex": {
+                        "anyOf": [
+                          { "type": "string", "pattern": "^#[0-9a-f]{6}$" },
+                          { "type": "null" }
+                        ]
+                      }
+                    },
+                    "required": ["value", "swatchHex"],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": ["name", "values"],
+              "additionalProperties": false
+            }
+          },
+          "categories": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "slug": { "type": "string" },
+                "name": { "type": "string" }
+              },
+              "required": ["id", "slug", "name"],
               "additionalProperties": false
             }
           }
@@ -12511,6 +13283,18 @@
                       "sku": { "type": "string" },
                       "displayName": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
                       "optionSignature": { "type": "string" },
+                      "optionValues": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "name": { "type": "string" },
+                            "value": { "type": "string" }
+                          },
+                          "required": ["name", "value"],
+                          "additionalProperties": false
+                        }
+                      },
                       "prices": {
                         "type": "array",
                         "items": {
@@ -12569,6 +13353,51 @@
                       }
                     },
                     "required": ["id", "name", "buyQuantity", "getQuantity"],
+                    "additionalProperties": false
+                  }
+                },
+                "options": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": { "type": "string" },
+                      "values": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "value": { "type": "string" },
+                            "swatchHex": {
+                              "anyOf": [
+                                { "type": "string", "pattern": "^#[0-9a-f]{6}$" },
+                                { "type": "null" }
+                              ]
+                            }
+                          },
+                          "required": ["value", "swatchHex"],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": ["name", "values"],
+                    "additionalProperties": false
+                  }
+                },
+                "categories": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      },
+                      "slug": { "type": "string" },
+                      "name": { "type": "string" }
+                    },
+                    "required": ["id", "slug", "name"],
                     "additionalProperties": false
                   }
                 }
@@ -12757,6 +13586,18 @@
                       "sku": { "type": "string" },
                       "displayName": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
                       "optionSignature": { "type": "string" },
+                      "optionValues": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "name": { "type": "string" },
+                            "value": { "type": "string" }
+                          },
+                          "required": ["name", "value"],
+                          "additionalProperties": false
+                        }
+                      },
                       "prices": {
                         "type": "array",
                         "items": {
@@ -12815,6 +13656,51 @@
                       }
                     },
                     "required": ["id", "name", "buyQuantity", "getQuantity"],
+                    "additionalProperties": false
+                  }
+                },
+                "options": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": { "type": "string" },
+                      "values": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "value": { "type": "string" },
+                            "swatchHex": {
+                              "anyOf": [
+                                { "type": "string", "pattern": "^#[0-9a-f]{6}$" },
+                                { "type": "null" }
+                              ]
+                            }
+                          },
+                          "required": ["value", "swatchHex"],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": ["name", "values"],
+                    "additionalProperties": false
+                  }
+                },
+                "categories": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      },
+                      "slug": { "type": "string" },
+                      "name": { "type": "string" }
+                    },
+                    "required": ["id", "slug", "name"],
                     "additionalProperties": false
                   }
                 }

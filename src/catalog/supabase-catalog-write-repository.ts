@@ -14,7 +14,9 @@ import type {
   PublishResult,
   SetProductStatusCommand,
   SetVariantCostCommand,
+  SetVariantOptionsCommand,
   SetVariantPriceCommand,
+  UpdateOptionValuesCommand,
   UpdateProductCommand,
 } from "./catalog-write-repository";
 
@@ -58,6 +60,10 @@ function mapDatabaseError(error: DatabaseErrorLike): Error {
       return new CatalogError("STYLE_CODE_CONFLICT");
     case "CT020":
       return new CatalogError("SKU_CONFLICT");
+    case "CT021":
+      return new CatalogError("VARIANT_OPTIONS_CONFLICT");
+    case "CT022":
+      return new CatalogError("OPTION_VALUE_NOT_FOUND");
     case "CT030":
       return new CatalogError("INVALID_LIFECYCLE_TRANSITION");
     case "CT031":
@@ -85,6 +91,14 @@ const ProductIdRowSchema = z.object({ product_id: z.string().uuid() });
 const VariantRowSchema = z.object({
   variant_id: z.string().uuid(),
   status: z.enum(["draft", "active", "archived"]),
+});
+const VariantOptionsRowSchema = z.object({
+  variant_id: z.string().uuid(),
+  option_signature: z.string(),
+});
+const OptionValuesRowSchema = z.object({
+  product_id: z.string().uuid(),
+  updated_count: z.union([z.number(), z.string()]),
 });
 const PriceRowSchema = z.object({
   price_id: z.string().uuid(),
@@ -229,16 +243,67 @@ export class SupabaseCatalogWriteRepository implements CatalogWriteRepository {
     command: CreateVariantCommand,
   ): Promise<{ variantId: string; status: "draft" | "active" | "archived" }> {
     assertAuthorizedOperationProof(proof);
+    // Without options keep the original function (and its replay fingerprint); with options use the
+    // atomic create-and-select function.
     const row = VariantRowSchema.parse(
-      await this.callFunction("create_variant", {
+      command.options === undefined
+        ? await this.callFunction("create_variant", {
+            p_tenant_id: command.tenantId,
+            p_product_id: command.productId,
+            p_sku: command.sku,
+            p_display_name: command.displayName,
+            p_idempotency_key: command.idempotencyKey,
+          })
+        : await this.callFunction("create_variant_with_options", {
+            p_tenant_id: command.tenantId,
+            p_product_id: command.productId,
+            p_sku: command.sku,
+            p_display_name: command.displayName,
+            p_options: command.options.map((option) => ({
+              name: option.name,
+              value: option.value,
+            })),
+            p_idempotency_key: command.idempotencyKey,
+          }),
+    );
+    return { variantId: row.variant_id, status: row.status };
+  }
+
+  async setVariantOptions(
+    proof: AuthorizedOperationContext,
+    command: SetVariantOptionsCommand,
+  ): Promise<{ variantId: string; optionSignature: string }> {
+    assertAuthorizedOperationProof(proof);
+    const row = VariantOptionsRowSchema.parse(
+      await this.callFunction("set_variant_options", {
         p_tenant_id: command.tenantId,
         p_product_id: command.productId,
-        p_sku: command.sku,
-        p_display_name: command.displayName,
+        p_variant_id: command.variantId,
+        p_options: command.options.map((option) => ({ name: option.name, value: option.value })),
         p_idempotency_key: command.idempotencyKey,
       }),
     );
-    return { variantId: row.variant_id, status: row.status };
+    return { variantId: row.variant_id, optionSignature: row.option_signature };
+  }
+
+  async updateOptionValues(
+    proof: AuthorizedOperationContext,
+    command: UpdateOptionValuesCommand,
+  ): Promise<{ productId: string; updatedCount: number }> {
+    assertAuthorizedOperationProof(proof);
+    const row = OptionValuesRowSchema.parse(
+      await this.callFunction("update_option_values", {
+        p_tenant_id: command.tenantId,
+        p_product_id: command.productId,
+        p_values: command.values.map((value) => ({
+          valueId: value.valueId,
+          swatchHex: value.swatchHex === null ? null : value.swatchHex.toLowerCase(),
+          ...(value.position !== undefined ? { position: value.position } : {}),
+        })),
+        p_idempotency_key: command.idempotencyKey,
+      }),
+    );
+    return { productId: row.product_id, updatedCount: Number(row.updated_count) };
   }
 
   async setVariantPrice(

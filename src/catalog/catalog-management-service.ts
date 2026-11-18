@@ -68,9 +68,19 @@ export interface SetProductStatusInput {
   status: "draft" | "active" | "archived";
   archiveReason?: string;
 }
+export interface VariantOptionSelectionInput {
+  name: string;
+  value: string;
+}
 export interface CreateVariantInput {
   sku: string;
   displayName?: string;
+  options?: readonly VariantOptionSelectionInput[];
+}
+export interface OptionValuePresentationInput {
+  valueId: string;
+  swatchHex: string | null;
+  position?: number;
 }
 export interface SetVariantPriceInput {
   currency: string;
@@ -205,6 +215,53 @@ export class CatalogManagementService {
           productId,
           sku: input.sku,
           displayName: input.displayName ?? null,
+          ...(input.options !== undefined ? { options: input.options } : {}),
+          idempotencyKey,
+        }),
+    });
+  }
+
+  /** Replace a variant's option values (e.g. Size M, Colour Black). Requires catalog.author. */
+  async setVariantOptions(
+    context: AuthorizationContext,
+    productId: string,
+    variantId: string,
+    idempotencyKey: string,
+    options: readonly VariantOptionSelectionInput[],
+  ): Promise<{ variantId: string; optionSignature: string }> {
+    const brandId = await this.requireProductBrand(context.tenant.id, productId);
+    return executeAuthorizedOperation({
+      authorizationService: this.authorizationService,
+      context,
+      request: { permissionKey: CatalogPermission.author, resources: [brandResource(brandId)] },
+      operation: (proof) =>
+        this.repository.setVariantOptions(proof, {
+          tenantId: context.tenant.id,
+          productId,
+          variantId,
+          options,
+          idempotencyKey,
+        }),
+    });
+  }
+
+  /** Set swatch colours / display order of a product's option values. Requires catalog.author. */
+  async updateOptionValues(
+    context: AuthorizationContext,
+    productId: string,
+    idempotencyKey: string,
+    values: readonly OptionValuePresentationInput[],
+  ): Promise<{ productId: string; updatedCount: number }> {
+    const brandId = await this.requireProductBrand(context.tenant.id, productId);
+    return executeAuthorizedOperation({
+      authorizationService: this.authorizationService,
+      context,
+      request: { permissionKey: CatalogPermission.author, resources: [brandResource(brandId)] },
+      operation: (proof) =>
+        this.repository.updateOptionValues(proof, {
+          tenantId: context.tenant.id,
+          productId,
+          values,
           idempotencyKey,
         }),
     });

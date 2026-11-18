@@ -83,6 +83,23 @@ signature. Omitted ⇒ canonical form unchanged. The server verifies it against 
 acceptance time, records the attribution, and reports `OFFLINE_OPERATOR_UNVERIFIED` /
 `OFFLINE_OPERATOR_CHANGED_BEFORE_SYNC` as `sync_integrity` sync conflicts. Deploy the server before tills send it.
 
+SDK 0.44.0 (additive; needs migration `20261119120000_catalog_options_categories_storefront`): structured
+product options and categories for the Storefront.
+
+- Public products gain `options` (`[{ name, values: [{ value, swatchHex }] }]`, only values a listed variant
+  uses), `categories` (`[{ id, slug, name }]`) and per-variant `optionValues` (`[{ name, value }]`). All
+  optional in the schema, so older payloads still parse.
+- `listStorefrontCategories({ tenantId })` → the public category tree (`parentId`, `productCount` including
+  descendants); only active categories with visible products.
+- Management: `createVariant({ ..., options })` creates a variant with its option values atomically;
+  `setVariantOptions` replaces a variant's selection (`VARIANT_OPTIONS_CONFLICT` when another variant has
+  it); `updateOptionValues` sets swatch colours (#rrggbb) and order.
+- Categories: `listCategories`, `createCategory`, `updateCategory` (`CATEGORY_CYCLE` when moved under
+  itself), `setCategoryStatus` (archiving hides the branch publicly), `setProductCategories`. All need
+  `catalog.author` tenant-wide.
+- `ProductDetailResponse` gains optional `categoryIds`, option-value `swatchHex`/`position` and per-variant
+  `optionValues` (`{ optionId, valueId }`).
+
 SDK 0.43.0 (additive; no migration): staff operations on **online** orders.
 
 - `fulfillOrder({ orderId, idempotencyKey, lines: [{ lineNumber, quantity }] })` → refreshed

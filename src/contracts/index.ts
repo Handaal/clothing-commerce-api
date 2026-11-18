@@ -70,6 +70,16 @@ export {
   UnpublishProductResponseSchema,
   CreateVariantRequestSchema,
   CreateVariantResponseSchema,
+  VariantOptionSelectionSchema,
+  SetVariantOptionsRequestSchema,
+  SetVariantOptionsResponseSchema,
+  UpdateOptionValuesRequestSchema,
+  UpdateOptionValuesResponseSchema,
+  type VariantOptionSelection,
+  type SetVariantOptionsRequest,
+  type SetVariantOptionsResponse,
+  type UpdateOptionValuesRequest,
+  type UpdateOptionValuesResponse,
   SetVariantPriceRequestSchema,
   SetVariantPriceResponseSchema,
   SetVariantCostRequestSchema,
@@ -115,6 +125,16 @@ export {
   type PublicProduct,
   type PublicProductListResponse,
   type PublicProductDetailResponse,
+  PublicVariantOptionValueSchema,
+  PublicProductOptionSchema,
+  PublicProductCategorySchema,
+  PublicCategorySchema,
+  PublicCategoryListResponseSchema,
+  type PublicVariantOptionValue,
+  type PublicProductOption,
+  type PublicProductCategory,
+  type PublicCategory,
+  type PublicCategoryListResponse,
 } from "./storefront/catalog";
 export {
   PublicCollectionCoverSchema,
@@ -152,6 +172,7 @@ export {
   type CollectionUpdatedResponse,
   type SetCollectionProductsResponse,
 } from "./management/collections";
+export * from "./management/categories";
 export {
   InventoryBalanceSchema,
   InventoryListResponseSchema,

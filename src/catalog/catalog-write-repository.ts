@@ -35,11 +35,37 @@ export interface SetProductStatusCommand {
   readonly idempotencyKey: string;
 }
 
+export interface VariantOptionSelectionCommand {
+  readonly name: string;
+  readonly value: string;
+}
+
 export interface CreateVariantCommand {
   readonly tenantId: string;
   readonly productId: string;
   readonly sku: string;
   readonly displayName: string | null;
+  // When present the variant is created with these option values atomically.
+  readonly options?: readonly VariantOptionSelectionCommand[];
+  readonly idempotencyKey: string;
+}
+
+export interface SetVariantOptionsCommand {
+  readonly tenantId: string;
+  readonly productId: string;
+  readonly variantId: string;
+  readonly options: readonly VariantOptionSelectionCommand[];
+  readonly idempotencyKey: string;
+}
+
+export interface UpdateOptionValuesCommand {
+  readonly tenantId: string;
+  readonly productId: string;
+  readonly values: readonly {
+    readonly valueId: string;
+    readonly swatchHex: string | null;
+    readonly position?: number;
+  }[];
   readonly idempotencyKey: string;
 }
 
@@ -115,6 +141,14 @@ export interface CatalogWriteRepository {
     proof: AuthorizedOperationContext,
     command: CreateVariantCommand,
   ): Promise<{ variantId: string; status: "draft" | "active" | "archived" }>;
+  setVariantOptions(
+    proof: AuthorizedOperationContext,
+    command: SetVariantOptionsCommand,
+  ): Promise<{ variantId: string; optionSignature: string }>;
+  updateOptionValues(
+    proof: AuthorizedOperationContext,
+    command: UpdateOptionValuesCommand,
+  ): Promise<{ productId: string; updatedCount: number }>;
   setVariantPrice(
     proof: AuthorizedOperationContext,
     command: SetVariantPriceCommand,

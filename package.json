@@ -43,6 +43,7 @@
     "test:fulfillment:persistence": "node scripts/test-fulfillment-persistence.mjs",
     "test:fulfillment:rls": "node scripts/test-fulfillment-rls.mjs",
     "test:catalog:persistence": "node scripts/test-catalog-persistence.mjs",
+    "test:storefront:catalog:persistence": "node scripts/test-inventory-channels-persistence.mjs \"storefront options\"",
     "test:catalog:management": "node scripts/test-catalog-management.mjs",
     "test:catalog:management:integration": "node scripts/test-catalog-management-integration.mjs",
     "test:catalog:rls": "node scripts/test-catalog-rls.mjs",

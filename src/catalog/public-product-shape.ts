@@ -35,6 +35,7 @@ const DbVariantSchema = z.object({
   sku: z.string(),
   displayName: z.string().nullable(),
   optionSignature: z.string(),
+  optionValues: z.array(z.object({ name: z.string(), value: z.string() })).optional(),
   prices: z.array(DbPriceSchema),
   availableQuantity: IntegerLikeSchema,
 });
@@ -56,6 +57,17 @@ export const DbPublicProductSchema = z.object({
   media: z.array(DbMediaSchema),
   variants: z.array(DbVariantSchema),
   offers: z.array(DbOfferSchema).optional(),
+  options: z
+    .array(
+      z.object({
+        name: z.string(),
+        values: z
+          .array(z.object({ value: z.string(), swatchHex: z.string().nullable() }))
+          .nullable(),
+      }),
+    )
+    .optional(),
+  categories: z.array(z.object({ id: z.string(), slug: z.string(), name: z.string() })).optional(),
 });
 
 export function shapePublicProduct(raw: unknown): PublicProduct {
@@ -83,6 +95,10 @@ export function shapePublicProduct(raw: unknown): PublicProduct {
       sku: variant.sku,
       displayName: variant.displayName,
       optionSignature: variant.optionSignature,
+      optionValues: (variant.optionValues ?? []).map((selection) => ({
+        name: selection.name,
+        value: selection.value,
+      })),
       prices: variant.prices.map((price) => ({
         currency: price.currency,
         amountMinor: price.amountMinor,
@@ -98,6 +114,20 @@ export function shapePublicProduct(raw: unknown): PublicProduct {
       name: offer.name,
       buyQuantity: offer.buyQuantity,
       getQuantity: offer.getQuantity,
+    })),
+    options: (parsed.options ?? [])
+      .map((option) => ({
+        name: option.name,
+        values: (option.values ?? []).map((entry) => ({
+          value: entry.value,
+          swatchHex: entry.swatchHex,
+        })),
+      }))
+      .filter((option) => option.values.length > 0),
+    categories: (parsed.categories ?? []).map((category) => ({
+      id: category.id,
+      slug: category.slug,
+      name: category.name,
     })),
   };
 }

@@ -22,6 +22,13 @@ const testsDirectory = join(repositoryRoot, "supabase", "tests");
 const PRE_SUPERSEDE = "20261115120000_offline_sale_reconciliation_holds.sql";
 const suites = [
   {
+    // Storefront program Phase 1A: product options, swatches, categories and the public projection.
+    name: "storefront options and categories",
+    testFile: "phase_4a_catalog_options_categories_persistence.sql",
+    fixtures: ["phase_2h_pos_sale.setup.sql", "phase_2l_online.setup.sql"],
+    marker: "ALL_CATALOG_OPTIONS_CATEGORIES_ASSERTIONS_PASSED",
+  },
+  {
     name: "online-first sync conflicts",
     testFile: "phase_3h_online_first_sync_conflicts_persistence.sql",
     fixtures: [

@@ -38,11 +38,22 @@ export const PublicProductPriceSchema = z.object({
 });
 export type PublicProductPrice = z.infer<typeof PublicProductPriceSchema>;
 
+// One selected option value of a variant, e.g. { name: "Size", value: "M" }. Names match the
+// product's `options` dimensions exactly.
+export const PublicVariantOptionValueSchema = z.object({
+  name: z.string(),
+  value: z.string(),
+});
+export type PublicVariantOptionValue = z.infer<typeof PublicVariantOptionValueSchema>;
+
 export const PublicProductVariantSchema = z.object({
   id: UuidSchema,
   sku: z.string(),
   displayName: z.string().nullable(),
   optionSignature: z.string(),
+  // The variant's value for each option dimension, in the product's option order. Empty for a
+  // product without options.
+  optionValues: z.array(PublicVariantOptionValueSchema).optional(),
   prices: z.array(PublicProductPriceSchema),
   // Conservative availability: true when the canonical on-hand across the tenant's locations is
   // positive. Exact quantity is intentionally not exposed publicly.
@@ -59,6 +70,30 @@ export const PublicProductOfferSchema = z.object({
 });
 export type PublicProductOffer = z.infer<typeof PublicProductOfferSchema>;
 
+// A product option dimension (e.g. Size, Colour) with the values its publicly listed variants use,
+// in display order. `swatchHex` (lowercase #rrggbb) is set when the brand gave the value a colour.
+export const PublicProductOptionSchema = z.object({
+  name: z.string(),
+  values: z.array(
+    z.object({
+      value: z.string(),
+      swatchHex: z
+        .string()
+        .regex(/^#[0-9a-f]{6}$/u)
+        .nullable(),
+    }),
+  ),
+});
+export type PublicProductOption = z.infer<typeof PublicProductOptionSchema>;
+
+// A category the product belongs to (active categories only).
+export const PublicProductCategorySchema = z.object({
+  id: UuidSchema,
+  slug: z.string(),
+  name: z.string(),
+});
+export type PublicProductCategory = z.infer<typeof PublicProductCategorySchema>;
+
 export const PublicProductSchema = z.object({
   id: UuidSchema,
   brandId: UuidSchema,
@@ -69,6 +104,8 @@ export const PublicProductSchema = z.object({
   media: z.array(PublicProductMediaSchema),
   variants: z.array(PublicProductVariantSchema),
   offers: z.array(PublicProductOfferSchema).optional(),
+  options: z.array(PublicProductOptionSchema).optional(),
+  categories: z.array(PublicProductCategorySchema).optional(),
 });
 export type PublicProduct = z.infer<typeof PublicProductSchema>;
 
@@ -79,3 +116,22 @@ export type PublicProductListResponse = z.infer<typeof PublicProductListResponse
 
 export const PublicProductDetailResponseSchema = PublicProductSchema;
 export type PublicProductDetailResponse = z.infer<typeof PublicProductDetailResponseSchema>;
+
+// ---- Public category list (navigation + filtering) ----
+// Active categories that hold at least one publicly visible product (directly or in a descendant).
+// `parentId` builds the tree (null = top level, e.g. Men / Women); `productCount` includes descendants.
+export const PublicCategorySchema = z.object({
+  id: UuidSchema,
+  parentId: UuidSchema.nullable(),
+  slug: z.string(),
+  name: z.string(),
+  description: z.string().nullable(),
+  position: NonNegativeIntegerSchema,
+  productCount: NonNegativeIntegerSchema,
+});
+export type PublicCategory = z.infer<typeof PublicCategorySchema>;
+
+export const PublicCategoryListResponseSchema = z.object({
+  categories: z.array(PublicCategorySchema),
+});
+export type PublicCategoryListResponse = z.infer<typeof PublicCategoryListResponseSchema>;

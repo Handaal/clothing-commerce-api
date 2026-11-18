@@ -13,6 +13,8 @@ import { CollectionManagementService } from "../catalog/collection-management-se
 import { createSupabaseCollectionRepository } from "../catalog/collection-repository";
 import { StorefrontCollectionService } from "../catalog/storefront-collection-service";
 import { createSupabaseStorefrontCollectionRepository } from "../catalog/storefront-collection-repository";
+import { CategoryService } from "../catalog/category-service";
+import { createSupabaseCategoryRepository } from "../catalog/category-repository";
 import {
   readClerkVerifierConfiguration,
   readOfflinePinV2Enabled,
@@ -130,6 +132,11 @@ export function createManagementApiBoundary(
   const storefrontCollectionService = new StorefrontCollectionService(
     createSupabaseStorefrontCollectionRepository(supabaseConfiguration),
   );
+  // Categories: tenant-wide taxonomy (catalog.author) plus the published-only public list.
+  const categoryService = new CategoryService(
+    authorizationService,
+    createSupabaseCategoryRepository(supabaseConfiguration),
+  );
 
   const inventoryReadService = new InventoryReadService(
     createSupabaseInventoryReadRepository(supabaseConfiguration),
@@ -207,6 +214,7 @@ export function createManagementApiBoundary(
     storefrontCatalogService,
     collectionManagementService,
     storefrontCollectionService,
+    categoryService,
     inventoryReadService,
     inventoryService,
     // ADR-042 Website/POS channel stock (read + initialize + admin split). Enforcement is not reachable here.
