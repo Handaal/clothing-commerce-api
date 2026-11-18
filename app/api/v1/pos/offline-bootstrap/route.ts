@@ -21,6 +21,7 @@ export async function POST(request: Request) {
         body.deviceId,
         body.registerId,
         idempotencyKey,
+        body.closePreviousGrant,
       ),
   });
 }

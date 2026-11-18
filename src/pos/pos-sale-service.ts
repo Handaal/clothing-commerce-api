@@ -65,6 +65,20 @@ export class PosSaleService {
     return { business: { tenant }, registers };
   }
 
+  async getAvailability(context: AuthorizationContext, registerId: string) {
+    const register = await this.repository.getRegisterContext(context.tenant.id, registerId);
+    if (!register) throw new PosSaleError("REGISTER_NOT_FOUND");
+    this.assertOperational(register);
+    await this.authorizeSale(context, register);
+    return {
+      registerId,
+      items: await this.repository.listAvailability(
+        context.tenant.id,
+        register.inventoryLocationId,
+      ),
+    };
+  }
+
   async createSale(
     context: AuthorizationContext,
     input: CreatePosSaleInput,

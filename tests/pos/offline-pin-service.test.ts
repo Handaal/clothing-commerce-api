@@ -1,4 +1,3 @@
-import { scryptSync } from "node:crypto";
 import { randomBytes } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 
@@ -6,7 +5,6 @@ import { AuthorizationService } from "../../src/authorization";
 import {
   DEFAULT_SCRYPT_PARAMS,
   OfflinePosService,
-  decryptOfflinePin,
   encryptOfflinePin,
   type OfflinePosRepository,
   type SealedRosterEntry,
@@ -65,128 +63,234 @@ function sealedEntry(pin: string): SealedRosterEntry {
   };
 }
 
-/** POS-side re-derivation of the device-bound verifier, from the spec. */
-function posVerifies(
-  verifier: {
-    saltBase64: string;
-    hashBase64: string;
-    n: number;
-    r: number;
-    p: number;
-    keyLength: number;
-  },
-  pin: string,
-  deviceId: string,
-): boolean {
-  const material = Buffer.concat([
-    Buffer.from(verifier.saltBase64, "base64"),
-    Buffer.from(deviceId, "utf8"),
-  ]);
-  return (
-    scryptSync(pin, material, verifier.keyLength, {
-      N: verifier.n,
-      r: verifier.r,
-      p: verifier.p,
-      maxmem: 256 * 1024 * 1024,
-    }).toString("base64") === verifier.hashBase64
-  );
-}
-
-describe("OfflinePosService — offline PIN roster at bootstrap", () => {
-  it("emits a staff roster whose verifier the POS KDF validates, device-bound to the bootstrapping device", async () => {
+// Offline PIN v2 (20261115170000): the KEK-sealed roster is retired. Bootstrap NEVER reads or decrypts sealed
+// PINs (even with a KEK configured); it sends only the device's enrollment authorizations.
+describe("OfflinePosService — offline PIN authorizations at bootstrap (v2)", () => {
+  it("never reads or decrypts a sealed PIN, even with a KEK configured, and sends no staffRoster", async () => {
+    const getStaffRoster = vi.fn(async () => [sealedEntry("4821")]);
     const repository = {
-      createBootstrap: vi.fn(async () => ({ grantId: "g", catalog: [] }) as never),
-      getStaffRoster: vi.fn(async () => [sealedEntry("4821")]),
+      createBootstrap: vi.fn(async () => ({ grantId: "g", catalog: [], policy: {} }) as never),
+      getIntentOperations: vi.fn(async () => ["inventory.receive" as const]),
+      getStaffRoster,
+      getOfflinePinAuthorizations: vi.fn(async () => []),
     } as unknown as OfflinePosRepository;
-
     const service = new OfflinePosService(authorization(), posRepository, repository, {
       kek: KEK,
       keyVersion: 1,
     });
     const result = await service.createBootstrap(sellerContext(), device, register, "boot-key");
+    expect(result.policy.intentOperations).toEqual(["inventory.receive"]);
+    expect(getStaffRoster).not.toHaveBeenCalled();
+    expect(result).not.toHaveProperty("staffRoster");
+    expect(result).not.toHaveProperty("offlinePinAuthorizations");
+  });
 
-    expect(result.staffRoster).toHaveLength(1);
-    const entry = result.staffRoster![0]!;
-    expect(entry).toMatchObject({
+  it("sends this device's enrollment authorizations (ids + versions only, no PIN material)", async () => {
+    const authorization0 = {
       membershipId: targetMembership,
       username: "dana",
       displayName: "Dana Cashier",
-    });
-    expect(posVerifies(entry.pinVerifier, "4821", device)).toBe(true);
-    // Device-binding: the identical PIN would not verify for a different device id.
-    expect(posVerifies(entry.pinVerifier, "4821", "another-device")).toBe(false);
-  });
-
-  it("omits the roster entirely when no authorized seller has a PIN set", async () => {
+      enrollmentId: "90000000-0000-4000-8000-000000000001",
+      verifierVersion: 2,
+    };
+    const getOfflinePinAuthorizations = vi.fn(async () => [authorization0]);
     const repository = {
-      createBootstrap: vi.fn(async () => ({ grantId: "g", catalog: [] }) as never),
-      getStaffRoster: vi.fn(async () => []),
+      createBootstrap: vi.fn(async () => ({ grantId: "g", catalog: [], policy: {} }) as never),
+      getIntentOperations: vi.fn(async () => []),
+      getOfflinePinAuthorizations,
     } as unknown as OfflinePosRepository;
-    const service = new OfflinePosService(authorization(), posRepository, repository, {
-      kek: KEK,
-      keyVersion: 1,
-    });
+    const off = new OfflinePosService(authorization(), posRepository, repository, null);
+    const withoutFlag = await off.createBootstrap(sellerContext(), device, register, "boot-key");
+    // POS_OFFLINE_PIN_V2 off (default): no authorization is listed, so offline PIN unlock is unavailable.
+    expect(withoutFlag).not.toHaveProperty("offlinePinAuthorizations");
+    expect(getOfflinePinAuthorizations).not.toHaveBeenCalled();
+    const service = new OfflinePosService(
+      authorization(),
+      posRepository,
+      repository,
+      null,
+      null,
+      false,
+      true,
+    );
     const result = await service.createBootstrap(sellerContext(), device, register, "boot-key");
-    expect(result.staffRoster).toBeUndefined();
-  });
-
-  it("omits the roster (and never queries it) when the server has no offline-PIN key", async () => {
-    const getStaffRoster = vi.fn(async () => [sealedEntry("4821")]);
-    const repository = {
-      createBootstrap: vi.fn(async () => ({ grantId: "g", catalog: [] }) as never),
-      getStaffRoster,
-    } as unknown as OfflinePosRepository;
-    const service = new OfflinePosService(authorization(), posRepository, repository, null);
-    const result = await service.createBootstrap(sellerContext(), device, register, "boot-key");
-    expect(result.staffRoster).toBeUndefined();
-    expect(getStaffRoster).not.toHaveBeenCalled();
+    expect(getOfflinePinAuthorizations).toHaveBeenCalledWith(ids.tenant, register, device);
+    expect(result.offlinePinAuthorizations).toEqual([authorization0]);
+    expect(JSON.stringify(result.offlinePinAuthorizations)).not.toMatch(/salt|hash|cipher|pin"/i);
   });
 });
 
-describe("OfflinePosService — setOfflinePin", () => {
-  it("seals the PIN before it reaches the repository and authorizes staff.manage", async () => {
-    const setOfflinePin = vi.fn<OfflinePosRepository["setOfflinePin"]>(async () => ({
-      membershipId: targetMembership,
-      keyVersion: 1,
-      updatedAt: "2026-10-24T00:00:00Z",
-    }));
-    const repository = { setOfflinePin } as unknown as OfflinePosRepository;
-    const service = new OfflinePosService(authorization(), posRepository, repository, {
-      kek: KEK,
-      keyVersion: 1,
-    });
-
-    await service.setOfflinePin(sellerContext(), targetMembership, "set-key", { pin: "4821" });
-
-    expect(setOfflinePin).toHaveBeenCalledTimes(1);
-    const material = setOfflinePin.mock.calls[0]![5];
-    // The repository receives sealed material, not the plaintext, and it decrypts back to the PIN.
-    expect(JSON.stringify(material)).not.toContain("4821");
-    expect(decryptOfflinePin(material, KEK)).toBe("4821");
+// ADR-042 §13: one shared stock pool. Bootstrap never issues a per-till stock grant, even if the repository
+// could, and a stale till's closePreviousGrant is accepted but ignored (no sign-in depends on it).
+describe("OfflinePosService — no per-till stock grant at bootstrap (ADR-042 §13)", () => {
+  it("never calls stock-grant issuance and returns no stockGrant", async () => {
+    const issueStockGrant = vi.fn(async () => ({ stockGrantId: "x" }));
+    const repository = {
+      createBootstrap: vi.fn(async () => ({ grantId: "g", catalog: [], policy: {} }) as never),
+      getIntentOperations: vi.fn(async () => []),
+      getStaffRoster: vi.fn(async () => []),
+      issueStockGrant,
+    } as unknown as OfflinePosRepository;
+    const service = new OfflinePosService(authorization(), posRepository, repository, null);
+    const close = { offlineGrantId: "50000000-0000-4000-8000-000000000000", finalSaleOrdinal: 4 };
+    const result = await service.createBootstrap(
+      sellerContext(),
+      device,
+      register,
+      "boot-key",
+      close,
+    );
+    expect(issueStockGrant).not.toHaveBeenCalled();
+    expect(result).not.toHaveProperty("stockGrant");
   });
+});
 
-  it("denies without a tenant-wide staff.manage grant and never touches the repository", async () => {
+describe("OfflinePosService — manager-set (sealed) PINs are retired", () => {
+  it("refuses with OFFLINE_PIN_REENROLLMENT_REQUIRED and never seals or stores anything", async () => {
     const setOfflinePin = vi.fn();
     const repository = { setOfflinePin } as unknown as OfflinePosRepository;
-    const service = new OfflinePosService(authorization(), posRepository, repository, {
-      kek: KEK,
-      keyVersion: 1,
-    });
+    for (const config of [{ kek: KEK, keyVersion: 1 }, null]) {
+      const service = new OfflinePosService(authorization(), posRepository, repository, config);
+      await expect(
+        service.setOfflinePin(sellerContext(), targetMembership, "set-key", { pin: "4821" }),
+      ).rejects.toMatchObject({ code: "OFFLINE_PIN_REENROLLMENT_REQUIRED" });
+    }
+    expect(setOfflinePin).not.toHaveBeenCalled();
+  });
+});
+
+describe("OfflinePosService — offline PIN self-enrollment (v2)", () => {
+  const enrolled = {
+    enrollmentId: "90000000-0000-4000-8000-000000000002",
+    verifierVersion: 1,
+    enrolledAt: "2026-11-15T10:00:00.000Z",
+  };
+
+  const STEP_UP = { username: "dana", pin: "online-pin-1" };
+
+  it("flag off (default): refuses enrollment before any authorization, re-auth or repository call", async () => {
+    const enrollOfflinePin = vi.fn(async () => enrolled);
+    const reauth = vi.fn(async () => ({ membershipId: "x" }));
+    const repository = { enrollOfflinePin } as unknown as OfflinePosRepository;
+    const service = new OfflinePosService(authorization(), posRepository, repository, null, reauth);
     await expect(
-      service.setOfflinePin(contextWith([grant(["staff.read"])]), targetMembership, "set-key", {
-        pin: "4821",
+      service.enrollOfflinePin(
+        sellerContext(),
+        { deviceId: device, registerId: register, stepUp: STEP_UP },
+        "enroll-key",
+      ),
+    ).rejects.toMatchObject({ code: "OFFLINE_PIN_DISABLED" });
+    expect(reauth).not.toHaveBeenCalled();
+    expect(enrollOfflinePin).not.toHaveBeenCalled();
+  });
+
+  it("enrols the CALLER after register authorization AND a fresh server-verified step-up; no offline PIN in the request", async () => {
+    const enrollOfflinePin = vi.fn(async () => enrolled);
+    const repository = { enrollOfflinePin } as unknown as OfflinePosRepository;
+    const context = sellerContext();
+    const reauth = vi.fn(async () => ({ membershipId: context.membership.id }));
+    const service = new OfflinePosService(
+      authorization(),
+      posRepository,
+      repository,
+      null,
+      reauth,
+      false,
+      true,
+    );
+    const result = await service.enrollOfflinePin(
+      context,
+      { deviceId: device, registerId: register, stepUp: STEP_UP },
+      "enroll-key",
+    );
+    expect(reauth).toHaveBeenCalledWith("dana", "online-pin-1");
+    expect(enrollOfflinePin).toHaveBeenCalledWith(
+      expect.anything(),
+      ids.tenant,
+      context.membership.id,
+      device,
+      register,
+      "enroll-key",
+    );
+    // The repository never receives the step-up credential (nothing about it is stored).
+    expect(JSON.stringify(enrollOfflinePin.mock.calls)).not.toContain("online-pin-1");
+    expect(result).toEqual({ membershipId: context.membership.id, deviceId: device, ...enrolled });
+  });
+
+  it("a wrong step-up credential, or one that resolves to ANOTHER account, enrols nothing", async () => {
+    const enrollOfflinePin = vi.fn(async () => enrolled);
+    const repository = { enrollOfflinePin } as unknown as OfflinePosRepository;
+    for (const reauth of [
+      vi.fn(async () => null),
+      vi.fn(async () => ({ membershipId: targetMembership })),
+    ]) {
+      const service = new OfflinePosService(
+        authorization(),
+        posRepository,
+        repository,
+        null,
+        reauth,
+        false,
+        true,
+      );
+      await expect(
+        service.enrollOfflinePin(
+          sellerContext(),
+          { deviceId: device, registerId: register, stepUp: STEP_UP },
+          "enroll-key",
+        ),
+      ).rejects.toMatchObject({ code: "OFFLINE_PIN_STEP_UP_FAILED" });
+    }
+    expect(enrollOfflinePin).not.toHaveBeenCalled();
+  });
+
+  it("denies enrollment without the register's seller permissions and never re-authenticates or touches the repository", async () => {
+    const enrollOfflinePin = vi.fn();
+    const reauth = vi.fn(async () => ({ membershipId: "x" }));
+    const repository = { enrollOfflinePin } as unknown as OfflinePosRepository;
+    const service = new OfflinePosService(
+      authorization(),
+      posRepository,
+      repository,
+      null,
+      reauth,
+      false,
+      true,
+    );
+    await expect(
+      service.enrollOfflinePin(
+        contextWith([grant(["staff.read"])]),
+        { deviceId: device, registerId: register, stepUp: STEP_UP },
+        "enroll-key",
+      ),
+    ).rejects.toMatchObject({ code: "PERMISSION_DENIED" });
+    expect(reauth).not.toHaveBeenCalled();
+    expect(enrollOfflinePin).not.toHaveBeenCalled();
+  });
+
+  it("revoking someone else's enrollments needs staff.manage; revoking your own does not", async () => {
+    const revokeOfflinePinEnrollments = vi.fn(async () => 1);
+    const repository = { revokeOfflinePinEnrollments } as unknown as OfflinePosRepository;
+    const service = new OfflinePosService(authorization(), posRepository, repository, null);
+    const seller = contextWith([grant(SELL_PERMISSIONS)]);
+    await expect(
+      service.revokeOfflinePinEnrollments(seller, {
+        membershipId: targetMembership,
+        reason: "admin_revoked",
       }),
     ).rejects.toMatchObject({ code: "PERMISSION_DENIED" });
-    expect(setOfflinePin).not.toHaveBeenCalled();
-  });
-
-  it("rejects with OFFLINE_PIN_NOT_CONFIGURED when the server has no key", async () => {
-    const setOfflinePin = vi.fn();
-    const repository = { setOfflinePin } as unknown as OfflinePosRepository;
-    const service = new OfflinePosService(authorization(), posRepository, repository, null);
     await expect(
-      service.setOfflinePin(sellerContext(), targetMembership, "set-key", { pin: "4821" }),
-    ).rejects.toMatchObject({ code: "OFFLINE_PIN_NOT_CONFIGURED" });
-    expect(setOfflinePin).not.toHaveBeenCalled();
+      service.revokeOfflinePinEnrollments(seller, {
+        membershipId: seller.membership.id,
+        reason: "pin_forgotten",
+      }),
+    ).resolves.toEqual({ revoked: 1 });
+    await expect(
+      service.revokeOfflinePinEnrollments(sellerContext(), {
+        deviceId: device,
+        reason: "device_lost",
+      }),
+    ).resolves.toEqual({ revoked: 1 });
+    expect(revokeOfflinePinEnrollments).toHaveBeenCalledTimes(2);
   });
 });

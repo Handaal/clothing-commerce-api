@@ -6,6 +6,11 @@
 
 ## Owner decision log
 
+- **2026-11-14 — final offline POS scope.** Superseded in part by
+  [ADR-042](ADR-042-PROPOSED-channel-stock-pools-and-offline-pos-scope.md): Decision D (promotions) is
+  now IN for POS-enabled vouchers with a signed POS quota grant; stock moves to Website/POS channel
+  pools; the "all desks" intent kinds (inventory, suppliers, staff, settings) are retired from offline.
+
 - **2026-11-11 — target offline scope = "cashier shift + attendance + returns."** The owner chose this
   over "offline cashier shift only" and "whole POS offline." Consequences:
   - **Decision A (offline returns): APPROVED in direction — pursue Option 2** (server-issued signed

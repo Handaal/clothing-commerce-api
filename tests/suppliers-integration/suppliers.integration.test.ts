@@ -5,11 +5,15 @@ import {
   type Supplier,
   type ReceiveInventoryInput,
 } from "../../packages/sdk/src";
+import { assertIsolatedDbContainer } from "../../scripts/supabase-isolation-guard.mjs";
 
 const url = process.env.RETURNS_TEST_URL;
-const container = process.env.RETURNS_TEST_CONTAINER;
-if (!url || !container)
-  throw new Error("Run pnpm test:suppliers:integration with its disposable environment.");
+// Fails closed before any SQL unless this run's disposable supabase_db_rt-<hex> container was provided.
+const container = assertIsolatedDbContainer(
+  process.env.RETURNS_TEST_CONTAINER,
+  "RETURNS_TEST_CONTAINER",
+);
+if (!url) throw new Error("Run pnpm test:suppliers:integration with its disposable environment.");
 const T = "2a000001-0000-4000-8000-000000000001",
   FOREIGN = "2a000020-0000-4000-8000-000000000002";
 const V = "2a000007-0000-4000-8000-000000000001",
@@ -31,7 +35,7 @@ function sql(source: string) {
     [
       "exec",
       "-i",
-      container!,
+      container,
       "psql",
       "-X",
       "-A",

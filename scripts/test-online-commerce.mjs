@@ -79,6 +79,8 @@ try {
         env: sanitizedChildEnv({
           ONLINE_TEST_URL: server.baseUrl,
           ONLINE_TEST_TOKEN: token,
+          // The suite's direct SQL must hit THIS run's disposable database, never the shared dev stack.
+          ONLINE_TEST_DB_CONTAINER: stack.dbContainer,
           // The suite re-reads the committed state directly from the disposable DB via the service-role
           // client, so it requires SUPABASE_URL/SERVICE_ROLE_KEY (its own disposable-DB guard) in addition
           // to the HTTP entrypoint. Point both at THIS run's isolated stack.

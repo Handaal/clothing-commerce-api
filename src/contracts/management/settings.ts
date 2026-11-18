@@ -345,6 +345,11 @@ export const ReturnSettingsSchema = z.object({
   allowedReasons: z.array(z.string()),
   manualRefundsEnabled: z.boolean(),
   maxManualRefundMinor: z.number().int().min(0).nullable(),
+  // ADR-042 D-7: the most one offline return grant may refund. null => offline return grants are off.
+  // Optional so an older server's response still parses.
+  offlineRefundBudgetMinor: z.number().int().min(0).nullable().optional(),
+  // ADR-042 §6/§7: offline returns need an admin's POS override password at the till.
+  offlineRequiresAdminCredentials: z.boolean().optional(),
 });
 export const UpdateReturnSettingsRequestSchema = z
   .object({
@@ -353,6 +358,8 @@ export const UpdateReturnSettingsRequestSchema = z
     manualRefundsEnabled: z.boolean(),
     maxManualRefundMinor: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).nullable(),
     allowedReasons: z.array(z.string().trim().min(1).max(200)).max(50),
+    offlineRefundBudgetMinor: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).nullable(),
+    offlineRequiresAdminCredentials: z.boolean(),
   })
   .partial()
   .strict()

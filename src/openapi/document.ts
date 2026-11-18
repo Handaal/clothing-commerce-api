@@ -32,11 +32,18 @@ import {
   AssignableStaffScopeSchema,
   AssignableStaffScopesResponseSchema,
   CreateStaffRequestSchema,
+  CreateStaffWithoutLoginRequestSchema,
   CreateStaffLoginRequestSchema,
   UpdateStaffStatusRequestSchema,
+  UpdateStaffProfileRequestSchema,
   AssignStaffRoleRequestSchema,
   UnassignStaffRoleRequestSchema,
 } from "../contracts/management/staff";
+import {
+  PayrollCycleSettingsSchema,
+  PayrollDueSchema,
+  MarkPayrollPaidRequestSchema,
+} from "../contracts/management/payroll-cycle";
 import {
   CreateReturnRequestSchema,
   SettleRefundRequestSchema,
@@ -53,9 +60,14 @@ import {
   PromotionListResponseSchema,
   CreatePromotionRequestSchema,
   UpdatePromotionRequestSchema,
+  DeletePromotionResponseSchema,
   SetPromotionStatusRequestSchema,
   CreatePromotionCodeRequestSchema,
   SetPromotionCodeStatusRequestSchema,
+  OfflineVoucherExceptionListResponseSchema,
+  PromotionChannelPoliciesResponseSchema,
+  UpsertPromotionChannelPolicyRequestSchema,
+  UpsertPromotionCodeChannelLimitRequestSchema,
 } from "../contracts/management/promotions";
 import {
   ReportSummaryResponseSchema,
@@ -72,6 +84,11 @@ import packageMetadata from "../../package.json";
 import {
   AdjustInventoryRequestSchema,
   AdjustInventoryResponseSchema,
+  AllocateInventoryChannelsRequestSchema,
+  AllocateInventoryChannelsResponseSchema,
+  InitializeInventoryChannelsRequestSchema,
+  InitializeInventoryChannelsResponseSchema,
+  InventoryChannelStateResponseSchema,
   ApiErrorSchema,
   HealthResponseSchema,
   InventoryBalanceSchema,
@@ -79,6 +96,8 @@ import {
   MeContextResponseSchema,
   MeTenantSchema,
   OrderDetailResponseSchema,
+  FulfillOrderRequestSchema,
+  CancelOrderRequestSchema,
   OrderListResponseSchema,
   OrderSummarySchema,
   PageInfoSchema,
@@ -86,6 +105,8 @@ import {
   ProductListResponseSchema,
   ProductSummarySchema,
   PosContextResponseSchema,
+  PosAvailabilityResponseSchema,
+  ListPosSyncConflictsResponseSchema,
   CreatePosSaleRequestSchema,
   CreatePosSaleResponseSchema,
   EnrollPosDeviceRequestSchema,
@@ -95,11 +116,27 @@ import {
   OfflineBootstrapRequestSchema,
   OfflineBootstrapResponseSchema,
   IngestOfflineSaleRequestSchema,
+  IngestOfflineCustomerRequestSchema,
+  IngestOfflineCustomerResponseSchema,
+  IngestOfflineSaleHoldRequestSchema,
+  IngestOfflineSaleHoldResponseSchema,
+  SetPosOverridePasswordRequestSchema,
+  PosOverridePasswordResponseSchema,
+  EnrollOfflinePinRequestSchema,
+  EnrollOfflinePinResponseSchema,
+  RevokeOfflinePinEnrollmentsRequestSchema,
+  RevokeOfflinePinEnrollmentsResponseSchema,
   IngestOfflineSaleResponseSchema,
   IngestOfflineCustomerPaymentRequestSchema,
   IngestOfflineCustomerPaymentResponseSchema,
   IngestOfflineAttendanceRequestSchema,
   IngestOfflineAttendanceResponseSchema,
+  IngestOfflineIntentRequestSchema,
+  IngestOfflineIntentResponseSchema,
+  IssueOfflineReturnGrantRequestSchema,
+  OfflineReturnGrantResponseSchema,
+  IngestOfflineReturnRequestSchema,
+  IngestOfflineReturnResponseSchema,
   SetStaffOfflinePinRequestSchema,
   SetStaffOfflinePinResponseSchema,
   ReceiveInventoryRequestSchema,
@@ -172,6 +209,22 @@ import {
   RevokeDeviceRequestSchema,
   AssignDeviceRequestSchema,
 } from "../contracts/management/settings";
+
+import {
+  SaleSchema,
+  SaleListResponseSchema,
+  CreateSaleRequestSchema,
+  UpdateSaleRequestSchema,
+  SetSaleStatusRequestSchema,
+  DeleteSaleResponseSchema,
+} from "../contracts/management/sales";
+import {
+  StorefrontContentSchema,
+  UpdateStorefrontContentRequestSchema,
+  CreateStorefrontHeroImageIntentRequestSchema,
+  StorefrontHeroImageIntentSchema,
+} from "../contracts/management/storefront-content";
+import { PublicStorefrontContentSchema } from "../contracts/storefront/content";
 
 function jsonSchema(schema: z.ZodTypeAny) {
   return z.toJSONSchema(schema, { target: "draft-7" });
@@ -766,7 +819,7 @@ export function generateOpenApiDocument() {
           operationId: "updatePromotion",
           summary: "updatePromotion",
           description:
-            "Requires a tenant-wide promotions.manage grant and Idempotency-Key. Economic fields are rejected after the first redemption.",
+            "Requires a tenant-wide promotions.manage grant and Idempotency-Key. Every setting is editable, including after redemption; past orders keep the discount they were granted. Sending targets replaces the selection.",
           tags: ["promotions"],
           security: clerkSecurity,
           parameters: [
@@ -786,6 +839,30 @@ export function generateOpenApiDocument() {
           responses: {
             "200": jsonResponse("Promotion detail", "#/components/schemas/PromotionDetail"),
             ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+        delete: {
+          operationId: "deletePromotion",
+          summary: "deletePromotion",
+          description:
+            "Requires a tenant-wide promotions.manage grant. A never-used promotion is deleted with its codes and targets; one with sale-time history is archived (permanently inactive, codes disabled, hidden from management) so past orders keep their records.",
+          tags: ["promotions"],
+          security: clerkSecurity,
+          parameters: [
+            tenantHeaderParameter,
+            {
+              name: "promotionId",
+              in: "path",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+          ],
+          responses: {
+            "200": jsonResponse(
+              "Deleted or archived",
+              "#/components/schemas/DeletePromotionResponse",
+            ),
+            ...errorResponses(400, 401, 403, 404, 500),
           },
         },
       },
@@ -1529,6 +1606,83 @@ export function generateOpenApiDocument() {
           },
         },
       },
+      "/api/v1/staff/without-login": {
+        post: {
+          operationId: "createStaffWithoutLogin",
+          tags: ["staff"],
+          summary: "Create a team member without system access",
+          description:
+            "Requires tenant-wide staff.manage and Idempotency-Key. Creates an active staff membership for attendance and payroll with no login credential or role assignment.",
+          security: clerkSecurity,
+          parameters: [tenantHeaderParameter, idempotencyKeyHeaderParameter],
+          requestBody: jsonRequestBody(
+            "Team member name.",
+            "#/components/schemas/CreateStaffWithoutLoginRequest",
+          ),
+          responses: {
+            "200": jsonResponse("Success", "#/components/schemas/StaffDetail"),
+            ...errorResponses(400, 401, 403, 409, 422, 500),
+          },
+        },
+      },
+      "/api/v1/attendance/payroll-cycle": {
+        get: {
+          operationId: "getPayrollCycleSettings",
+          tags: ["attendance"],
+          summary: "Get monthly payroll cycle settings",
+          security: clerkSecurity,
+          parameters: [tenantHeaderParameter],
+          responses: {
+            "200": jsonResponse("Success", "#/components/schemas/PayrollCycleSettings"),
+            ...errorResponses(401, 403, 500),
+          },
+        },
+        put: {
+          operationId: "updatePayrollCycleSettings",
+          tags: ["attendance"],
+          summary: "Update monthly payroll cycle settings",
+          security: clerkSecurity,
+          parameters: [tenantHeaderParameter],
+          requestBody: jsonRequestBody(
+            "Cycle settings.",
+            "#/components/schemas/PayrollCycleSettings",
+          ),
+          responses: {
+            "200": jsonResponse("Success", "#/components/schemas/PayrollCycleSettings"),
+            ...errorResponses(400, 401, 403, 500),
+          },
+        },
+      },
+      "/api/v1/attendance/payroll-cycle/due": {
+        get: {
+          operationId: "getPayrollDue",
+          tags: ["attendance"],
+          summary: "Get previous cycle payroll due",
+          security: clerkSecurity,
+          parameters: [tenantHeaderParameter],
+          responses: {
+            "200": jsonResponse("Success", "#/components/schemas/PayrollDue"),
+            ...errorResponses(401, 403, 500),
+          },
+        },
+      },
+      "/api/v1/attendance/payroll-cycle/pay": {
+        post: {
+          operationId: "markPayrollPaid",
+          tags: ["attendance"],
+          summary: "Mark previous payroll cycle paid",
+          security: clerkSecurity,
+          parameters: [tenantHeaderParameter],
+          requestBody: jsonRequestBody(
+            "Optional payment note.",
+            "#/components/schemas/MarkPayrollPaidRequest",
+          ),
+          responses: {
+            "200": jsonResponse("Success", "#/components/schemas/PayrollDue"),
+            ...errorResponses(400, 401, 403, 500),
+          },
+        },
+      },
       "/api/v1/staff/eligible-identities": {
         get: {
           operationId: "findEligibleStaffIdentitiesByEmail",
@@ -1654,6 +1808,34 @@ export function generateOpenApiDocument() {
           requestBody: jsonRequestBody(
             "Target lifecycle status.",
             "#/components/schemas/UpdateStaffStatusRequest",
+          ),
+          responses: {
+            "200": jsonResponse("Success", "#/components/schemas/StaffDetail"),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
+      "/api/v1/staff/{membershipId}/profile": {
+        put: {
+          operationId: "updateStaffProfile",
+          tags: ["staff"],
+          summary: "updateStaffProfile",
+          description:
+            "Requires a tenant-wide staff.manage grant and Idempotency-Key. Edits the tenant-scoped staff display name, position, and phone without changing a linked login identity.",
+          security: clerkSecurity,
+          parameters: [
+            tenantHeaderParameter,
+            {
+              name: "membershipId",
+              in: "path",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+            idempotencyKeyHeaderParameter,
+          ],
+          requestBody: jsonRequestBody(
+            "Tenant staff profile.",
+            "#/components/schemas/UpdateStaffProfileRequest",
           ),
           responses: {
             "200": jsonResponse("Success", "#/components/schemas/StaffDetail"),
@@ -2748,6 +2930,221 @@ export function generateOpenApiDocument() {
           },
         },
       },
+      "/api/v1/sales": {
+        get: {
+          operationId: "listSales",
+          summary: "listSales",
+          description:
+            "Catalog sales (per-unit online price reductions). Requires a tenant-wide promotions.read grant.",
+          tags: ["sales"],
+          security: clerkSecurity,
+          parameters: [tenantHeaderParameter],
+          responses: {
+            "200": jsonResponse("Success", "#/components/schemas/SaleListResponse"),
+            ...errorResponses(400, 401, 403, 404, 500),
+          },
+        },
+        post: {
+          operationId: "createSale",
+          summary: "createSale",
+          description:
+            "Requires a tenant-wide promotions.manage grant and Idempotency-Key. Exact replay returns the original sale. " +
+            "A sale reduces the online unit price of every product, one collection, or selected products; the lowest matching sale price wins.",
+          tags: ["sales"],
+          security: clerkSecurity,
+          parameters: [tenantHeaderParameter, idempotencyKeyHeaderParameter],
+          requestBody: jsonRequestBody(
+            "Sale configuration",
+            "#/components/schemas/CreateSaleRequest",
+          ),
+          responses: {
+            "200": jsonResponse("Sale", "#/components/schemas/Sale"),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
+      "/api/v1/sales/{saleId}": {
+        get: {
+          operationId: "getSale",
+          summary: "getSale",
+          description: "Requires a tenant-wide promotions.read grant.",
+          tags: ["sales"],
+          security: clerkSecurity,
+          parameters: [
+            tenantHeaderParameter,
+            {
+              name: "saleId",
+              in: "path",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+          ],
+          responses: {
+            "200": jsonResponse("Sale", "#/components/schemas/Sale"),
+            ...errorResponses(400, 401, 403, 404, 500),
+          },
+        },
+        patch: {
+          operationId: "updateSale",
+          summary: "updateSale",
+          description:
+            "Requires a tenant-wide promotions.manage grant and Idempotency-Key. Every field is editable.",
+          tags: ["sales"],
+          security: clerkSecurity,
+          parameters: [
+            tenantHeaderParameter,
+            idempotencyKeyHeaderParameter,
+            {
+              name: "saleId",
+              in: "path",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+          ],
+          requestBody: jsonRequestBody(
+            "Fields to change",
+            "#/components/schemas/UpdateSaleRequest",
+          ),
+          responses: {
+            "200": jsonResponse("Sale", "#/components/schemas/Sale"),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+        delete: {
+          operationId: "deleteSale",
+          summary: "deleteSale",
+          description:
+            "Requires a tenant-wide promotions.manage grant. Past orders keep their charged price.",
+          tags: ["sales"],
+          security: clerkSecurity,
+          parameters: [
+            tenantHeaderParameter,
+            {
+              name: "saleId",
+              in: "path",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+          ],
+          responses: {
+            "200": jsonResponse("Deleted", "#/components/schemas/DeleteSaleResponse"),
+            ...errorResponses(400, 401, 403, 404, 500),
+          },
+        },
+      },
+      "/api/v1/sales/{saleId}/status": {
+        post: {
+          operationId: "setSaleStatus",
+          summary: "setSaleStatus",
+          description: "Requires a tenant-wide promotions.manage grant and Idempotency-Key.",
+          tags: ["sales"],
+          security: clerkSecurity,
+          parameters: [
+            tenantHeaderParameter,
+            idempotencyKeyHeaderParameter,
+            {
+              name: "saleId",
+              in: "path",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+          ],
+          requestBody: jsonRequestBody(
+            "Target status",
+            "#/components/schemas/SetSaleStatusRequest",
+          ),
+          responses: {
+            "200": jsonResponse("Sale", "#/components/schemas/Sale"),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
+      "/api/v1/storefront-content": {
+        get: {
+          operationId: "getStorefrontContent",
+          summary: "getStorefrontContent",
+          description:
+            "Storefront home-page hero + featured picks. Requires a tenant-wide catalog.author grant.",
+          tags: ["storefront-content"],
+          security: clerkSecurity,
+          parameters: [tenantHeaderParameter],
+          responses: {
+            "200": jsonResponse("Storefront content", "#/components/schemas/StorefrontContent"),
+            ...errorResponses(400, 401, 403, 404, 500),
+          },
+        },
+        put: {
+          operationId: "updateStorefrontContent",
+          summary: "updateStorefrontContent",
+          description:
+            "Replaces the whole content document. Requires a tenant-wide catalog.author grant and Idempotency-Key. " +
+            "Featured ids must belong to the tenant; the hero image must come from the hero-image intent.",
+          tags: ["storefront-content"],
+          security: clerkSecurity,
+          parameters: [tenantHeaderParameter, idempotencyKeyHeaderParameter],
+          requestBody: jsonRequestBody(
+            "Full content document",
+            "#/components/schemas/UpdateStorefrontContentRequest",
+          ),
+          responses: {
+            "200": jsonResponse("Storefront content", "#/components/schemas/StorefrontContent"),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
+      "/api/v1/storefront-content/hero-image-intent": {
+        post: {
+          operationId: "createStorefrontHeroImageIntent",
+          summary: "createStorefrontHeroImageIntent",
+          description:
+            "Mints a server-chosen, tenant-scoped hero image destination and (when Storage is reachable) a signed upload URL. " +
+            "Requires a tenant-wide catalog.author grant.",
+          tags: ["storefront-content"],
+          security: clerkSecurity,
+          parameters: [tenantHeaderParameter],
+          requestBody: jsonRequestBody(
+            "Image content type",
+            "#/components/schemas/CreateStorefrontHeroImageIntentRequest",
+          ),
+          responses: {
+            "200": jsonResponse("Upload intent", "#/components/schemas/StorefrontHeroImageIntent"),
+            ...errorResponses(400, 401, 403, 404, 422, 500),
+          },
+        },
+      },
+      "/api/v1/storefront/content": {
+        get: {
+          operationId: "getPublicStorefrontContent",
+          tags: ["storefront"],
+          summary: "Read the storefront home-page content (hero + featured picks).",
+          description:
+            "Public, unauthenticated. Only publicly visible products and collections are returned, in the curated order. " +
+            "hero is null until the tenant saves content.",
+          parameters: [
+            {
+              name: "tenantId",
+              in: "query",
+              required: true,
+              description: "The tenant the storefront serves.",
+              schema: { type: "string", format: "uuid" },
+            },
+            {
+              name: "brandId",
+              in: "query",
+              required: false,
+              description: "Restrict featured products to one brand.",
+              schema: { type: "string", format: "uuid" },
+            },
+          ],
+          responses: {
+            "200": jsonResponse(
+              "Storefront content",
+              "#/components/schemas/PublicStorefrontContent",
+            ),
+            ...errorResponses(400, 500),
+          },
+        },
+      },
       "/api/v1/storefront/collections": {
         get: {
           operationId: "listPublishedCollections",
@@ -2830,6 +3227,84 @@ export function generateOpenApiDocument() {
               "#/components/schemas/InventoryListResponse",
             ),
             ...errorResponses(400, 401, 403, 404, 500),
+          },
+        },
+      },
+      "/api/v1/inventory/channels": {
+        get: {
+          operationId: "getInventoryChannels",
+          tags: ["inventory"],
+          summary: "Read the Website/POS stock split of an inventory location.",
+          description:
+            "Returns the location's channel stock mode and, unless it is legacy, the website / pos / " +
+            "unallocated buckets per variant with derived reserved and available quantities. Requires " +
+            "inventory.read over the location.",
+          security: clerkSecurity,
+          parameters: [
+            tenantHeaderParameter,
+            {
+              ...uuidQueryParameter("inventoryLocationId", "The in-tenant inventory location."),
+              required: true,
+            },
+          ],
+          responses: {
+            "200": jsonResponse(
+              "The channel stock state.",
+              "#/components/schemas/InventoryChannelStateResponse",
+            ),
+            ...errorResponses(400, 401, 403, 404, 500),
+          },
+        },
+      },
+      "/api/v1/inventory/channels/initialize": {
+        post: {
+          operationId: "initializeInventoryChannels",
+          tags: ["inventory"],
+          summary: "Set up Website/POS stock channels for an inventory location.",
+          description:
+            "Moves the location from legacy to shadow mode and places all existing stock in the " +
+            "unallocated bucket (no split is guessed). Customer-facing stock is unchanged. Calling it again " +
+            "is a no-op that returns initialized=false. Requires inventory.adjust over the location and an " +
+            "Idempotency-Key header.",
+          security: clerkSecurity,
+          parameters: [tenantHeaderParameter, idempotencyKeyHeaderParameter],
+          requestBody: jsonRequestBody(
+            "The location to set up.",
+            "#/components/schemas/InitializeInventoryChannelsRequest",
+          ),
+          responses: {
+            "200": jsonResponse(
+              "The location's channel mode after the call.",
+              "#/components/schemas/InitializeInventoryChannelsResponse",
+            ),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
+      "/api/v1/inventory/channels/allocations": {
+        post: {
+          operationId: "allocateInventoryChannels",
+          tags: ["inventory"],
+          summary: "Split stock between Website and POS at an inventory location.",
+          description:
+            "Sets absolute Website and POS quantities per variant; unallocated is the remainder. The split " +
+            "cannot exceed on-hand, cannot leave Website below open website reservations, and cannot leave " +
+            "POS below reserved POS stock (422). An optional expectedBalanceVersion per line makes a split " +
+            "built from stale numbers a 409. Locations that are still legacy are a 409. Requires " +
+            "inventory.adjust over the location and an Idempotency-Key header; an exact replay returns the " +
+            "same run and a same-key/different-body request is a 409.",
+          security: clerkSecurity,
+          parameters: [tenantHeaderParameter, idempotencyKeyHeaderParameter],
+          requestBody: jsonRequestBody(
+            "The split to apply.",
+            "#/components/schemas/AllocateInventoryChannelsRequest",
+          ),
+          responses: {
+            "200": jsonResponse(
+              "The allocation run and the post-commit buckets of every variant in the split.",
+              "#/components/schemas/AllocateInventoryChannelsResponse",
+            ),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
           },
         },
       },
@@ -2968,6 +3443,68 @@ export function generateOpenApiDocument() {
           },
         },
       },
+      "/api/v1/orders/{orderId}/fulfillments": {
+        post: {
+          operationId: "fulfillOrder",
+          tags: ["orders"],
+          summary: "Fulfil lines of an online order from its reserved stock location.",
+          description:
+            "Online orders only. Requires orders.fulfill on the order brand and inventory.issue on the reserved location, plus Idempotency-Key. The server resolves the location from the order reservations. Exact replay returns the original fulfillment; changed intent conflicts.",
+          security: clerkSecurity,
+          parameters: [
+            tenantHeaderParameter,
+            idempotencyKeyHeaderParameter,
+            {
+              name: "orderId",
+              in: "path",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+          ],
+          requestBody: jsonRequestBody(
+            "Lines and quantities to fulfil.",
+            "#/components/schemas/FulfillOrderRequest",
+          ),
+          responses: {
+            "200": jsonResponse(
+              "The refreshed order detail.",
+              "#/components/schemas/OrderDetailResponse",
+            ),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
+      "/api/v1/orders/{orderId}/cancel": {
+        post: {
+          operationId: "cancelOrder",
+          tags: ["orders"],
+          summary: "Cancel an unfulfilled online order and release its stock reservations.",
+          description:
+            "Online orders only. Requires orders.cancel on the order brand and Idempotency-Key. Refused (409) once any fulfillment exists; cancelling an already-cancelled order replays.",
+          security: clerkSecurity,
+          parameters: [
+            tenantHeaderParameter,
+            idempotencyKeyHeaderParameter,
+            {
+              name: "orderId",
+              in: "path",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+          ],
+          requestBody: jsonRequestBody(
+            "Optional cancellation reason.",
+            "#/components/schemas/CancelOrderRequest",
+          ),
+          responses: {
+            "200": jsonResponse(
+              "The refreshed order detail.",
+              "#/components/schemas/OrderDetailResponse",
+            ),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
       "/api/v1/pos/context": {
         get: {
           operationId: "getPosContext",
@@ -2981,6 +3518,77 @@ export function generateOpenApiDocument() {
               "#/components/schemas/PosContextResponse",
             ),
             ...errorResponses(400, 401, 403, 500),
+          },
+        },
+      },
+      "/api/v1/pos/availability": {
+        get: {
+          operationId: "getPosAvailability",
+          tags: ["pos"],
+          summary: "Read on-hand stock for a register the caller is authorized to sell from.",
+          security: clerkSecurity,
+          parameters: [
+            tenantHeaderParameter,
+            {
+              name: "registerId",
+              in: "query",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+          ],
+          responses: {
+            "200": jsonResponse(
+              "Register inventory availability.",
+              "#/components/schemas/PosAvailabilityResponse",
+            ),
+            ...errorResponses(400, 401, 403, 404, 500),
+          },
+        },
+      },
+      "/api/v1/pos/sync-conflicts": {
+        get: {
+          operationId: "listPosSyncConflicts",
+          tags: ["pos"],
+          summary: "Read the post-sync conflict report of emergency offline POS operation.",
+          description:
+            "ADR-042 §13.5. Read-only report of business conflicts the server detected while syncing offline commands (shared-stock shortfall after a Website sale, voucher, possible duplicate customer, stale debt/excess paydown, attendance, rejected dependency, integrity). It is not an approval queue and never changes the original record. With registerId the caller needs that register's POS permissions; without it tenant-wide orders.read. No customer name or phone is included.",
+          security: clerkSecurity,
+          parameters: [
+            tenantHeaderParameter,
+            uuidQueryParameter("registerId", "Restrict to one register (POS till view)."),
+            enumQueryParameter(
+              "kind",
+              [
+                "stock_shortfall",
+                "voucher",
+                "customer_duplicate",
+                "customer_debt",
+                "attendance",
+                "dependency",
+                "sync_integrity",
+              ],
+              undefined,
+              "Restrict to one conflict kind.",
+            ),
+            enumQueryParameter(
+              "status",
+              ["open", "informational"],
+              undefined,
+              "Restrict to one status.",
+            ),
+            {
+              name: "limit",
+              in: "query",
+              required: false,
+              schema: { type: "integer", minimum: 1, maximum: 200, default: 50 },
+            },
+          ],
+          responses: {
+            "200": jsonResponse(
+              "Conflicts, newest first, with open/informational counts.",
+              "#/components/schemas/ListPosSyncConflictsResponse",
+            ),
+            ...errorResponses(400, 401, 403, 404, 500),
           },
         },
       },
@@ -3108,6 +3716,274 @@ export function generateOpenApiDocument() {
           },
         },
       },
+      "/api/v1/pos/offline-customers": {
+        post: {
+          operationId: "ingestOfflineCustomer",
+          tags: ["pos"],
+          summary: "Ingest a new customer captured offline (name + phone).",
+          description:
+            "Device-authenticated (ADR-042 §8). The phone must be E.164. The till's localCustomerId becomes the customer id. When another customer already has the phone, duplicateOfCustomerId is set; records are never merged. Idempotency-Key must equal command.syncCommandId; an exact replay returns the original result.",
+          security: [],
+          parameters: [tenantHeaderParameter, idempotencyKeyHeaderParameter],
+          requestBody: jsonRequestBody(
+            "Signed offline customer command.",
+            "#/components/schemas/IngestOfflineCustomerRequest",
+          ),
+          responses: {
+            "200": jsonResponse(
+              "The created customer.",
+              "#/components/schemas/IngestOfflineCustomerResponse",
+            ),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
+      "/api/v1/pos/offline-sale-holds": {
+        post: {
+          operationId: "ingestOfflineSaleHold",
+          tags: ["pos"],
+          summary: "Record a terminal hold for an offline sale whose new customer was rejected.",
+          description:
+            "Device-authenticated (ADR-042 §4.6). Carries the original signed sale and a signed hold naming its SHA-256 fingerprint. The server verifies both signatures, the grant binding and window, that the ordinal is unused and that the customer the sale depends on does not exist, then records the ordinal as held_for_reconciliation: no order, payment, debt or customer link is created, the sale is not voided, and its units stay reserved so the stock grant can close. Idempotency-Key must equal command.syncCommandId; an exact replay returns the original receipt; a different hold or sale for the same ordinal is refused (409).",
+          security: [],
+          parameters: [tenantHeaderParameter, idempotencyKeyHeaderParameter],
+          requestBody: jsonRequestBody(
+            "Signed hold plus the original signed sale.",
+            "#/components/schemas/IngestOfflineSaleHoldRequest",
+          ),
+          responses: {
+            "200": jsonResponse(
+              "The terminal hold receipt.",
+              "#/components/schemas/IngestOfflineSaleHoldResponse",
+            ),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
+      "/api/v1/pos/override-password": {
+        put: {
+          operationId: "setPosOverridePassword",
+          tags: ["pos"],
+          summary: "Set or change your own POS override password.",
+          description:
+            "ADR-042 D-6. Only accounts holding promotions.manage or payments.refund. The caller re-enters their POS username and PIN (same lockout as sign-in). At least 10 characters, must not contain the username or PIN, and not a common password (422). Sealed server-side; never returned.",
+          security: clerkSecurity,
+          parameters: [tenantHeaderParameter, idempotencyKeyHeaderParameter],
+          requestBody: jsonRequestBody(
+            "Re-authentication and the new password.",
+            "#/components/schemas/SetPosOverridePasswordRequest",
+          ),
+          responses: {
+            "200": jsonResponse(
+              "The new verifier version.",
+              "#/components/schemas/PosOverridePasswordResponse",
+            ),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500, 503),
+          },
+        },
+      },
+      "/api/v1/pos/offline-pin-enrollments": {
+        post: {
+          operationId: "enrollOfflinePin",
+          tags: ["pos"],
+          summary: "Enrol your own offline PIN on one POS device (no PIN is sent).",
+          description:
+            "Offline PIN v2. The authenticated caller enrols themselves on an active device assigned to the register; requires the register's seller permissions. The request carries no PIN: the till derives and seals the device-bound verifier in its main process. Supersedes the caller's previous enrollment on that device (new verifierVersion). Idempotent per Idempotency-Key.",
+          security: clerkSecurity,
+          parameters: [tenantHeaderParameter, idempotencyKeyHeaderParameter],
+          requestBody: jsonRequestBody(
+            "Device and register.",
+            "#/components/schemas/EnrollOfflinePinRequest",
+          ),
+          responses: {
+            "200": jsonResponse(
+              "The new enrollment (no secret).",
+              "#/components/schemas/EnrollOfflinePinResponse",
+            ),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
+      "/api/v1/pos/offline-pin-enrollments/revoke": {
+        post: {
+          operationId: "revokeOfflinePinEnrollments",
+          tags: ["pos"],
+          summary: "Revoke offline PIN enrollments.",
+          description:
+            "Your own with seller access; anyone's or a whole device's with tenant-wide staff.manage. Effective at the device's next online bootstrap and at the latest when its current lease ends.",
+          security: clerkSecurity,
+          parameters: [tenantHeaderParameter, idempotencyKeyHeaderParameter],
+          requestBody: jsonRequestBody(
+            "Filter and reason.",
+            "#/components/schemas/RevokeOfflinePinEnrollmentsRequest",
+          ),
+          responses: {
+            "200": jsonResponse(
+              "Number of enrollments revoked.",
+              "#/components/schemas/RevokeOfflinePinEnrollmentsResponse",
+            ),
+            ...errorResponses(400, 401, 403, 409, 422, 500),
+          },
+        },
+      },
+      "/api/v1/staff/{membershipId}/override-password": {
+        delete: {
+          operationId: "clearStaffOverridePassword",
+          tags: ["staff"],
+          summary: "Clear a staff member's POS override password.",
+          description:
+            "Requires tenant-wide staff.manage and Idempotency-Key. The password is never read or set by an admin.",
+          security: clerkSecurity,
+          parameters: [
+            tenantHeaderParameter,
+            idempotencyKeyHeaderParameter,
+            {
+              name: "membershipId",
+              in: "path",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+          ],
+          requestBody: jsonRequestBody("Empty object.", "#/components/schemas/EmptyObject"),
+          responses: {
+            "200": jsonResponse(
+              "Cleared; verifier version bumped.",
+              "#/components/schemas/PosOverridePasswordResponse",
+            ),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
+      "/api/v1/promotions/{promotionId}/channel-policies": {
+        get: {
+          operationId: "getPromotionChannelPolicies",
+          tags: ["promotions"],
+          summary: "Per-channel limits and POS offline terms of a voucher.",
+          description: "Requires a tenant-wide promotions.read grant.",
+          security: clerkSecurity,
+          parameters: [
+            tenantHeaderParameter,
+            {
+              name: "promotionId",
+              in: "path",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+          ],
+          responses: {
+            "200": jsonResponse(
+              "Channel policies and code limits.",
+              "#/components/schemas/PromotionChannelPoliciesResponse",
+            ),
+            ...errorResponses(400, 401, 403, 404, 500),
+          },
+        },
+      },
+      "/api/v1/promotions/{promotionId}/channel-policies/{channel}": {
+        put: {
+          operationId: "upsertPromotionChannelPolicy",
+          tags: ["promotions"],
+          summary: "Set a voucher's limit and (POS only) offline terms for one channel.",
+          description:
+            "ADR-042 §5. Website and POS counters are independent. Offline is offered only with a finite usage limit, a per-grant quota and both owner discount caps (D-7). Narrowing offline authority bumps the policy version so outstanding till grants become exceptions. A limit below redeemed + reserved is a 409.",
+          security: clerkSecurity,
+          parameters: [
+            tenantHeaderParameter,
+            idempotencyKeyHeaderParameter,
+            {
+              name: "promotionId",
+              in: "path",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+            {
+              name: "channel",
+              in: "path",
+              required: true,
+              schema: { type: "string", enum: ["pos", "online"] },
+            },
+          ],
+          requestBody: jsonRequestBody(
+            "Channel policy.",
+            "#/components/schemas/UpsertPromotionChannelPolicyRequest",
+          ),
+          responses: {
+            "200": jsonResponse(
+              "Updated channel policies.",
+              "#/components/schemas/PromotionChannelPoliciesResponse",
+            ),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
+      "/api/v1/promotions/codes/{codeId}/channel-limits/{channel}": {
+        put: {
+          operationId: "upsertPromotionCodeChannelLimit",
+          tags: ["promotions"],
+          summary: "Set a code's own usage limit for one channel.",
+          description: "Requires tenant-wide promotions.manage and Idempotency-Key.",
+          security: clerkSecurity,
+          parameters: [
+            tenantHeaderParameter,
+            idempotencyKeyHeaderParameter,
+            {
+              name: "codeId",
+              in: "path",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+            {
+              name: "channel",
+              in: "path",
+              required: true,
+              schema: { type: "string", enum: ["pos", "online"] },
+            },
+          ],
+          requestBody: jsonRequestBody(
+            "Code channel limit.",
+            "#/components/schemas/UpsertPromotionCodeChannelLimitRequest",
+          ),
+          responses: {
+            "200": jsonResponse(
+              "Updated channel policies.",
+              "#/components/schemas/PromotionChannelPoliciesResponse",
+            ),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
+      "/api/v1/promotions/offline-exceptions": {
+        get: {
+          operationId: "listOfflineVoucherExceptions",
+          tags: ["promotions"],
+          summary: "Offline voucher discounts honoured without a valid reservation.",
+          description:
+            "ADR-042 D-2 report. The sale stood at the price paid; no task or approval is created. Requires promotions.read.",
+          security: clerkSecurity,
+          parameters: [
+            tenantHeaderParameter,
+            {
+              name: "limit",
+              in: "query",
+              required: false,
+              schema: { type: "integer", minimum: 1, maximum: 200 },
+            },
+            {
+              name: "offset",
+              in: "query",
+              required: false,
+              schema: { type: "integer", minimum: 0 },
+            },
+          ],
+          responses: {
+            "200": jsonResponse(
+              "Exceptions, newest first.",
+              "#/components/schemas/OfflineVoucherExceptionListResponse",
+            ),
+            ...errorResponses(400, 401, 403, 500),
+          },
+        },
+      },
       "/api/v1/pos/offline-sales": {
         post: {
           operationId: "ingestOfflineSale",
@@ -3169,6 +4045,72 @@ export function generateOpenApiDocument() {
             "200": jsonResponse(
               "Canonical attendance ingestion receipt.",
               "#/components/schemas/IngestOfflineAttendanceResponse",
+            ),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
+      "/api/v1/pos/offline-intents": {
+        post: {
+          operationId: "ingestOfflineIntent",
+          tags: ["pos"],
+          summary: "Ingest an operation intent captured offline and dispose of it automatically.",
+          description:
+            "Device-authenticated ingestion verifies canonical Ed25519 intent, the grant binding and acceptedAt window, the register's opt-in list of offline intent operations, and dependency ordering, then, in the same transaction, automatically disposes of it: a typed server handler applies the authorized effect under the register's handler policy (applied), or the command is rejected, marked needs_reconciliation (conflict with canonical state; no side effect) or blocked_policy (no approved handler policy; fails closed). There is no human approval step and no pending state. The immutable command and its disposition are appended idempotently keyed to syncCommandId; an exact replay returns the original disposition and never repeats an effect. Idempotency records are retained indefinitely (minimum guaranteed queue window: 365 days).",
+          security: [],
+          parameters: [tenantHeaderParameter, idempotencyKeyHeaderParameter],
+          requestBody: jsonRequestBody(
+            "Signed immutable offline operation intent.",
+            "#/components/schemas/IngestOfflineIntentRequest",
+          ),
+          responses: {
+            "200": jsonResponse(
+              "Provisional intent receipt (pending review).",
+              "#/components/schemas/IngestOfflineIntentResponse",
+            ),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
+      "/api/v1/pos/offline-return-grants": {
+        post: {
+          operationId: "issueOfflineReturnGrant",
+          tags: ["pos"],
+          summary: "Issue a bounded per-order offline return grant.",
+          description:
+            "Requires a normal authorized human session. Freezes server-authoritative return eligibility (per-line eligible quantities and the net-basis refund ceiling) into an immutable, device/register-bound, short-window grant so the till can offer only pre-authorized return lines/amounts while offline. Refusing a non-returnable order.",
+          security: clerkSecurity,
+          parameters: [tenantHeaderParameter, idempotencyKeyHeaderParameter],
+          requestBody: jsonRequestBody(
+            "Enrolled device, register, and the original order.",
+            "#/components/schemas/IssueOfflineReturnGrantRequest",
+          ),
+          responses: {
+            "200": jsonResponse(
+              "The bounded return grant and frozen eligibility.",
+              "#/components/schemas/OfflineReturnGrantResponse",
+            ),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
+      "/api/v1/pos/offline-returns": {
+        post: {
+          operationId: "ingestOfflineReturn",
+          tags: ["pos"],
+          summary: "Ingest a merchandise return already accepted offline.",
+          description:
+            "Device-authenticated ingestion verifies canonical Ed25519 intent and the return grant binding, asserts each line is within the grant's frozen eligibility, then recomputes the NET refund server-side and records a canonical Return with a PENDING (withheld) refund — settlement never occurs offline and canonical stock is never posted at ingestion. Eligibility drift or a revoked device yields needs_reconciliation. Idempotency records are retained indefinitely (minimum guaranteed queue window: 365 days).",
+          security: [],
+          parameters: [tenantHeaderParameter, idempotencyKeyHeaderParameter],
+          requestBody: jsonRequestBody(
+            "Signed immutable offline return command.",
+            "#/components/schemas/IngestOfflineReturnRequest",
+          ),
+          responses: {
+            "200": jsonResponse(
+              "Canonical return ingestion result with withheld refund.",
+              "#/components/schemas/IngestOfflineReturnResponse",
             ),
             ...errorResponses(400, 401, 403, 404, 409, 422, 500),
           },
@@ -3254,8 +4196,13 @@ export function generateOpenApiDocument() {
         AssignableStaffScope: jsonSchema(AssignableStaffScopeSchema),
         AssignableStaffScopesResponse: jsonSchema(AssignableStaffScopesResponseSchema),
         CreateStaffRequest: jsonSchema(CreateStaffRequestSchema),
+        CreateStaffWithoutLoginRequest: jsonSchema(CreateStaffWithoutLoginRequestSchema),
+        PayrollCycleSettings: jsonSchema(PayrollCycleSettingsSchema),
+        PayrollDue: jsonSchema(PayrollDueSchema),
+        MarkPayrollPaidRequest: jsonSchema(MarkPayrollPaidRequestSchema),
         CreateStaffLoginRequest: jsonSchema(CreateStaffLoginRequestSchema),
         UpdateStaffStatusRequest: jsonSchema(UpdateStaffStatusRequestSchema),
+        UpdateStaffProfileRequest: jsonSchema(UpdateStaffProfileRequestSchema),
         AssignStaffRoleRequest: jsonSchema(AssignStaffRoleRequestSchema),
         UnassignStaffRoleRequest: jsonSchema(UnassignStaffRoleRequestSchema),
 
@@ -3274,6 +4221,7 @@ export function generateOpenApiDocument() {
         PromotionDetail: jsonSchema(PromotionDetailSchema),
         CreatePromotionRequest: jsonSchema(CreatePromotionRequestSchema),
         UpdatePromotionRequest: jsonSchema(UpdatePromotionRequestSchema),
+        DeletePromotionResponse: jsonSchema(DeletePromotionResponseSchema),
         SetPromotionStatusRequest: jsonSchema(SetPromotionStatusRequestSchema),
         CreatePromotionCodeRequest: jsonSchema(CreatePromotionCodeRequestSchema),
         SetPromotionCodeStatusRequest: jsonSchema(SetPromotionCodeStatusRequestSchema),
@@ -3296,6 +4244,11 @@ export function generateOpenApiDocument() {
         InventoryListResponse: jsonSchema(InventoryListResponseSchema),
         ReceiveInventoryRequest: jsonSchema(ReceiveInventoryRequestSchema),
         ReceiveInventoryResponse: jsonSchema(ReceiveInventoryResponseSchema),
+        InventoryChannelStateResponse: jsonSchema(InventoryChannelStateResponseSchema),
+        InitializeInventoryChannelsRequest: jsonSchema(InitializeInventoryChannelsRequestSchema),
+        InitializeInventoryChannelsResponse: jsonSchema(InitializeInventoryChannelsResponseSchema),
+        AllocateInventoryChannelsRequest: jsonSchema(AllocateInventoryChannelsRequestSchema),
+        AllocateInventoryChannelsResponse: jsonSchema(AllocateInventoryChannelsResponseSchema),
         AdjustInventoryRequest: jsonSchema(AdjustInventoryRequestSchema),
         AdjustInventoryResponse: jsonSchema(AdjustInventoryResponseSchema),
         TransferInventoryRequest: jsonSchema(TransferInventoryRequestSchema),
@@ -3330,12 +4283,29 @@ export function generateOpenApiDocument() {
         CollectionWriteResponse: jsonSchema(CollectionWriteResponseSchema),
         CollectionUpdatedResponse: jsonSchema(CollectionUpdatedResponseSchema),
         SetCollectionProductsResponse: jsonSchema(SetCollectionProductsResponseSchema),
+        Sale: jsonSchema(SaleSchema),
+        SaleListResponse: jsonSchema(SaleListResponseSchema),
+        CreateSaleRequest: jsonSchema(CreateSaleRequestSchema),
+        UpdateSaleRequest: jsonSchema(UpdateSaleRequestSchema),
+        SetSaleStatusRequest: jsonSchema(SetSaleStatusRequestSchema),
+        DeleteSaleResponse: jsonSchema(DeleteSaleResponseSchema),
+        StorefrontContent: jsonSchema(StorefrontContentSchema),
+        UpdateStorefrontContentRequest: jsonSchema(UpdateStorefrontContentRequestSchema),
+        CreateStorefrontHeroImageIntentRequest: jsonSchema(
+          CreateStorefrontHeroImageIntentRequestSchema,
+        ),
+        StorefrontHeroImageIntent: jsonSchema(StorefrontHeroImageIntentSchema),
+        PublicStorefrontContent: jsonSchema(PublicStorefrontContentSchema),
         PublicCollectionListResponse: jsonSchema(PublicCollectionListResponseSchema),
         PublicCollectionDetailResponse: jsonSchema(PublicCollectionDetailResponseSchema),
         OrderSummary: jsonSchema(OrderSummarySchema),
         OrderListResponse: jsonSchema(OrderListResponseSchema),
         OrderDetailResponse: jsonSchema(OrderDetailResponseSchema),
+        FulfillOrderRequest: jsonSchema(FulfillOrderRequestSchema),
+        CancelOrderRequest: jsonSchema(CancelOrderRequestSchema),
         PosContextResponse: jsonSchema(PosContextResponseSchema),
+        PosAvailabilityResponse: jsonSchema(PosAvailabilityResponseSchema),
+        ListPosSyncConflictsResponse: jsonSchema(ListPosSyncConflictsResponseSchema),
         CreatePosSaleRequest: jsonSchema(CreatePosSaleRequestSchema),
         CreatePosSaleResponse: jsonSchema(CreatePosSaleResponseSchema),
         EnrollPosDeviceRequest: jsonSchema(EnrollPosDeviceRequestSchema),
@@ -3345,6 +4315,23 @@ export function generateOpenApiDocument() {
         OfflineBootstrapRequest: jsonSchema(OfflineBootstrapRequestSchema),
         OfflineBootstrapResponse: jsonSchema(OfflineBootstrapResponseSchema),
         IngestOfflineSaleRequest: jsonSchema(IngestOfflineSaleRequestSchema),
+        EmptyObject: { type: "object", additionalProperties: false },
+        IngestOfflineCustomerRequest: jsonSchema(IngestOfflineCustomerRequestSchema),
+        IngestOfflineCustomerResponse: jsonSchema(IngestOfflineCustomerResponseSchema),
+        IngestOfflineSaleHoldRequest: jsonSchema(IngestOfflineSaleHoldRequestSchema),
+        IngestOfflineSaleHoldResponse: jsonSchema(IngestOfflineSaleHoldResponseSchema),
+        SetPosOverridePasswordRequest: jsonSchema(SetPosOverridePasswordRequestSchema),
+        PosOverridePasswordResponse: jsonSchema(PosOverridePasswordResponseSchema),
+        EnrollOfflinePinRequest: jsonSchema(EnrollOfflinePinRequestSchema),
+        EnrollOfflinePinResponse: jsonSchema(EnrollOfflinePinResponseSchema),
+        RevokeOfflinePinEnrollmentsRequest: jsonSchema(RevokeOfflinePinEnrollmentsRequestSchema),
+        RevokeOfflinePinEnrollmentsResponse: jsonSchema(RevokeOfflinePinEnrollmentsResponseSchema),
+        PromotionChannelPoliciesResponse: jsonSchema(PromotionChannelPoliciesResponseSchema),
+        UpsertPromotionChannelPolicyRequest: jsonSchema(UpsertPromotionChannelPolicyRequestSchema),
+        UpsertPromotionCodeChannelLimitRequest: jsonSchema(
+          UpsertPromotionCodeChannelLimitRequestSchema,
+        ),
+        OfflineVoucherExceptionListResponse: jsonSchema(OfflineVoucherExceptionListResponseSchema),
         IngestOfflineSaleResponse: jsonSchema(IngestOfflineSaleResponseSchema),
         IngestOfflineCustomerPaymentRequest: jsonSchema(IngestOfflineCustomerPaymentRequestSchema),
         IngestOfflineCustomerPaymentResponse: jsonSchema(
@@ -3352,6 +4339,12 @@ export function generateOpenApiDocument() {
         ),
         IngestOfflineAttendanceRequest: jsonSchema(IngestOfflineAttendanceRequestSchema),
         IngestOfflineAttendanceResponse: jsonSchema(IngestOfflineAttendanceResponseSchema),
+        IngestOfflineIntentRequest: jsonSchema(IngestOfflineIntentRequestSchema),
+        IngestOfflineIntentResponse: jsonSchema(IngestOfflineIntentResponseSchema),
+        IssueOfflineReturnGrantRequest: jsonSchema(IssueOfflineReturnGrantRequestSchema),
+        OfflineReturnGrantResponse: jsonSchema(OfflineReturnGrantResponseSchema),
+        IngestOfflineReturnRequest: jsonSchema(IngestOfflineReturnRequestSchema),
+        IngestOfflineReturnResponse: jsonSchema(IngestOfflineReturnResponseSchema),
         SetStaffOfflinePinRequest: jsonSchema(SetStaffOfflinePinRequestSchema),
         SetStaffOfflinePinResponse: jsonSchema(SetStaffOfflinePinResponseSchema),
 

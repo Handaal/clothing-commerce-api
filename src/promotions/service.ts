@@ -6,6 +6,9 @@ import {
   CreatePromotionCodeRequestSchema,
   PromotionStatusSchema,
   PromotionCodeStatusSchema,
+  PromotionChannelSchema,
+  UpsertPromotionChannelPolicyRequestSchema,
+  UpsertPromotionCodeChannelLimitRequestSchema,
   type CreatePromotionRequest,
   type UpdatePromotionRequest,
   type CreatePromotionCodeRequest,
@@ -63,6 +66,11 @@ export class PromotionsService {
       parse(UpdatePromotionRequestSchema, input),
     );
   }
+  /** Deletes a never-used promotion, or archives one that has sale-time history. */
+  async remove(context: AuthorizationContext, id: string) {
+    const proof = await this.authorize(context, PromotionPermission.manage);
+    return this.repository.remove(proof, parse(z.uuid(), id));
+  }
   async setStatus(context: AuthorizationContext, id: string, status: unknown) {
     const proof = await this.authorize(context, PromotionPermission.manage);
     return this.repository.setStatus(
@@ -82,6 +90,55 @@ export class PromotionsService {
       parse(z.uuid(), promotionId),
       parse(CreatePromotionCodeRequestSchema, input),
     );
+  }
+  async channelPolicies(context: AuthorizationContext, promotionId: string) {
+    const proof = await this.authorize(context, PromotionPermission.read);
+    return this.repository.channelPolicies(proof, parse(z.uuid(), promotionId));
+  }
+  async upsertChannelPolicy(
+    context: AuthorizationContext,
+    promotionId: string,
+    channel: unknown,
+    input: unknown,
+  ) {
+    const proof = await this.authorize(context, PromotionPermission.manage);
+    const body = parse(UpsertPromotionChannelPolicyRequestSchema, input);
+    const parsedChannel = parse(PromotionChannelSchema, channel);
+    // Offline terms only exist on the POS channel.
+    if (
+      parsedChannel === "online" &&
+      (body.offlineEnabled ||
+        body.offlineQuotaPerGrant !== null ||
+        body.requiresAdminCredentials ||
+        body.maxDiscountPerRedemptionMinor !== null ||
+        body.maxDiscountPerGrantMinor !== null)
+    ) {
+      throw new PromotionError("INVALID_PROMOTION");
+    }
+    return this.repository.upsertChannelPolicy(
+      proof,
+      parse(z.uuid(), promotionId),
+      parsedChannel,
+      body,
+    );
+  }
+  async upsertCodeChannelLimit(
+    context: AuthorizationContext,
+    codeId: string,
+    channel: unknown,
+    input: unknown,
+  ) {
+    const proof = await this.authorize(context, PromotionPermission.manage);
+    return this.repository.upsertCodeChannelLimit(
+      proof,
+      parse(z.uuid(), codeId),
+      parse(PromotionChannelSchema, channel),
+      parse(UpsertPromotionCodeChannelLimitRequestSchema, input).usageLimit,
+    );
+  }
+  async offlineVoucherExceptions(context: AuthorizationContext, query: PromotionListQuery) {
+    const proof = await this.authorize(context, PromotionPermission.read);
+    return this.repository.offlineVoucherExceptions(proof, query.limit, query.offset);
   }
   async setCodeStatus(context: AuthorizationContext, codeId: string, status: unknown) {
     const proof = await this.authorize(context, PromotionPermission.manage);

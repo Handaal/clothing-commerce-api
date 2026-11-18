@@ -277,8 +277,9 @@ set constraints all deferred;
 
 insert into public.variant_barcodes (id, tenant_id, variant_id, value, is_primary)
 values
-  ('61000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000001', '60000000-0000-4000-8000-000000000001', 'BARCODE-A', true),
-  ('61000000-0000-4000-8000-000000000002', '10000000-0000-4000-8000-000000000002', '60000000-0000-4000-8000-000000000002', 'BARCODE-B', true);
+  -- Secondary: each variant already owns its canonical auto-generated primary (20261113122000).
+  ('61000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000001', '60000000-0000-4000-8000-000000000001', 'BARCODE-A', false),
+  ('61000000-0000-4000-8000-000000000002', '10000000-0000-4000-8000-000000000002', '60000000-0000-4000-8000-000000000002', 'BARCODE-B', false);
 
 insert into public.categories (id, tenant_id, name, slug)
 values
@@ -326,7 +327,7 @@ set local "request.jwt.claims" = '{"user_identity_id":"70000000-0000-4000-8000-0
 -- Each query has two physical fixture rows, so count=1 proves same-tenant visibility and foreign-row hiding.
 select is((select count(*) from public.products), 1::bigint, 'active member reads only own products');
 select is((select count(*) from public.product_variants), 1::bigint, 'active member reads only own variants');
-select is((select count(*) from public.variant_barcodes), 1::bigint, 'active member reads only own barcodes');
+select is((select count(*) from public.variant_barcodes), 2::bigint, 'active member reads only own barcodes (canonical primary + one secondary)');
 select is((select count(*) from public.product_options), 1::bigint, 'active member reads only own product options');
 select is((select count(*) from public.product_option_values), 1::bigint, 'active member reads only own option values');
 select is((select count(*) from public.variant_option_values), 1::bigint, 'active member reads only own variant selections');
@@ -413,7 +414,7 @@ reset role;
 set local role service_role;
 select is((select count(*) from public.products), 2::bigint, 'service_role reads all products');
 select is((select count(*) from public.product_variants), 2::bigint, 'service_role reads all variants');
-select is((select count(*) from public.variant_barcodes), 2::bigint, 'service_role reads all barcodes');
+select is((select count(*) from public.variant_barcodes), 4::bigint, 'service_role reads all barcodes');
 select is((select count(*) from public.product_options), 2::bigint, 'service_role reads all product options');
 select is((select count(*) from public.product_option_values), 2::bigint, 'service_role reads all option values');
 select is((select count(*) from public.variant_option_values), 2::bigint, 'service_role reads all variant selections');

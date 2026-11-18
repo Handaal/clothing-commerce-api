@@ -37,6 +37,7 @@ const VariantRowSchema = z.object({
   display_name: z.string().nullable(),
   status: ProductStatus,
 });
+const BarcodeRowSchema = z.object({ variant_id: z.string().uuid(), value: z.string() });
 
 const OptionRowSchema = z.object({
   id: z.string().uuid(),
@@ -190,6 +191,20 @@ export class SupabaseCatalogReadRepository implements CatalogReadRepository {
     const optionValues = parseRows(OptionValueRowSchema, optionValueResult.data);
 
     const variantIds = variants.map((variant) => variant.id);
+    const barcodeResult =
+      variantIds.length > 0
+        ? await this.client
+            .from("variant_barcodes")
+            .select("variant_id,value")
+            .eq("tenant_id", tenantId)
+            .in("variant_id", variantIds)
+            .eq("is_primary", true)
+            .eq("status", "active")
+        : { data: [], error: null };
+    requireNoQueryError(barcodeResult.error);
+    const barcodes = new Map(
+      parseRows(BarcodeRowSchema, barcodeResult.data).map((row) => [row.variant_id, row.value]),
+    );
     const prices = await this.loadActivePrices(tenantId, variantIds);
 
     const valuesByOption = new Map<string, { id: string; value: string }[]>();
@@ -210,6 +225,7 @@ export class SupabaseCatalogReadRepository implements CatalogReadRepository {
       variants: variants.map((variant) => ({
         id: variant.id,
         sku: variant.sku,
+        barcode: barcodes.get(variant.id) ?? null,
         displayName: variant.display_name,
         status: variant.status,
       })),

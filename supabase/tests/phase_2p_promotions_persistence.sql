@@ -320,10 +320,66 @@ select pg_temp.assert_true(
 select pg_temp.assert_true(
   (select promotions_private.set_promotion_status('10000000-0000-4000-8000-000000000001',(d->>'id')::uuid,'inactive')->>'status'='inactive' from created),
   'set_promotion_status deactivates');
--- Promotion a0..010 was redeemed earlier (redemption_count = 1); economic edits must be frozen.
+-- Promotion a0..010 was redeemed earlier (redemption_count = 1). Since 2026-11-18 a manager may still
+-- change every setting; history rows keep the discount actually granted.
+select pg_temp.assert_true(
+  (promotions_private.update_promotion('10000000-0000-4000-8000-000000000001','a0000000-0000-4000-8000-000000000010',
+    '{"benefitPercentBp":2500,"channel":"pos"}'::jsonb)->>'benefitPercentBp')::int = 2500,
+  'economic edit allowed after first redemption');
+select pg_temp.assert_true(
+  (select bool_and(a.benefit_value_snapshot = 1000) and count(*) >= 1
+   from public.order_adjustments a where a.promotion_id='a0000000-0000-4000-8000-000000000010'),
+  'editing a redeemed promotion leaves its sale-time adjustment snapshots unchanged');
 select pg_temp.assert_raises(
-  $$select promotions_private.update_promotion('10000000-0000-4000-8000-000000000001','a0000000-0000-4000-8000-000000000010','{"benefitPercentBp":2500}'::jsonb)$$,
-  'PR423','economic edit rejected after first redemption');
+  $$select promotions_private.update_promotion('10000000-0000-4000-8000-000000000001','a0000000-0000-4000-8000-000000000010','{"globalRedemptionLimit":0}'::jsonb)$$,
+  'PR422','global limit cannot drop below uses already redeemed');
+-- Switching the discount type clears the old type's fields; targets are replaceable.
+select pg_temp.assert_true(
+  (select d->>'benefitType'='fixed_amount' and (d->>'benefitAmountMinor')::int=500 and d->'benefitPercentBp'='null'::jsonb
+   from (select promotions_private.update_promotion('10000000-0000-4000-8000-000000000001',(c.d->>'id')::uuid,
+     '{"benefitType":"fixed_amount","benefitAmountMinor":500,"benefitCurrency":"USD"}'::jsonb) as d from created c) x),
+  'update_promotion switches the discount type');
+select pg_temp.assert_true(
+  (select jsonb_array_length(d->'targets')=1 and d->>'targetType'='variant_scope'
+   from (select promotions_private.update_promotion('10000000-0000-4000-8000-000000000001',(c.d->>'id')::uuid,
+     '{"targetType":"variant_scope","targets":[{"productId":"30000000-0000-4000-8000-000000000001","variantId":null}]}'::jsonb) as d
+     from created c) x),
+  'update_promotion replaces the product/variant targets');
+select pg_temp.assert_true(
+  (select promotions_private.promotion_detail('10000000-0000-4000-8000-000000000001',(d->>'id')::uuid)->'targets'->0->>'productName'='Tee'
+   from created),
+  'promotion detail names each target');
+select pg_temp.assert_raises(
+  $$select promotions_private.update_promotion('10000000-0000-4000-8000-000000000001',(select (d->>'id')::uuid from created),'{"targets":[]}'::jsonb)$$,
+  '22023','a variant-scope promotion keeps at least one target');
+
+-- ============================ delete / archive ============================
+-- Never used → removed together with its codes and targets.
+create temp table deleted_unused on commit drop as
+  select promotions_private.delete_promotion('10000000-0000-4000-8000-000000000001',(d->>'id')::uuid) as r from created;
+select pg_temp.assert_true(
+  (select r->>'outcome'='deleted' from deleted_unused)
+  and not exists(select 1 from public.promotions where id=(select (d->>'id')::uuid from created))
+  and not exists(select 1 from public.promotion_codes where promotion_id=(select (d->>'id')::uuid from created)),
+  'delete_promotion hard-deletes an unused promotion with its codes');
+-- Used → archived: inactive, codes disabled, hidden from management, history intact.
+create temp table archived_used on commit drop as
+  select promotions_private.delete_promotion('10000000-0000-4000-8000-000000000001','a0000000-0000-4000-8000-000000000010') as r;
+select pg_temp.assert_true(
+  (select r->>'outcome'='archived' from archived_used)
+  and (select status='inactive' and archived_at is not null from public.promotions where id='a0000000-0000-4000-8000-000000000010'),
+  'delete_promotion archives a used promotion');
+select pg_temp.assert_true(
+  promotions_private.promotion_detail('10000000-0000-4000-8000-000000000001','a0000000-0000-4000-8000-000000000010') is null
+  and not exists(select 1 from jsonb_array_elements(promotions_private.list_promotions('10000000-0000-4000-8000-000000000001',200,0)->'items') i
+    where i->>'id'='a0000000-0000-4000-8000-000000000010'),
+  'archived promotions are hidden from management reads');
+select pg_temp.assert_raises(
+  $$select promotions_private.set_promotion_status('10000000-0000-4000-8000-000000000001','a0000000-0000-4000-8000-000000000010','active')$$,
+  'PR404','an archived promotion cannot be reactivated');
+select pg_temp.assert_raises(
+  $$select promotions_private.delete_promotion('10000000-0000-4000-8000-000000000002','a0000000-0000-4000-8000-000000000010')$$,
+  'PR404','tenant B cannot delete tenant A promotions');
 select pg_temp.assert_true(
   (promotions_private.list_promotions('10000000-0000-4000-8000-000000000001',5,0)->>'total')::int >= 1,
   'list_promotions returns a paginated summary');

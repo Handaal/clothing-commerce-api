@@ -50,6 +50,20 @@ export class PosAuthService {
     return this.authorization.authorize(context, { permissionKey: StaffManagePermission });
   }
 
+  /**
+   * Re-authenticate an existing POS account (username + PIN) for a sensitive self-service action, with the
+   * same constant-time verify and lockout accounting as sign-in. Returns null on any failure.
+   */
+  async reauthenticate(username: string, pin: string): Promise<{ membershipId: string } | null> {
+    const resolved = await this.repository.begin(username);
+    if (resolved.lockedUntil !== null) throw new PosAuthError("ACCOUNT_LOCKED");
+    const account = resolved.account;
+    const verified = verifyOnlinePin(pin, account?.verifier ?? DECOY_VERIFIER);
+    const success = account !== null && verified;
+    await this.repository.record(username, success);
+    return success && account !== null ? { membershipId: account.membershipId } : null;
+  }
+
   /** Public connected sign-in. Unknown username and wrong PIN collapse to one indistinguishable failure. */
   async login(input: PosLoginRequest): Promise<PosLoginResponse> {
     if (this.issuer === null || this.signing === null) {

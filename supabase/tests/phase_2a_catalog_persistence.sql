@@ -426,15 +426,25 @@ select pg_temp.assert_raises(
   'archived SKU cannot be reused within the tenant'
 );
 
+-- 20261113122000_auto_variant_barcodes gives every new variant its canonical primary barcode (a tenant-unique
+-- numeric code128) at insert time, so the fixture's extra barcodes are secondary; the one-active-primary rule
+-- is exercised against that canonical primary below.
+select pg_temp.assert_true(
+  (select count(*) = 1 from public.variant_barcodes
+    where variant_id = '60000000-0000-4000-8000-000000000001' and is_primary and status = 'active'
+      and barcode_type = 'code128' and value ~ '^[0-9]+$'),
+  'every new variant receives exactly one canonical auto-generated primary barcode'
+);
+
 insert into public.variant_barcodes (id, tenant_id, variant_id, value, barcode_type, is_primary)
 values
-  ('70000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000001', '60000000-0000-4000-8000-000000000001', '0123456789012', 'ean13', true),
+  ('70000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000001', '60000000-0000-4000-8000-000000000001', '0123456789012', 'ean13', false),
   ('70000000-0000-4000-8000-000000000002', '10000000-0000-4000-8000-000000000001', '60000000-0000-4000-8000-000000000001', 'TEE-S-RED-ALT', 'code128', false),
-  ('70000000-0000-4000-8000-000000000003', '10000000-0000-4000-8000-000000000002', '60000000-0000-4000-8000-000000000003', '0123456789012', 'ean13', true);
+  ('70000000-0000-4000-8000-000000000003', '10000000-0000-4000-8000-000000000002', '60000000-0000-4000-8000-000000000003', '0123456789012', 'ean13', false);
 
 select pg_temp.assert_true(
-  (select count(*) = 2 from public.variant_barcodes where variant_id = '60000000-0000-4000-8000-000000000001'),
-  'a variant may own multiple barcodes'
+  (select count(*) = 3 from public.variant_barcodes where variant_id = '60000000-0000-4000-8000-000000000001'),
+  'a variant may own multiple barcodes (canonical primary + two secondary)'
 );
 
 select pg_temp.assert_raises(

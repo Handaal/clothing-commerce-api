@@ -171,7 +171,7 @@ begin
     max_sale_amount_minor, max_cumulative_exposure_minor, max_quantity_per_line,
     max_pending_offline_sales, max_offline_credit_exposure_minor
   ) values (
-    c_offline_policy, v_tenant_id, v_register_id, true, 43200, 86400,
+    c_offline_policy, v_tenant_id, v_register_id, true, 43200, 43200,
     100000, 500000, 20, 50, 300000
   ) on conflict (tenant_id, register_id) do nothing;
 

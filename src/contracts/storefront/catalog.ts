@@ -29,7 +29,12 @@ export type PublicProductMedia = z.infer<typeof PublicProductMediaSchema>;
 
 export const PublicProductPriceSchema = z.object({
   currency: CurrencySchema,
+  // The price the shopper pays online today (sale-adjusted when a catalog sale applies). Checkout and
+  // quote charge exactly this figure.
   amountMinor: NonNegativeIntegerSchema,
+  // The original list price when a sale applies (render it struck through); null/absent when not on
+  // sale. Always greater than amountMinor when present.
+  compareAtAmountMinor: NonNegativeIntegerSchema.nullable().optional(),
 });
 export type PublicProductPrice = z.infer<typeof PublicProductPriceSchema>;
 
@@ -45,6 +50,15 @@ export const PublicProductVariantSchema = z.object({
 });
 export type PublicProductVariant = z.infer<typeof PublicProductVariantSchema>;
 
+// A live automatic Buy-X-Get-Y offer that applies to this product online (e.g. "Buy 2 get 1 free").
+export const PublicProductOfferSchema = z.object({
+  id: UuidSchema,
+  name: z.string(),
+  buyQuantity: z.number().int().positive(),
+  getQuantity: z.number().int().positive(),
+});
+export type PublicProductOffer = z.infer<typeof PublicProductOfferSchema>;
+
 export const PublicProductSchema = z.object({
   id: UuidSchema,
   brandId: UuidSchema,
@@ -54,6 +68,7 @@ export const PublicProductSchema = z.object({
   publishedAt: IsoDateTimeSchema.nullable(),
   media: z.array(PublicProductMediaSchema),
   variants: z.array(PublicProductVariantSchema),
+  offers: z.array(PublicProductOfferSchema).optional(),
 });
 export type PublicProduct = z.infer<typeof PublicProductSchema>;
 

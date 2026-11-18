@@ -86,3 +86,26 @@ export const OrderDetailResponseSchema = z.object({
 });
 
 export type OrderDetailResponse = z.infer<typeof OrderDetailResponseSchema>;
+
+/**
+ * Staff fulfillment of an ONLINE order (POST /orders/{orderId}/fulfillments). The client names the lines
+ * and quantities explicitly (so an Idempotency-Key replay carries the identical intent); the server
+ * resolves the stock location from the order's own reservations, and the client never chooses it.
+ */
+export const FulfillOrderRequestSchema = z
+  .object({
+    lines: z
+      .array(
+        z.object({ lineNumber: PositiveIntegerSchema, quantity: PositiveIntegerSchema }).strict(),
+      )
+      .min(1)
+      .max(500),
+  })
+  .strict();
+export type FulfillOrderRequest = z.infer<typeof FulfillOrderRequestSchema>;
+
+/** Staff cancellation of an unfulfilled ONLINE order (POST /orders/{orderId}/cancel). */
+export const CancelOrderRequestSchema = z
+  .object({ reason: z.string().trim().min(1).max(500).optional() })
+  .strict();
+export type CancelOrderRequest = z.infer<typeof CancelOrderRequestSchema>;

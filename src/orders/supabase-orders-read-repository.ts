@@ -125,6 +125,28 @@ export class SupabaseOrdersReadRepository implements OrdersReadRepository {
     });
   }
 
+  /** Where each order line's online stock hold lives (any status: consumed holds keep their location). */
+  async getReservationLocations(
+    tenantId: string,
+    orderId: string,
+  ): Promise<readonly { orderLineId: string; inventoryLocationId: string }[]> {
+    const { data, error } = await this.client
+      .from("stock_reservations")
+      .select("order_line_id,inventory_location_id")
+      .eq("tenant_id", tenantId)
+      .eq("order_id", orderId);
+    requireNoQueryError(error);
+    return z
+      .array(
+        z.object({ order_line_id: z.string().uuid(), inventory_location_id: z.string().uuid() }),
+      )
+      .parse(data)
+      .map((row) => ({
+        orderLineId: row.order_line_id,
+        inventoryLocationId: row.inventory_location_id,
+      }));
+  }
+
   async brandExistsInTenant(tenantId: string, brandId: string): Promise<boolean> {
     const { data, error } = await this.client
       .from("brands")

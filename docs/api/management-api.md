@@ -19,20 +19,22 @@ atomicity, cash/tax boundary, and deferred device trust are documented in
 
 All endpoints live under `/api/v1`.
 
-| Method & path                 | Tenant header | Idempotency-Key | Permission           | Description                                                           |
-| ----------------------------- | ------------- | --------------- | -------------------- | --------------------------------------------------------------------- |
-| `GET /me/tenants`             | no            | no              | none (identity only) | The caller's own selectable active tenants.                           |
-| `GET /me/context`             | yes           | no              | derived              | The caller's effective read capability for the tenant.                |
-| `GET /products`               | yes           | no              | `catalog.read`       | Paginated product summaries in the caller's brand scope.              |
-| `GET /products/{productId}`   | yes           | no              | `catalog.read`       | One product's detail (variants, options, prices).                     |
-| `GET /inventory`              | yes           | no              | `inventory.read`     | Paginated balances in the caller's location scope.                    |
-| `POST /inventory/receipts`    | yes           | yes             | `inventory.receive`  | Receive stock into one location.                                      |
-| `POST /inventory/adjustments` | yes           | yes             | `inventory.adjust`   | Reconcile a counted on-hand (version-guarded).                        |
-| `POST /inventory/transfers`   | yes           | yes             | `inventory.transfer` | Move stock between two locations (source **and** destination scoped). |
-| `GET /orders`                 | yes           | no              | `orders.read`        | Paginated order summaries in the caller's brand/branch scope.         |
-| `GET /orders/{orderId}`       | yes           | no              | `orders.read`        | One order's detail with embedded fulfillment progress.                |
-| `GET /pos/context`            | yes           | no              | derived              | Active, fully authorized register selling contexts.                   |
-| `POST /pos/sales`             | yes           | yes             | five capabilities    | Atomic Order + cash Payment + full Fulfillment + inventory issue.     |
+| Method & path                         | Tenant header | Idempotency-Key | Permission                           | Description                                                                                                                |
+| ------------------------------------- | ------------- | --------------- | ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| `GET /me/tenants`                     | no            | no              | none (identity only)                 | The caller's own selectable active tenants.                                                                                |
+| `GET /me/context`                     | yes           | no              | derived                              | The caller's effective read capability for the tenant.                                                                     |
+| `GET /products`                       | yes           | no              | `catalog.read`                       | Paginated product summaries in the caller's brand scope.                                                                   |
+| `GET /products/{productId}`           | yes           | no              | `catalog.read`                       | One product's detail (variants, options, prices).                                                                          |
+| `GET /inventory`                      | yes           | no              | `inventory.read`                     | Paginated balances in the caller's location scope.                                                                         |
+| `POST /inventory/receipts`            | yes           | yes             | `inventory.receive`                  | Receive stock into one location.                                                                                           |
+| `POST /inventory/adjustments`         | yes           | yes             | `inventory.adjust`                   | Reconcile a counted on-hand (version-guarded).                                                                             |
+| `POST /inventory/transfers`           | yes           | yes             | `inventory.transfer`                 | Move stock between two locations (source **and** destination scoped).                                                      |
+| `GET /orders`                         | yes           | no              | `orders.read`                        | Paginated order summaries in the caller's brand/branch scope.                                                              |
+| `GET /orders/{orderId}`               | yes           | no              | `orders.read`                        | One order's detail with embedded fulfillment progress.                                                                     |
+| `POST /orders/{orderId}/fulfillments` | yes           | yes             | `orders.fulfill` + `inventory.issue` | Ship lines of an **online** order from the location its reservations hold (server-resolved). Returns the refreshed detail. |
+| `POST /orders/{orderId}/cancel`       | yes           | yes             | `orders.cancel`                      | Cancel an unfulfilled **online** order; releases its reservations. Idempotent.                                             |
+| `GET /pos/context`                    | yes           | no              | derived                              | Active, fully authorized register selling contexts.                                                                        |
+| `POST /pos/sales`                     | yes           | yes             | five capabilities                    | Atomic Order + cash Payment + full Fulfillment + inventory issue.                                                          |
 
 Opening-stock and generic issue are intentionally **not** exposed: opening stock is an
 initialization-only primitive (the domain forbids re-opening after activity, and routine initial counts

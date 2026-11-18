@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -9,7 +10,8 @@ const repositoryRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const migrationDirectory = join(repositoryRoot, "supabase", "migrations");
 const testFile = join(repositoryRoot, "supabase", "tests", "phase_2l_online_persistence.sql");
 const successMarker = "ALL_ONLINE_PERSISTENCE_ASSERTIONS_PASSED";
-const containerName = `clothing-commerce-online-${process.pid}`;
+// Unique disposable rt-<32hex> container owned by this run (tmpfs, no published port).
+const containerName = `rt-${randomBytes(16).toString("hex")}`;
 const postgresImage = "postgres:17.6-alpine";
 const databaseName = "commerce_test";
 const databasePassword = "local-online-commerce-test-only";

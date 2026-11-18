@@ -30,6 +30,7 @@ export type ProductListResponse = z.infer<typeof ProductListResponseSchema>;
 export const ProductVariantSummarySchema = z.object({
   id: UuidSchema,
   sku: z.string(),
+  barcode: z.string().nullable().optional(),
   displayName: z.string().nullable(),
   status: ProductStatusSchema,
 });

@@ -19,6 +19,7 @@ import { StaffError } from "../staff/errors";
 import { AttendanceError } from "../attendance/errors";
 import { ReturnError } from "../returns/errors";
 import { PromotionError } from "../promotions/errors";
+import { MerchandisingError } from "../merchandising/errors";
 import { ReportingError } from "../reporting/errors";
 import { SettingsError } from "../settings/errors";
 import { corsHeaders } from "./cors";
@@ -105,12 +106,62 @@ export function requireIdempotencyKey(request: Request): string {
   return parsed.data;
 }
 
-/** Reads and validates a JSON request body. A missing/malformed body or a schema failure maps to 400. */
-export async function parseJsonBody<T>(request: Request, schema: z.ZodType<T>): Promise<T> {
+/** A request body larger than the route's transport ceiling. Maps to 413; the body is never parsed. */
+export class PayloadTooLargeError extends Error {
+  constructor(readonly maxBytes: number) {
+    super("The request body is too large.");
+    this.name = "PayloadTooLargeError";
+  }
+}
+
+/**
+ * ADR-043 §6: the transport ceiling for requests that carry a POS credential (sign-in, provisioning, PIN
+ * reset, step-up). This is an INFRASTRUCTURE bound on the whole HTTP body so an oversized request cannot
+ * become a parsing/hashing resource sink — it is NOT a product PIN-length rule (PINs have no product
+ * maximum; anything that fits this request is accepted).
+ */
+export const POS_CREDENTIAL_MAX_BODY_BYTES = 16 * 1024;
+
+async function readBoundedText(request: Request, maxBytes: number): Promise<string> {
+  const declared = request.headers.get("Content-Length");
+  if (declared !== null && /^[0-9]+$/.test(declared.trim()) && Number(declared) > maxBytes) {
+    throw new PayloadTooLargeError(maxBytes);
+  }
+  if (request.body === null) return "";
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel().catch(() => undefined);
+      throw new PayloadTooLargeError(maxBytes);
+    }
+    chunks.push(value);
+  }
+  return new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(chunks));
+}
+
+/**
+ * Reads and validates a JSON request body. A missing/malformed body or a schema failure maps to 400. When
+ * `maxBodyBytes` is given the body is streamed with that ceiling and an oversized body maps to 413 without
+ * ever being buffered past the limit or parsed.
+ */
+export async function parseJsonBody<T>(
+  request: Request,
+  schema: z.ZodType<T>,
+  maxBodyBytes?: number,
+): Promise<T> {
   let raw: unknown;
   try {
-    raw = await request.json();
-  } catch {
+    raw =
+      maxBodyBytes === undefined
+        ? await request.json()
+        : JSON.parse(await readBoundedText(request, maxBodyBytes));
+  } catch (error) {
+    if (error instanceof PayloadTooLargeError) throw error;
     throw new RequestValidationError([
       { path: ["body"], message: "The request body must be valid JSON." },
     ]);
@@ -159,6 +210,14 @@ function mapError(error: unknown, requestId: string, request?: Request): Respons
       request,
     );
   }
+  if (error instanceof PayloadTooLargeError) {
+    return jsonResponse(
+      413,
+      errorBody("PAYLOAD_TOO_LARGE", error.message, requestId),
+      requestId,
+      request,
+    );
+  }
   if (error instanceof InvalidCursorError) {
     return jsonResponse(
       400,
@@ -192,6 +251,7 @@ function mapError(error: unknown, requestId: string, request?: Request): Respons
     error instanceof StaffError ||
     error instanceof AttendanceError ||
     error instanceof PromotionError ||
+    error instanceof MerchandisingError ||
     error instanceof ReportingError ||
     error instanceof SettingsError
   ) {
@@ -206,7 +266,24 @@ function mapError(error: unknown, requestId: string, request?: Request): Respons
               value: error.authoritativeTotalMinor,
             },
           ]
-        : undefined;
+        : error instanceof InventoryError && error.conflicts !== undefined
+          ? error.conflicts.flatMap((conflict) =>
+              (
+                [
+                  "balanceVersion",
+                  "allocationVersion",
+                  "websiteOnHand",
+                  "posOnHand",
+                  "unallocatedOnHand",
+                  "posReserved",
+                ] as const
+              ).map((field) => ({
+                path: ["lines", conflict.variantId, field],
+                message: "Current value; reload the split and retry.",
+                value: conflict[field],
+              })),
+            )
+          : undefined;
     return jsonResponse(
       error.httpStatus,
       errorBody(error.code, error.message, requestId, details),
@@ -335,6 +412,8 @@ export async function runTenantManagementWriteRoute<TBody, TResult>(options: {
   readonly contextResolver: AuthorizationContextResolver;
   readonly requestSchema: z.ZodType<TBody>;
   readonly responseSchema: z.ZodType<TResult>;
+  /** Optional transport ceiling for the JSON body (413 above it). */
+  readonly maxBodyBytes?: number;
   readonly handler: (input: {
     readonly context: AuthorizationContext;
     readonly body: TBody;
@@ -350,7 +429,7 @@ export async function runTenantManagementWriteRoute<TBody, TResult>(options: {
       request: options.request,
       requestedTenantId,
     });
-    const body = await parseJsonBody(options.request, options.requestSchema);
+    const body = await parseJsonBody(options.request, options.requestSchema, options.maxBodyBytes);
     const value = await options.handler({ context, body, idempotencyKey, requestId });
     return jsonResponse(
       200,
@@ -439,6 +518,8 @@ export async function runPublicBodyRoute<TBody, TResult>(options: {
   readonly request: Request;
   readonly requestSchema: z.ZodType<TBody>;
   readonly responseSchema: z.ZodType<TResult>;
+  /** Transport ceiling for the JSON body (413 above it). Public routes always carry one. */
+  readonly maxBodyBytes: number;
   readonly handler: (input: {
     readonly body: TBody;
     readonly requestId: string;
@@ -446,7 +527,7 @@ export async function runPublicBodyRoute<TBody, TResult>(options: {
 }): Promise<Response> {
   const requestId = crypto.randomUUID();
   try {
-    const body = await parseJsonBody(options.request, options.requestSchema);
+    const body = await parseJsonBody(options.request, options.requestSchema, options.maxBodyBytes);
     const value = await options.handler({ body, requestId });
     return jsonResponse(
       200,

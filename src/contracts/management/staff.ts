@@ -48,6 +48,8 @@ export const StaffSummarySchema = z.object({
   identityId: UuidSchema,
   tenantId: UuidSchema,
   displayName: z.string().nullable(),
+  position: z.string().nullable().optional(),
+  phone: z.string().nullable().optional(),
   email: z.string().nullable(),
   status: StaffStatusSchema,
   roles: z.array(StaffRoleRefSchema),
@@ -157,6 +159,11 @@ export const AssignableStaffScopesResponseSchema = paginated(AssignableStaffScop
 const reasonField = z.string().trim().min(1).max(500).optional();
 
 export const CreateStaffRequestSchema = z.object({ identityId: UuidSchema }).strict();
+export const CreateStaffWithoutLoginRequestSchema = z
+  .object({
+    displayName: z.string().trim().min(1).max(120),
+  })
+  .strict();
 
 /**
  * Provision a brand-new, EMAIL-LESS staff login (Connected POS floor staff) and link it as active staff in
@@ -189,6 +196,14 @@ export const UpdateStaffStatusRequestSchema = z
   .object({ status: StaffStatusTargetSchema, reason: reasonField })
   .strict();
 
+export const UpdateStaffProfileRequestSchema = z
+  .object({
+    displayName: z.string().trim().min(1).max(120),
+    position: z.string().trim().max(80).nullable(),
+    phone: z.string().trim().max(30).nullable(),
+  })
+  .strict();
+
 export const AssignStaffRoleRequestSchema = z
   .object({ roleId: UuidSchema, accessScopeId: UuidSchema, reason: reasonField })
   .strict();
@@ -211,7 +226,9 @@ export type AssignableStaffScopeTarget = z.infer<typeof AssignableStaffScopeTarg
 export type AssignableStaffScope = z.infer<typeof AssignableStaffScopeSchema>;
 export type AssignableStaffScopesResponse = z.infer<typeof AssignableStaffScopesResponseSchema>;
 export type CreateStaffRequest = z.infer<typeof CreateStaffRequestSchema>;
+export type CreateStaffWithoutLoginRequest = z.infer<typeof CreateStaffWithoutLoginRequestSchema>;
 export type CreateStaffLoginRequest = z.infer<typeof CreateStaffLoginRequestSchema>;
 export type UpdateStaffStatusRequest = z.infer<typeof UpdateStaffStatusRequestSchema>;
+export type UpdateStaffProfileRequest = z.infer<typeof UpdateStaffProfileRequestSchema>;
 export type AssignStaffRoleRequest = z.infer<typeof AssignStaffRoleRequestSchema>;
 export type UnassignStaffRoleRequest = z.infer<typeof UnassignStaffRoleRequestSchema>;

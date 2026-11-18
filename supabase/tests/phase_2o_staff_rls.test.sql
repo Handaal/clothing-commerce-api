@@ -75,9 +75,9 @@ select ok(not has_table_privilege('anon','public.staff_offline_pin_credentials',
 select ok(not has_table_privilege('authenticated','public.staff_offline_pin_credentials','SELECT'),'clients cannot read sealed offline PINs');
 select ok(not has_table_privilege('authenticated','public.staff_offline_pin_credentials','INSERT'),'clients cannot set offline PINs directly');
 select ok(not has_table_privilege('staff_writer','public.staff_offline_pin_credentials','DELETE'),'writer cannot delete offline PIN credentials (no destructive path)');
-select ok(has_function_privilege('service_role','staff_private.set_offline_pin(uuid,uuid,text,uuid,integer,text,text,text,text,integer,integer,integer,integer,integer)','EXECUTE'),'transport can set/rotate an offline PIN');
+select ok(not has_function_privilege('service_role','staff_private.set_offline_pin(uuid,uuid,text,uuid,integer,text,text,text,text,integer,integer,integer,integer,integer)','EXECUTE'),'transport can no longer set KEK-sealed offline PINs (retired)');
 select ok(not has_function_privilege('authenticated','staff_private.set_offline_pin(uuid,uuid,text,uuid,integer,text,text,text,text,integer,integer,integer,integer,integer)','EXECUTE'),'client cannot set an offline PIN directly');
-select ok(has_function_privilege('service_role','staff_private.offline_sell_roster(uuid,uuid)','EXECUTE'),'transport can read the offline-seller roster');
+select ok(not has_function_privilege('service_role','staff_private.offline_sell_roster(uuid,uuid)','EXECUTE'),'transport can no longer read the KEK-sealed roster (retired)');
 select ok(not has_function_privilege('authenticated','staff_private.offline_sell_roster(uuid,uuid)','EXECUTE'),'client cannot read the offline-seller roster directly');
 select ok(not has_function_privilege('service_role','staff_private.covers_permission(uuid,uuid,text,uuid,uuid)','EXECUTE'),'scope-coverage helper is internal only');
 

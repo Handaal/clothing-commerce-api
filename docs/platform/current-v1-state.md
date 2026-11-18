@@ -277,6 +277,7 @@ its phase arrives.
 - **Acquisition / unit-cost model** — no cost basis exists; retail price must not be reused as cost.
 - **Procurement / purchase orders** — deferred (PO, requisitions, RFQ, quotations, reorder, forecasting).
 - **Supplier invoices / Accounts Payable / supplier payments** — deferred.
+- **Storefront merchandising (uncommitted, SDK `0.29.0`)** — catalog sales (per-unit online price layer; lowest sale wins; `compareAtAmountMinor` on public prices), online-only Buy-X-Get-Y promotion benefit, and per-tenant home-page content (hero + featured products/collections). POS pricing unchanged. See [storefront merchandising](../catalog/storefront-merchandising.md).
 - **Detailed promotions / voucher / discount semantics** — Phase 2P-A delivers the validated **money
   core** (branch `phase/2p-promotions-core`): promotion/adjustment/redemption schema, the Order
   accounting evolution (`gross_subtotal_minor`/`discount_total_minor`/net `total_minor`, backward

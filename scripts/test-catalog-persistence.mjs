@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -6,8 +7,10 @@ import { fileURLToPath } from "node:url";
 const repositoryRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const migrationDirectory = join(repositoryRoot, "supabase", "migrations");
 const testFile = join(repositoryRoot, "supabase", "tests", "phase_2a_catalog_persistence.sql");
-const expectedAssertionCount = 47;
-const containerName = `clothing-commerce-catalog-persistence-${process.pid}`;
+// 48: + the canonical auto-generated primary barcode assertion (20261113122000).
+const expectedAssertionCount = 48;
+// Unique disposable rt-<32hex> container owned by this run (tmpfs, no published port).
+const containerName = `rt-${randomBytes(16).toString("hex")}`;
 const postgresImage = "postgres:17.6-alpine";
 const databaseName = "commerce_test";
 const databasePassword = "local-catalog-persistence-test-only";

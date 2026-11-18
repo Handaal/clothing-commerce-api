@@ -95,6 +95,10 @@ export const OrdersAccessSchema = z.object({
   tenantWide: z.boolean(),
   brands: z.array(BrandRefSchema),
   branches: z.array(BranchRefSchema),
+  /** UX guidance: holds orders.fulfill + inventory.issue somewhere (the API authorizes each order). */
+  canFulfill: z.boolean().optional(),
+  /** UX guidance: holds orders.cancel somewhere (the API authorizes each order). */
+  canCancel: z.boolean().optional(),
 });
 
 export const ManagementCapabilitySchema = z.object({

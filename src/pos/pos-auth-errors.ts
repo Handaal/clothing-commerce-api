@@ -6,6 +6,8 @@ export type PosAuthErrorCode =
   | "POS_AUTH_NOT_CONFIGURED"
   | "POS_LOGIN_NOT_FOUND"
   | "POS_LOGIN_ESCALATION_DENIED"
+  // ADR-043: demoting/deactivating the last active POS admin of a tenant (SQLSTATE ST414).
+  | "LAST_POS_ADMIN"
   | "IDEMPOTENCY_CONFLICT";
 
 const status: Record<PosAuthErrorCode, 401 | 403 | 404 | 409 | 429 | 503> = {
@@ -14,6 +16,7 @@ const status: Record<PosAuthErrorCode, 401 | 403 | 404 | 409 | 429 | 503> = {
   POS_AUTH_NOT_CONFIGURED: 503,
   POS_LOGIN_NOT_FOUND: 404,
   POS_LOGIN_ESCALATION_DENIED: 403,
+  LAST_POS_ADMIN: 409,
   IDEMPOTENCY_CONFLICT: 409,
 };
 
@@ -23,6 +26,7 @@ const message: Record<PosAuthErrorCode, string> = {
   POS_AUTH_NOT_CONFIGURED: "POS-native sign-in is not configured on this server.",
   POS_LOGIN_NOT_FOUND: "The POS login does not exist.",
   POS_LOGIN_ESCALATION_DENIED: "This change would affect permissions the caller does not hold.",
+  LAST_POS_ADMIN: "The change would leave the business without an active POS administrator.",
   IDEMPOTENCY_CONFLICT: "The request key was reused with a different payload.",
 };
 
@@ -42,6 +46,8 @@ export function posAuthDatabaseError(error: { code?: string; message?: string })
       return new PosAuthError("POS_LOGIN_NOT_FOUND");
     case "ST403":
       return new PosAuthError("POS_LOGIN_ESCALATION_DENIED");
+    case "ST414":
+      return new PosAuthError("LAST_POS_ADMIN");
     case "ID409":
       // begin_command raises ID409 when a key is reused with a different intent.
       return new PosAuthError("IDEMPOTENCY_CONFLICT");

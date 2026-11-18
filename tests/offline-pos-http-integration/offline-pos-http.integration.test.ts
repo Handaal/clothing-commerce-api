@@ -16,11 +16,18 @@ import {
   canonicalizeOfflineSaleCommand,
   canonicalizeOfflineCustomerPaymentCommand,
   canonicalizeOfflineAttendanceCommand,
+  canonicalizeOfflineReturnCommand,
+  canonicalizeOfflineIntentCommand,
+  canonicalizeOfflineCustomerCommand,
   OfflineBootstrapResponseSchema,
   type OfflineBootstrapResponse,
   type OfflineSaleCommand,
   type OfflineCustomerPaymentCommand,
   type OfflineAttendanceCommand,
+  type OfflineReturnCommand,
+  type OfflineReturnGrantResponse,
+  type OfflineIntentCommand,
+  type OfflineCustomerCommand,
 } from "../../src/contracts";
 
 const baseUrl = process.env.POS_TEST_API_BASE_URL;
@@ -74,6 +81,23 @@ async function orderCount(): Promise<number> {
 }
 // Canonical stored tenders for an order, straight from the database (bypasses the HTTP response mapping),
 // so a defect in the response layer can never make a card look like cash — we read what was persisted.
+async function storedPaymentStatuses(
+  orderId: string,
+): Promise<Array<{ method: string; status: string; capturedAt: string | null }>> {
+  const { data, error } = await admin
+    .from("payments")
+    .select("method,status,captured_at,tender_sequence")
+    .eq("tenant_id", TENANT)
+    .eq("order_id", orderId)
+    .order("tender_sequence", { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map((row) => ({
+    method: String(row.method),
+    status: String(row.status),
+    capturedAt: row.captured_at == null ? null : String(row.captured_at),
+  }));
+}
+
 async function storedPayments(orderId: string): Promise<
   Array<{
     method: string;
@@ -203,6 +227,16 @@ beforeAll(async () => {
 });
 
 describe.sequential("Phase 6B offline POS over the real HTTP server", () => {
+  it("reads register stock with selling permissions", async () => {
+    const availability = await tenant.getPosAvailability(REGISTER);
+    expect(availability.registerId).toBe(REGISTER);
+    expect(availability.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ variantId: VARIANT, onHand: expect.any(Number) }),
+      ]),
+    );
+  });
+
   it("case 1 — commit then lost response: retry replays exactly once; changed intent conflicts", async () => {
     const payload = signSale(saleCommand());
     const before = await orderCount();
@@ -294,6 +328,7 @@ describe.sequential("Phase 6B offline POS over the real HTTP server", () => {
       ...payload,
     });
     expect(paid.syncStatus).toBe("synced");
+    if (paid.syncStatus !== "synced") throw new Error("expected an applied paydown");
     expect(paid.payment.amountMinor).toBe(500);
     expect(paid.payment.outstandingMinor).toBe(total - deposit - 500); // 1500 - 500 = 1000
     const replayPaid = await tenant.ingestOfflineCustomerPayment({
@@ -325,7 +360,10 @@ describe.sequential("Phase 6B offline POS over the real HTTP server", () => {
   // (not just the HTTP response). "Recorded" is a cashier-attested capture — NOT a gateway settlement; no
   // provider capture is implied. Per capture_payments, a non-cash tender stores cash_received = amount and
   // change = 0 (an exact capture), so those are asserted as the canonical stored values.
-  it("case 4 — card-only offline tender is stored and reported as a card capture (DB-verified)", async () => {
+  // ADR-042 §13.3 (supersedes §4.7 / Finding B): the POS has no payment gateway. The card tender is a
+  // cashier-entered record; once synced it is recorded in the server ledger exactly like a connected POS
+  // tender (status captured = recorded), confirmation "cashier_recorded". No "awaiting provider" state.
+  it("case 4 — card-only offline tender is stored with its true method as a cashier-recorded ledger tender (DB-verified)", async () => {
     const total = unitPrice();
     const cmd = saleCommand({
       cashReceivedMinor: 0,
@@ -339,8 +377,15 @@ describe.sequential("Phase 6B offline POS over the real HTTP server", () => {
     const card = payments.find((p) => p.method === "card")!;
     expect(card).toBeDefined();
     expect(card.status).toBe("captured");
+    expect(card.confirmation).toBe("cashier_recorded");
+    expect(card.capturedAt).not.toBeNull();
     expect(card.amountMinor).toBe(total);
     expect(result.payment.method).toBe("card"); // primary of a card-only sale is the card
+    const stored = await storedPaymentStatuses(result.order.id);
+    expect(stored.map(({ method, status }) => ({ method, status }))).toEqual([
+      { method: "card", status: "captured" },
+    ]);
+    expect(stored[0]!.capturedAt).not.toBeNull();
     // Canonical DB truth: exactly one payment, method card, amount = total (no silent cash fallback).
     expect(await storedPayments(result.order.id)).toEqual([
       { method: "card", amountMinor: total, cashReceivedMinor: total, changeMinor: 0 },
@@ -365,6 +410,14 @@ describe.sequential("Phase 6B offline POS over the real HTTP server", () => {
     expect(payments.find((p) => p.method === "cash")?.amountMinor).toBe(cashLeg);
     expect(payments.find((p) => p.method === "card")?.amountMinor).toBe(cardLeg);
     expect(result.payment.method).toBe("cash"); // the primary of a split is the cash leg
+    // Both legs are cashier-recorded ledger tenders (ADR-042 §13.3); no provider state exists.
+    const statuses = await storedPaymentStatuses(result.order.id);
+    expect(statuses.map(({ method, status }) => ({ method, status }))).toEqual([
+      { method: "cash", status: "captured" },
+      { method: "card", status: "captured" },
+    ]);
+    expect(statuses[0]!.capturedAt).not.toBeNull();
+    expect(statuses[1]!.capturedAt).not.toBeNull();
     // Canonical DB truth: two distinct tenders summing to the total, each with its real method/amount.
     expect(await storedPayments(result.order.id)).toEqual([
       { method: "cash", amountMinor: cashLeg, cashReceivedMinor: cashLeg + 100, changeMinor: 100 },
@@ -516,18 +569,24 @@ function ingestAttendance(payload: ReturnType<typeof signAttendance>) {
   });
 }
 
+function appliedAttendance<T extends { syncStatus: string }>(value: T) {
+  if (value.syncStatus !== "received")
+    throw new Error(`expected an applied clock event, got ${value.syncStatus}`);
+  return value as Extract<T, { syncStatus: "received" }>;
+}
+
 describe.sequential("Phase 9 offline attendance over the real HTTP server", () => {
-  it("case A1 — clock-in is accepted as a provisional received event; payroll is untouched (DB-verified)", async () => {
+  it("case A1 — clock-in is applied to canonical attendance after sync", async () => {
     const payrollBefore = await payrollAttendanceCount();
     const ingestionsBefore = await attendanceIngestionCount();
     const payload = signAttendance(attendanceCommand({ eventType: "clock_in" }));
 
-    const result = await ingestAttendance(payload);
+    const result = appliedAttendance(await ingestAttendance(payload));
     expect(result.syncStatus).toBe("received"); // NOT "synced"/final payroll
     expect(result.localEventId).toBe(payload.command.localEventId);
     expect(result.event.membershipId).toBe(grant.operatorMembershipId);
     expect(result.event.eventType).toBe("clock_in");
-    expect(result.event.adjudication).toBe("pending_policy");
+    expect(result.event.adjudication).toBe("applied");
 
     // Canonical DB truth: one provisional append-only row, received + pending_policy.
     expect(await attendanceIngestionCount()).toBe(ingestionsBefore + 1);
@@ -542,7 +601,7 @@ describe.sequential("Phase 9 offline attendance over the real HTTP server", () =
     if (error) throw error;
     expect(data).toMatchObject({
       sync_status: "received",
-      adjudication_status: "pending_policy",
+      adjudication_status: "applied",
       event_type: "clock_in",
       operator_membership_id: grant.operatorMembershipId,
       device_id: grant.deviceId,
@@ -550,17 +609,32 @@ describe.sequential("Phase 9 offline attendance over the real HTTP server", () =
     });
     expect(String(data.command_fingerprint)).toMatch(/^[a-f0-9]{64}$/);
 
-    // The payroll attendance table is NEVER touched by an offline capture.
-    expect(await payrollAttendanceCount()).toBe(payrollBefore);
+    expect(await payrollAttendanceCount()).toBe(payrollBefore + 1);
   });
 
   it("case A2 — clock-out is accepted and attributed to the same operator", async () => {
-    const result = await ingestAttendance(
-      signAttendance(attendanceCommand({ eventType: "clock_out" })),
+    const result = appliedAttendance(
+      await ingestAttendance(signAttendance(attendanceCommand({ eventType: "clock_out" }))),
     );
     expect(result.syncStatus).toBe("received");
     expect(result.event.eventType).toBe("clock_out");
     expect(result.event.membershipId).toBe(grant.operatorMembershipId);
+  });
+
+  it("case A2b — a team member without a POS account is clocked in and out", async () => {
+    const membershipId = "2a000012-0000-4000-8000-000000000002";
+    const before = await payrollAttendanceCount();
+    const clockIn = appliedAttendance(
+      await ingestAttendance(signAttendance(attendanceCommand({ membershipId }))),
+    );
+    expect(clockIn.event).toMatchObject({ membershipId, adjudication: "applied" });
+    const clockOut = appliedAttendance(
+      await ingestAttendance(
+        signAttendance(attendanceCommand({ membershipId, eventType: "clock_out" })),
+      ),
+    );
+    expect(clockOut.event).toMatchObject({ membershipId, adjudication: "applied" });
+    expect(await payrollAttendanceCount()).toBe(before + 1);
   });
 
   it("case A3 — exact replay is idempotent; changed intent under the same key conflicts (409)", async () => {
@@ -657,3 +731,459 @@ function ingestSaleWith(
 ) {
   return client.ingestOfflineSale({ idempotencyKey: payload.command.syncCommandId, ...payload });
 }
+
+// ---- Phase 5 (Decision A) — offline RETURNS, FULL HTTP-server-path acceptance -------------------------
+// Each return is executed against a canonical order created by the offline-sale path (placed + cash
+// captured + fulfilled), so the order is genuinely returnable. The server freezes eligibility into a
+// signed grant, then the till signs a return command; the server recomputes the NET refund, records a
+// canonical Return with a PENDING (withheld) refund, and never posts stock at ingestion.
+
+async function onHand(variantId: string, locationId: string): Promise<number> {
+  const { data, error } = await admin
+    .from("inventory_balances")
+    .select("on_hand_quantity")
+    .eq("tenant_id", TENANT)
+    .eq("variant_id", variantId)
+    .eq("inventory_location_id", locationId)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? Number(data.on_hand_quantity) : 0;
+}
+async function returnIngestionCount(): Promise<number> {
+  const { count, error } = await admin
+    .from("offline_return_ingestions")
+    .select("*", { count: "exact", head: true })
+    .eq("tenant_id", TENANT);
+  if (error) throw error;
+  return count ?? 0;
+}
+// Create a fresh returnable order (cash sale, synced with a fulfillment) and return its orderId.
+async function freshReturnableOrder(): Promise<string> {
+  const sale = await ingestSale(
+    signSale(
+      saleCommand({
+        lines: [
+          {
+            variantId: VARIANT,
+            quantity: 1,
+            grantedUnitPriceMinor: unitPrice(),
+            priceId: priceId(),
+          },
+        ],
+      }),
+    ),
+  );
+  expect(sale.syncStatus).toBe("synced");
+  return sale.order.id;
+}
+function issueReturnGrant(orderId: string) {
+  return tenant.issueOfflineReturnGrant({
+    idempotencyKey: `http-return-grant-${randomUUID()}`,
+    deviceId,
+    registerId: REGISTER,
+    orderId,
+  });
+}
+function returnCommand(
+  rg: OfflineReturnGrantResponse,
+  overrides: Partial<OfflineReturnCommand> = {},
+): OfflineReturnCommand {
+  const id = randomUUID();
+  const line = rg.lines[0]!;
+  return {
+    schemaVersion: 1,
+    localReturnId: `http-return-${id}`,
+    syncCommandId: id,
+    returnGrantId: rg.returnGrantId,
+    deviceId: rg.deviceId,
+    registerId: rg.registerId,
+    orderId: rg.orderId,
+    acceptedAt: new Date().toISOString(),
+    currency: rg.currency,
+    lines: [
+      {
+        orderLineId: line.orderLineId,
+        quantity: 1,
+        reason: "customer changed mind",
+        disposition: "non_restock",
+      },
+    ],
+    ...overrides,
+  };
+}
+function signReturn(command: OfflineReturnCommand, privateKey = deviceKeys.privateKey) {
+  return {
+    command,
+    signature: {
+      algorithm: "Ed25519" as const,
+      credentialId,
+      value: sign(
+        null,
+        Buffer.from(canonicalizeOfflineReturnCommand(command)),
+        privateKey,
+      ).toString("base64"),
+    },
+  };
+}
+function ingestReturn(payload: ReturnType<typeof signReturn>) {
+  return tenant.ingestOfflineReturn({ idempotencyKey: payload.command.syncCommandId, ...payload });
+}
+
+// ADR-042 §13 (owner decision 2026-11-14 night): returns are ONLINE-ONLY. The Phase 5 offline-return lane
+// is retired: issuing a return grant and ingesting a (stale, queued) offline return both fail closed with a
+// deterministic 409 OFFLINE_RETURNS_DISABLED and leave no return, refund, inventory or payment side effect.
+describe.sequential("ADR-042 §13 offline returns are online-only over the real HTTP server", () => {
+  async function counts(orderId: string) {
+    const [returns, payments] = await Promise.all([
+      admin.from("returns").select("id", { count: "exact", head: true }).eq("order_id", orderId),
+      admin.from("payments").select("id", { count: "exact", head: true }).eq("order_id", orderId),
+    ]);
+    return { returns: returns.count ?? 0, payments: payments.count ?? 0 };
+  }
+
+  it("case X1 — issuing an offline return grant is refused (409 OFFLINE_RETURNS_DISABLED)", async () => {
+    const orderId = await freshReturnableOrder();
+    const error = await issueReturnGrant(orderId).then(
+      () => null,
+      (e: unknown) => e as { status?: number; code?: string },
+    );
+    expect(error?.status).toBe(409);
+    expect(error?.code).toBe("OFFLINE_RETURNS_DISABLED");
+  });
+
+  it("case X2 — a stale till's signed offline return is refused with no side effect (DB-verified)", async () => {
+    const orderId = await freshReturnableOrder();
+    const before = await counts(orderId);
+    const ingestionsBefore = await returnIngestionCount();
+    const stockBefore = await onHand(VARIANT, grant.inventoryLocationId);
+    const { data: line } = await admin
+      .from("order_lines")
+      .select("id")
+      .eq("order_id", orderId)
+      .limit(1)
+      .single();
+    const staleGrant = {
+      returnGrantId: randomUUID(),
+      deviceId,
+      registerId: REGISTER,
+      orderId,
+      currency: grant.currency,
+      lines: [{ orderLineId: String(line!.id) }],
+    } as unknown as OfflineReturnGrantResponse;
+    const payload = signReturn(returnCommand(staleGrant));
+    const error = await ingestReturn(payload).then(
+      () => null,
+      (e: unknown) => e as { status?: number; code?: string },
+    );
+    expect(error?.status).toBe(409);
+    expect(error?.code).toBe("OFFLINE_RETURNS_DISABLED");
+    expect(await counts(orderId)).toEqual(before);
+    expect(await onHand(VARIANT, grant.inventoryLocationId)).toBe(stockBefore);
+    expect(await returnIngestionCount()).toBe(ingestionsBefore);
+  });
+});
+
+// All-desks offline program — offline operation intents with AUTOMATIC SERVER DISPOSITION over the real HTTP
+// server. The runner opts this disposable register into a subset of operations and configures per-run handler
+// policies (receive maxQuantity 50, adjust maxAbsDelta 20, count maxAbsVariance 30, self-revoke). These are
+// test fixture values, not owner-approved limits. There is no human approval step: every accepted command
+// carries its final disposition (applied / rejected / needs_reconciliation / blocked_policy) in the response.
+
+async function intentCount(): Promise<number> {
+  const { count, error } = await admin
+    .from("offline_operation_intents")
+    .select("*", { count: "exact", head: true })
+    .eq("tenant_id", TENANT);
+  if (error) throw error;
+  return count ?? 0;
+}
+async function balance(variantId: string): Promise<{ onHand: number; version: number }> {
+  const { data, error } = await admin
+    .from("inventory_balances")
+    .select("on_hand_quantity,version")
+    .eq("tenant_id", TENANT)
+    .eq("variant_id", variantId)
+    .eq("inventory_location_id", grant.inventoryLocationId)
+    .maybeSingle();
+  if (error) throw error;
+  return data
+    ? { onHand: Number(data.on_hand_quantity), version: Number(data.version) }
+    : { onHand: 0, version: 0 };
+}
+async function storedIntent(syncCommandId: string) {
+  const { data, error } = await admin
+    .from("offline_operation_intents")
+    .select(
+      "sync_status,adjudication_status,disposition_code,disposition_detail,policy_version,decided_at,operation,device_id,register_id,inventory_location_id,operator_membership_id,payload,command_fingerprint",
+    )
+    .eq("tenant_id", TENANT)
+    .eq("sync_command_id", syncCommandId)
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+type IntentOverrides = Partial<Omit<OfflineIntentCommand, "operation" | "payload">>;
+function intentBase(overrides: IntentOverrides = {}) {
+  const id = randomUUID();
+  return {
+    schemaVersion: 1 as const,
+    localIntentId: `http-intent-${id}`,
+    syncCommandId: id,
+    grantId: grant.grantId,
+    deviceId: grant.deviceId,
+    registerId: grant.registerId,
+    operatorMembershipId: grant.operatorMembershipId,
+    subjectId: null,
+    baseVersion: null,
+    dependsOnSyncCommandId: null,
+    acceptedAt: new Date().toISOString(),
+    ...overrides,
+  };
+}
+function receiveIntent(
+  overrides: IntentOverrides = {},
+  quantity = 3,
+  variantId = VARIANT,
+): OfflineIntentCommand {
+  return {
+    ...intentBase({ subjectId: variantId, ...overrides }),
+    operation: "inventory.receive",
+    payload: { variantId, quantity, supplierDocumentRef: "DN-1001", note: null },
+  };
+}
+function adjustIntent(quantityDelta: number, variantId = VARIANT): OfflineIntentCommand {
+  return {
+    ...intentBase({ subjectId: variantId }),
+    operation: "inventory.adjust",
+    payload: { variantId, quantityDelta, reason: "damaged", note: null },
+  };
+}
+function signIntent(command: OfflineIntentCommand, privateKey = deviceKeys.privateKey) {
+  return {
+    command,
+    signature: {
+      algorithm: "Ed25519" as const,
+      credentialId,
+      value: sign(
+        null,
+        Buffer.from(canonicalizeOfflineIntentCommand(command)),
+        privateKey,
+      ).toString("base64"),
+    },
+  };
+}
+function ingestIntent(payload: ReturnType<typeof signIntent>) {
+  return tenant.ingestOfflineIntent({ idempotencyKey: payload.command.syncCommandId, ...payload });
+}
+
+describe.sequential("ADR-042 offline scope over real HTTP", () => {
+  it("case R0 — the bootstrap offers no generic intent kind and, at a legacy location, no stock grant", () => {
+    expect(grant.policy.intentOperations).toEqual([]);
+    expect(grant.stockGrant ?? null).toBeNull();
+  });
+
+  it("case R1 — a received generic intent is rejected out of scope with no stock effect (DB-verified)", async () => {
+    const before = await balance(VARIANT);
+    const payload = signIntent(receiveIntent({}, 7));
+    const result = await ingestIntent(payload);
+    expect(result.intent).toMatchObject({
+      operation: "inventory.receive",
+      disposition: "rejected",
+      code: "OIX_KIND_OUT_OF_SCOPE",
+    });
+    const stored = await storedIntent(payload.command.syncCommandId);
+    expect(stored).toMatchObject({
+      adjudication_status: "rejected",
+      disposition_code: "OIX_KIND_OUT_OF_SCOPE",
+    });
+    expect(await balance(VARIANT)).toEqual(before);
+  });
+
+  it("case R2 — exact replay returns the original disposition; changed intent under the same id is 409", async () => {
+    const payload = signIntent(adjustIntent(-2));
+    const first = await ingestIntent(payload);
+    const before = await intentCount();
+    expect(await ingestIntent(payload)).toEqual(first);
+    expect(await intentCount()).toBe(before);
+    const changed = signIntent({
+      ...payload.command,
+      payload: { ...payload.command.payload, quantityDelta: -3 },
+    } as OfflineIntentCommand);
+    expect(await httpStatusOf(ingestIntent(changed))).toBe(409);
+  });
+
+  it("case R3 — a tampered generic intent is still rejected 401 with no write", async () => {
+    const before = await intentCount();
+    const payload = signIntent(receiveIntent());
+    const tampered = {
+      ...payload,
+      command: { ...payload.command, payload: { ...payload.command.payload, quantity: 9 } },
+    };
+    expect(await httpStatusOf(ingestIntent(tampered as typeof payload))).toBe(401);
+    expect(await intentCount()).toBe(before);
+  });
+
+  it("case R4 — the intent store is invisible to an anon client (tenant RLS)", async () => {
+    const anon = createClient(
+      supabaseUrl!,
+      process.env.POS_TEST_SUPABASE_ANON_KEY ?? serviceRoleKey!,
+      { auth: { autoRefreshToken: false, detectSessionInUrl: false, persistSession: false } },
+    );
+    const { data, error } = await anon
+      .from("offline_operation_intents")
+      .select("id")
+      .eq("tenant_id", TENANT);
+    if (!error) expect(data ?? []).toEqual([]);
+  });
+
+  function customerCommand(name: string, phone: string): OfflineCustomerCommand {
+    return {
+      schemaVersion: 1,
+      syncCommandId: randomUUID(),
+      localCustomerId: randomUUID(),
+      grantId: grant.grantId,
+      deviceId: grant.deviceId,
+      registerId: grant.registerId,
+      acceptedAt: new Date().toISOString(),
+      name,
+      phone,
+    };
+  }
+  function signCustomer(command: OfflineCustomerCommand, privateKey = deviceKeys.privateKey) {
+    return {
+      command,
+      signature: {
+        algorithm: "Ed25519" as const,
+        credentialId,
+        value: sign(
+          null,
+          Buffer.from(canonicalizeOfflineCustomerCommand(command)),
+          privateKey,
+        ).toString("base64"),
+      },
+    };
+  }
+
+  it("case C1 — an offline new customer is created with the till's id; replay is idempotent", async () => {
+    const payload = signCustomer(customerCommand("Omar Adel", "+201005550101"));
+    const first = await tenant.ingestOfflineCustomer({
+      idempotencyKey: payload.command.syncCommandId,
+      ...payload,
+    });
+    expect(first).toMatchObject({
+      localCustomerId: payload.command.localCustomerId,
+      customerId: payload.command.localCustomerId,
+      duplicateOfCustomerId: null,
+    });
+    const again = await tenant.ingestOfflineCustomer({
+      idempotencyKey: payload.command.syncCommandId,
+      ...payload,
+    });
+    expect(again).toEqual(first);
+  });
+
+  it("case C2 — a phone that already exists is flagged as a duplicate, never merged", async () => {
+    const original = signCustomer(customerCommand("Mona One", "+201005550102"));
+    const created = await tenant.ingestOfflineCustomer({
+      idempotencyKey: original.command.syncCommandId,
+      ...original,
+    });
+    const dup = signCustomer(customerCommand("Mona Two", "+20 100 555 0102"));
+    const flagged = await tenant.ingestOfflineCustomer({
+      idempotencyKey: dup.command.syncCommandId,
+      ...dup,
+    });
+    expect(flagged.duplicateOfCustomerId).toBe(created.customerId);
+    expect(flagged.customerId).not.toBe(created.customerId);
+  });
+
+  it("case C3 — a tampered or unsigned-key customer command is 401; an invalid phone is a 4xx", async () => {
+    const payload = signCustomer(customerCommand("Tamper", "+201005550103"));
+    const tampered = { ...payload, command: { ...payload.command, name: "Changed" } };
+    expect(
+      await httpStatusOf(
+        tenant.ingestOfflineCustomer({
+          idempotencyKey: tampered.command.syncCommandId,
+          ...tampered,
+        }),
+      ),
+    ).toBe(401);
+    const bad = signCustomer(customerCommand("Bad Phone", "0100555"));
+    const status = await httpStatusOf(
+      tenant.ingestOfflineCustomer({ idempotencyKey: bad.command.syncCommandId, ...bad }),
+    );
+    expect(status).toBeGreaterThanOrEqual(400);
+    expect(status).toBeLessThan(500);
+  });
+});
+
+// ADR-042 §13.5 — post-sync conflict report over the real HTTP server. Runs last: it reads conflicts the
+// cases above produced (duplicate customer C2) and records a stale-debt paydown conflict of its own.
+describe.sequential("ADR-042 §13.5 sync conflict report over real HTTP", () => {
+  it("case K1 — a paydown above the server's outstanding is preserved as a conflict, not lost or applied", async () => {
+    const { count: paymentsBefore } = await admin
+      .from("customer_payments")
+      .select("id", { count: "exact", head: true });
+    const payCommand = {
+      schemaVersion: 1 as const,
+      localPaymentId: `pay-${randomUUID()}`,
+      syncCommandId: randomUUID(),
+      grantId: grant.grantId,
+      deviceId: grant.deviceId,
+      registerId: grant.registerId,
+      acceptedAt: new Date().toISOString(),
+      currency: grant.currency,
+      customerId: CUSTOMER,
+      amountMinor: 9_999_999,
+    };
+    const payload = signPayment(payCommand);
+    const first = await tenant.ingestOfflineCustomerPayment({
+      idempotencyKey: payCommand.syncCommandId,
+      ...payload,
+    });
+    expect(first.syncStatus).toBe("conflict_recorded");
+    if (first.syncStatus !== "conflict_recorded") throw new Error("expected a conflict");
+    expect(first.conflict).toMatchObject({
+      kind: "customer_debt",
+      reasonCode: "PAYDOWN_EXCEEDS_OUTSTANDING",
+    });
+    const replay = await tenant.ingestOfflineCustomerPayment({
+      idempotencyKey: payCommand.syncCommandId,
+      ...payload,
+    });
+    expect(replay).toEqual(first);
+    const { count: paymentsAfter } = await admin
+      .from("customer_payments")
+      .select("id", { count: "exact", head: true });
+    expect(paymentsAfter).toBe(paymentsBefore);
+  });
+
+  it("case K2 — the register view lists conflicts newest first with counts and no customer PII", async () => {
+    const report = await tenant.listPosSyncConflicts({ registerId: REGISTER });
+    expect(report.summary.open).toBeGreaterThanOrEqual(1);
+    expect(report.summary.informational).toBeGreaterThanOrEqual(1);
+    const kinds = new Set(report.items.map((item) => item.kind));
+    expect(kinds.has("customer_debt")).toBe(true);
+    expect(kinds.has("customer_duplicate")).toBe(true);
+    for (const item of report.items) expect(item.registerId).toBe(REGISTER);
+    const sorted = [...report.items].sort((x, y) => y.detectedAt.localeCompare(x.detectedAt));
+    expect(report.items.map((i) => i.id)).toEqual(sorted.map((i) => i.id));
+    const wire = JSON.stringify(report);
+    expect(wire).not.toMatch(/Mona|Layla|\+20100555/);
+    const onlyDebt = await tenant.listPosSyncConflicts({ kind: "customer_debt", limit: 5 });
+    expect(onlyDebt.items.every((item) => item.kind === "customer_debt")).toBe(true);
+  });
+
+  it("case K3 — the conflict table is invisible to an anon client (RLS)", async () => {
+    const anon = createClient(
+      supabaseUrl!,
+      process.env.POS_TEST_SUPABASE_ANON_KEY ?? serviceRoleKey!,
+      { auth: { autoRefreshToken: false, detectSessionInUrl: false, persistSession: false } },
+    );
+    for (const table of ["pos_sync_conflicts", "offline_conflict_ingestions"]) {
+      const { data, error } = await anon.from(table).select("id").eq("tenant_id", TENANT);
+      if (!error) expect(data ?? []).toEqual([]);
+    }
+  });
+});

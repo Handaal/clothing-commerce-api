@@ -2,10 +2,15 @@ import { spawnSync } from "node:child_process";
 import { createClient } from "@supabase/supabase-js";
 import { beforeAll, describe, expect, it } from "vitest";
 import { createCommerceClient, type CreateReturnInput } from "../../packages/sdk/src";
+import { assertIsolatedDbContainer } from "../../scripts/supabase-isolation-guard.mjs";
 
 const url = process.env.RETURNS_TEST_URL;
-const container = process.env.RETURNS_TEST_CONTAINER;
-if (!url || !container || !process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY)
+// Fails closed before any SQL unless this run's disposable supabase_db_rt-<hex> container was provided.
+const container = assertIsolatedDbContainer(
+  process.env.RETURNS_TEST_CONTAINER,
+  "RETURNS_TEST_CONTAINER",
+);
+if (!url || !process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY)
   throw new Error("Run pnpm test:returns:integration with its isolated disposable environment.");
 const T = "2a000001-0000-4000-8000-000000000001",
   B = "2a000002-0000-4000-8000-000000000001",
@@ -27,7 +32,7 @@ function sql(source: string) {
     [
       "exec",
       "-i",
-      container!,
+      container,
       "psql",
       "-X",
       "-A",

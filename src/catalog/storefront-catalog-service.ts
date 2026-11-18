@@ -1,7 +1,6 @@
-import { z } from "zod";
-
 import type { PublicProduct, PublicProductListResponse } from "../contracts/storefront/catalog";
 import { CatalogError } from "./catalog-errors";
+import { shapePublicProduct as shapeProduct } from "./public-product-shape";
 import type { StorefrontCatalogRepository } from "./storefront-catalog-repository";
 
 /**
@@ -11,80 +10,6 @@ import type { StorefrontCatalogRepository } from "./storefront-catalog-repositor
  * quantities are never returned publicly. No internal lifecycle, cost, or history is present in the
  * projection to begin with.
  */
-
-const IntegerLikeSchema = z.union([z.number(), z.string()]).transform((value) => {
-  const parsed = typeof value === "string" ? Number(value) : value;
-  return Number.isFinite(parsed) ? parsed : 0;
-});
-
-const DbPriceSchema = z.object({
-  currency: z.string(),
-  amountMinor: IntegerLikeSchema,
-});
-
-const DbMediaSchema = z.object({
-  id: z.string(),
-  variantId: z.string().nullable(),
-  bucket: z.string(),
-  path: z.string(),
-  altText: z.string().nullable(),
-  position: IntegerLikeSchema,
-  isPrimary: z.boolean(),
-});
-
-const DbVariantSchema = z.object({
-  id: z.string(),
-  sku: z.string(),
-  displayName: z.string().nullable(),
-  optionSignature: z.string(),
-  prices: z.array(DbPriceSchema),
-  availableQuantity: IntegerLikeSchema,
-});
-
-const DbProductSchema = z.object({
-  id: z.string(),
-  brandId: z.string(),
-  slug: z.string(),
-  name: z.string(),
-  description: z.string().nullable(),
-  publishedAt: z.string().nullable(),
-  media: z.array(DbMediaSchema),
-  variants: z.array(DbVariantSchema),
-});
-
-function shapeProduct(raw: unknown): PublicProduct {
-  const parsed = DbProductSchema.parse(raw);
-  return {
-    id: parsed.id,
-    brandId: parsed.brandId,
-    slug: parsed.slug,
-    name: parsed.name,
-    description: parsed.description,
-    // Postgres renders timestamptz with a numeric offset (e.g. "...+00:00"); normalize to a canonical
-    // UTC ISO-8601 instant so the public contract's date-time validation accepts it.
-    publishedAt: parsed.publishedAt === null ? null : new Date(parsed.publishedAt).toISOString(),
-    media: parsed.media.map((media) => ({
-      id: media.id,
-      variantId: media.variantId,
-      bucket: media.bucket,
-      path: media.path,
-      altText: media.altText,
-      position: media.position,
-      isPrimary: media.isPrimary,
-    })),
-    variants: parsed.variants.map((variant) => ({
-      id: variant.id,
-      sku: variant.sku,
-      displayName: variant.displayName,
-      optionSignature: variant.optionSignature,
-      prices: variant.prices.map((price) => ({
-        currency: price.currency,
-        amountMinor: price.amountMinor,
-      })),
-      inStock: variant.availableQuantity > 0,
-    })),
-  };
-}
 
 export class StorefrontCatalogService {
   constructor(private readonly repository: StorefrontCatalogRepository) {}

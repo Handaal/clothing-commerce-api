@@ -96,8 +96,10 @@ import {
   type AssignableStaffRolesResponse,
   type AssignableStaffScopesResponse,
   type CreateStaffRequest,
+  type CreateStaffWithoutLoginRequest,
   type CreateStaffLoginRequest,
   type UpdateStaffStatusRequest,
+  type UpdateStaffProfileRequest,
   type AssignStaffRoleRequest,
 } from "../../../src/contracts/management/staff";
 export type {
@@ -117,8 +119,10 @@ export type {
   AssignableStaffScope,
   AssignableStaffScopesResponse,
   CreateStaffRequest,
+  CreateStaffWithoutLoginRequest,
   CreateStaffLoginRequest,
   UpdateStaffStatusRequest,
+  UpdateStaffProfileRequest,
   AssignStaffRoleRequest,
   UnassignStaffRoleRequest,
 } from "../../../src/contracts/management/staff";
@@ -148,12 +152,15 @@ export interface AssignmentCatalogQuery {
   cursor?: string;
 }
 export type CreateStaffInput = CreateStaffRequest & IdempotentWrite;
+export type CreateStaffWithoutLoginInput = CreateStaffWithoutLoginRequest & IdempotentWrite;
 /** Provision an email-less staff login (external account + identity + membership + initial assignment). */
 export type CreateStaffLoginInput = CreateStaffLoginRequest & IdempotentWrite;
 /** Set or rotate a staff member's offline-unlock PIN (independent of their Clerk online password). */
 export type SetStaffOfflinePinInput = SetStaffOfflinePinRequest &
   IdempotentWrite & { membershipId: string };
 export type UpdateStaffStatusInput = UpdateStaffStatusRequest &
+  IdempotentWrite & { membershipId: string };
+export type UpdateStaffProfileInput = UpdateStaffProfileRequest &
   IdempotentWrite & { membershipId: string };
 /** Provision a pos_pin login (server-minted subject + online PIN verifier + membership + POS UI access). */
 export type CreatePosLoginInput = CreatePosLoginRequest & IdempotentWrite;
@@ -217,6 +224,19 @@ import {
   type CreateAttendanceEntryRequest,
   type UpdateAttendanceEntryRequest,
 } from "../../../src/contracts/management/attendance-payroll";
+import {
+  PayrollCycleSettingsSchema,
+  PayrollDueSchema,
+  type PayrollCycleSettings,
+  type PayrollDue,
+  type MarkPayrollPaidRequest,
+} from "../../../src/contracts/management/payroll-cycle";
+export type {
+  PayrollCycleSettings,
+  PayrollCyclePayment,
+  PayrollDue,
+  MarkPayrollPaidRequest,
+} from "../../../src/contracts/management/payroll-cycle";
 export type {
   PayrollRow,
   PayrollTotals,
@@ -257,7 +277,28 @@ import {
   StorefrontQuoteResponseSchema,
   PosQuoteResponseSchema,
   PromotionDetailSchema,
+  DeletePromotionResponseSchema,
   PromotionListResponseSchema,
+  PromotionChannelPoliciesResponseSchema,
+  OfflineVoucherExceptionListResponseSchema,
+  IngestOfflineCustomerResponseSchema,
+  IngestOfflineSaleHoldResponseSchema,
+  PosOverridePasswordResponseSchema,
+  EnrollOfflinePinResponseSchema,
+  RevokeOfflinePinEnrollmentsResponseSchema,
+  type EnrollOfflinePinRequest,
+  type EnrollOfflinePinResponse,
+  type RevokeOfflinePinEnrollmentsRequest,
+  type RevokeOfflinePinEnrollmentsResponse,
+  type PromotionChannelPoliciesResponse,
+  type OfflineVoucherExceptionListResponse,
+  type UpsertPromotionChannelPolicyRequest,
+  type IngestOfflineCustomerRequest,
+  type IngestOfflineCustomerResponse,
+  type IngestOfflineSaleHoldRequest,
+  type IngestOfflineSaleHoldResponse,
+  type SetPosOverridePasswordRequest,
+  type PosOverridePasswordResponse,
   type StorefrontQuoteRequest,
   type StorefrontQuoteResponse,
   type PosQuoteRequest,
@@ -266,6 +307,7 @@ import {
   type PromotionListResponse,
   type CreatePromotionRequest,
   type UpdatePromotionRequest,
+  type DeletePromotionResponse,
   type CreatePromotionCodeRequest,
 } from "../../../src/contracts";
 export type {
@@ -280,8 +322,86 @@ export type {
   PromotionListResponse,
   CreatePromotionRequest,
   UpdatePromotionRequest,
+  DeletePromotionResponse,
   CreatePromotionCodeRequest,
+  PromotionChannel,
+  PromotionChannelPolicy,
+  PromotionChannelPoliciesResponse,
+  UpsertPromotionChannelPolicyRequest,
+  OfflineVoucherExceptionListResponse,
+  OfflineVoucherGrant,
+  OfflineVoucherTerms,
+  OfflineOverrideRosterEntry,
+  OfflineAdminAssertion,
+  OfflineSaleVoucher,
+  OfflineSaleCachedVoucher,
+  OfflineVoucherPolicy,
+  OfflineCustomerCommand,
+  IngestOfflineCustomerRequest,
+  IngestOfflineCustomerResponse,
+  IngestOfflineSaleHoldRequest,
+  IngestOfflineSaleHoldResponse,
+  OfflineSaleHoldCommand,
+  SetPosOverridePasswordRequest,
+  PosOverridePasswordResponse,
+  OfflinePinAuthorization,
+  EnrollOfflinePinRequest,
+  EnrollOfflinePinResponse,
+  RevokeOfflinePinEnrollmentsRequest,
+  RevokeOfflinePinEnrollmentsResponse,
 } from "../../../src/contracts";
+import {
+  SaleSchema,
+  SaleListResponseSchema,
+  DeleteSaleResponseSchema,
+  StorefrontContentSchema,
+  StorefrontHeroImageIntentSchema,
+  PublicStorefrontContentSchema,
+  type Sale,
+  type SaleListResponse,
+  type DeleteSaleResponse,
+  type CreateSaleRequest,
+  type UpdateSaleRequest,
+  type StorefrontContent,
+  type UpdateStorefrontContentRequest,
+  type CreateStorefrontHeroImageIntentRequest,
+  type StorefrontHeroImageIntent,
+  type PublicStorefrontContent,
+} from "../../../src/contracts";
+export type {
+  Sale,
+  SaleStatus,
+  SaleScope,
+  SaleBenefitType,
+  SaleListResponse,
+  DeleteSaleResponse,
+  CreateSaleRequest,
+  UpdateSaleRequest,
+  StorefrontContent,
+  StorefrontHero,
+  StorefrontHeroImage,
+  UpdateStorefrontContentRequest,
+  CreateStorefrontHeroImageIntentRequest,
+  StorefrontHeroImageIntent,
+  PublicStorefrontContent,
+  PublicStorefrontHero,
+  PublicProductOffer,
+  PublicProductPrice,
+} from "../../../src/contracts";
+export type CreateSaleInput = CreateSaleRequest & { idempotencyKey: string };
+export type UpdateSaleInput = UpdateSaleRequest & { saleId: string; idempotencyKey: string };
+export interface SetSaleStatusInput {
+  saleId: string;
+  status: "active" | "inactive";
+  idempotencyKey: string;
+}
+export type UpdateStorefrontContentInput = UpdateStorefrontContentRequest & {
+  idempotencyKey: string;
+};
+export interface PublicStorefrontContentQuery {
+  tenantId: string;
+  brandId?: string;
+}
 export interface PromotionListQueryInput {
   limit?: number;
   offset?: number;
@@ -291,6 +411,28 @@ export type UpdatePromotionInput = UpdatePromotionRequest & {
   promotionId: string;
   idempotencyKey: string;
 };
+export interface UpsertPromotionChannelPolicyInput
+  extends Partial<UpsertPromotionChannelPolicyRequest>, IdempotentWrite {
+  promotionId: string;
+  channel: "pos" | "online";
+  usageLimit: number | null;
+}
+export interface UpsertPromotionCodeChannelLimitInput extends IdempotentWrite {
+  codeId: string;
+  channel: "pos" | "online";
+  usageLimit: number | null;
+}
+export interface IngestOfflineCustomerInput extends IngestOfflineCustomerRequest, IdempotentWrite {}
+export interface IngestOfflineSaleHoldInput extends IngestOfflineSaleHoldRequest, IdempotentWrite {}
+export interface SetPosOverridePasswordInput
+  extends SetPosOverridePasswordRequest, IdempotentWrite {}
+export interface EnrollOfflinePinInput extends EnrollOfflinePinRequest, IdempotentWrite {}
+export interface RevokeOfflinePinEnrollmentsInput
+  extends RevokeOfflinePinEnrollmentsRequest, IdempotentWrite {}
+export interface ClearStaffOverridePasswordInput extends IdempotentWrite {
+  membershipId: string;
+}
+
 export interface SetPromotionStatusInput {
   promotionId: string;
   status: "active" | "inactive";
@@ -528,6 +670,14 @@ export type UpdateReturnSettingsInput = UpdateReturnSettingsRequest & Idempotent
 export type RevokeDeviceInput = RevokeDeviceRequest & IdempotentWrite & { deviceId: string };
 export type AssignDeviceInput = AssignDeviceRequest & IdempotentWrite & { deviceId: string };
 import {
+  AllocateInventoryChannelsResponseSchema,
+  InitializeInventoryChannelsResponseSchema,
+  InventoryChannelStateResponseSchema,
+  type AllocateInventoryChannelsResponse,
+  type InitializeInventoryChannelsResponse,
+  type InventoryChannelStateResponse,
+} from "../../../src/contracts/management/inventory-channels";
+import {
   AdjustInventoryResponseSchema,
   ApiErrorSchema,
   HealthResponseSchema,
@@ -536,6 +686,8 @@ import {
   MeTenantsResponseSchema,
   OrderDetailResponseSchema,
   OrderListResponseSchema,
+  type FulfillOrderRequest,
+  type CancelOrderRequest,
   CustomerListResponseSchema,
   CustomerDetailResponseSchema,
   CustomerOrdersResponseSchema,
@@ -546,12 +698,17 @@ import {
   ProductDetailResponseSchema,
   ProductListResponseSchema,
   PosContextResponseSchema,
+  PosAvailabilityResponseSchema,
+  ListPosSyncConflictsResponseSchema,
   CreatePosSaleResponseSchema,
   PosDeviceResponseSchema,
   OfflineBootstrapResponseSchema,
   IngestOfflineSaleResponseSchema,
   IngestOfflineCustomerPaymentResponseSchema,
   IngestOfflineAttendanceResponseSchema,
+  IngestOfflineIntentResponseSchema,
+  OfflineReturnGrantResponseSchema,
+  IngestOfflineReturnResponseSchema,
   SetStaffOfflinePinResponseSchema,
   PosLoginResponseSchema,
   SetPosLoginPinResponseSchema,
@@ -630,11 +787,16 @@ import {
   type ProductListResponse,
   type ProductStatus,
   type PosContextResponse,
+  type PosAvailabilityResponse,
+  type PosSyncConflict,
+  type PosSyncConflictKind,
+  type ListPosSyncConflictsResponse,
   type CreatePosSaleResponse,
   type EnrollPosDeviceRequest,
   type PosDeviceResponse,
   type OfflineBootstrapRequest,
   type OfflineBootstrapResponse,
+  type OfflineStockGrant,
   type OfflineSaleCommand,
   type IngestOfflineSaleRequest,
   type IngestOfflineSaleResponse,
@@ -645,6 +807,18 @@ import {
   type OfflineAttendanceCommand,
   type IngestOfflineAttendanceRequest,
   type IngestOfflineAttendanceResponse,
+  type OfflineIntentOperation,
+  type OfflineIntentCommand,
+  type IngestOfflineIntentRequest,
+  type IngestOfflineIntentResponse,
+  type OfflineIntentDisposition,
+  type OfflineReturnGrantLine,
+  type IssueOfflineReturnGrantRequest,
+  type OfflineReturnGrantResponse,
+  type OfflineReturnCommand,
+  type IngestOfflineReturnRequest,
+  type OfflineReturnReconciliation,
+  type IngestOfflineReturnResponse,
   type OfflineStaffRosterEntry,
   type StaffPinVerifier,
   type SetStaffOfflinePinRequest,
@@ -674,9 +848,20 @@ export {
   canonicalizeOfflineSaleCommand,
   canonicalizeOfflineCustomerPaymentCommand,
   canonicalizeOfflineAttendanceCommand,
+  canonicalizeOfflineIntentCommand,
+  canonicalizeOfflineReturnCommand,
+  canonicalizeOfflineCustomerCommand,
+  canonicalizeOfflineSaleHoldCommand,
 } from "../../../src/contracts";
 import packageMetadata from "../package.json";
 import type { z } from "zod";
+
+export interface ListPosSyncConflictsInput {
+  readonly registerId?: string;
+  readonly kind?: PosSyncConflictKind;
+  readonly status?: "open" | "informational";
+  readonly limit?: number;
+}
 
 export const SDK_VERSION = packageMetadata.version;
 
@@ -744,6 +929,23 @@ export interface ReceiveInventoryInput extends IdempotentWrite {
   note?: string;
 }
 
+export interface InitializeInventoryChannelsInput extends IdempotentWrite {
+  inventoryLocationId: string;
+}
+
+export interface AllocateInventoryChannelsInput extends IdempotentWrite {
+  inventoryLocationId: string;
+  reason: string;
+  lines: Array<{
+    variantId: string;
+    websiteQuantity: number;
+    posQuantity: number;
+    /** ADR-042 §3.5: both versions are required; a stale one makes the whole request a 409. */
+    expectedBalanceVersion: number;
+    expectedAllocationVersion: number;
+  }>;
+}
+
 export interface AdjustInventoryInput extends IdempotentWrite {
   variantId: string;
   inventoryLocationId: string;
@@ -799,6 +1001,11 @@ export interface IngestOfflineCustomerPaymentInput
   extends IngestOfflineCustomerPaymentRequest, IdempotentWrite {}
 export interface IngestOfflineAttendanceInput
   extends IngestOfflineAttendanceRequest, IdempotentWrite {}
+
+export type IngestOfflineIntentInput = IngestOfflineIntentRequest & IdempotentWrite;
+export interface IssueOfflineReturnGrantInput
+  extends IssueOfflineReturnGrantRequest, IdempotentWrite {}
+export interface IngestOfflineReturnInput extends IngestOfflineReturnRequest, IdempotentWrite {}
 
 // ---- Phase 2J catalog management inputs ----
 export interface CreateProductInput extends IdempotentWrite {
@@ -945,6 +1152,7 @@ export interface TenantCommerceClient {
   listAssignableStaffScopes(query?: AssignmentCatalogQuery): Promise<AssignableStaffScopesResponse>;
   getStaffMember(membershipId: string): Promise<StaffDetail>;
   createStaff(input: CreateStaffInput): Promise<StaffDetail>;
+  createStaffWithoutLogin(input: CreateStaffWithoutLoginInput): Promise<StaffDetail>;
   /**
    * Provision a brand-new, email-less staff login and link it as active staff in one step. The server
    * mints the external account; the caller supplies only the display name, username, PIN, and the initial
@@ -963,6 +1171,7 @@ export interface TenantCommerceClient {
    */
   setStaffOfflinePin(input: SetStaffOfflinePinInput): Promise<SetStaffOfflinePinResponse>;
   updateStaffStatus(input: UpdateStaffStatusInput): Promise<StaffDetail>;
+  updateStaffProfile(input: UpdateStaffProfileInput): Promise<StaffDetail>;
   assignStaffRole(input: AssignStaffRoleInput): Promise<StaffDetail>;
   unassignStaffRole(input: UnassignStaffRoleInput): Promise<StaffDetail>;
   /** Clock the signed-in member in (attendance.record). Fails if they already have an open entry. */
@@ -978,6 +1187,10 @@ export interface TenantCommerceClient {
   /** Tenant payroll settings: normal-hours threshold + shift-duration divisor (read/manage). */
   getPayrollSettings(): Promise<PayrollSettings>;
   updatePayrollSettings(input: UpdatePayrollSettingsRequest): Promise<PayrollSettings>;
+  getPayrollCycleSettings(): Promise<PayrollCycleSettings>;
+  updatePayrollCycleSettings(input: PayrollCycleSettings): Promise<PayrollCycleSettings>;
+  getPayrollDue(): Promise<PayrollDue>;
+  markPayrollPaid(input?: MarkPayrollPaidRequest): Promise<PayrollDue>;
   /** A member's current compensation, or null if none is set (attendance.read). */
   getCompensation(membershipId: string): Promise<EmployeeCompensation | null>;
   setCompensation(input: SetCompensationInput): Promise<EmployeeCompensation>;
@@ -995,9 +1208,28 @@ export interface TenantCommerceClient {
   endLeave(): Promise<LeaveClockResponse>;
   receiveInventory(input: ReceiveInventoryInput): Promise<ReceiveInventoryResponse>;
   adjustInventory(input: AdjustInventoryInput): Promise<AdjustInventoryResponse>;
+  /** ADR-042: Website/POS stock split of one inventory location (empty items while legacy). */
+  getInventoryChannels(query: {
+    inventoryLocationId: string;
+  }): Promise<InventoryChannelStateResponse>;
+  /** ADR-042: legacy → shadow; all stock starts unallocated. Repeat calls return initialized=false. */
+  initializeInventoryChannels(
+    input: InitializeInventoryChannelsInput,
+  ): Promise<InitializeInventoryChannelsResponse>;
+  /** ADR-042: set absolute Website/POS quantities per variant; unallocated is the remainder. */
+  allocateInventoryChannels(
+    input: AllocateInventoryChannelsInput,
+  ): Promise<AllocateInventoryChannelsResponse>;
   transferInventory(input: TransferInventoryInput): Promise<TransferInventoryResponse>;
   listOrders(query?: OrderListQuery): Promise<OrderListResponse>;
   getOrder(orderId: string): Promise<OrderDetailResponse>;
+  /**
+   * Fulfil lines of an ONLINE order (orders.fulfill + inventory.issue). The server takes stock from the
+   * location the order's reservations hold; returns the refreshed order detail. Idempotent per key.
+   */
+  fulfillOrder(input: FulfillOrderInput): Promise<OrderDetailResponse>;
+  /** Cancel an unfulfilled ONLINE order (orders.cancel); releases its reservations. Idempotent. */
+  cancelOrder(input: CancelOrderInput): Promise<OrderDetailResponse>;
   /** Customers (commerce contacts). Gated on orders.read; search matches name or phone. */
   listCustomers(query?: CustomerListQuery): Promise<CustomerListResponse>;
   getCustomer(customerId: string): Promise<CustomerDetailResponse>;
@@ -1020,15 +1252,65 @@ export interface TenantCommerceClient {
   createReturn(input: CreateReturnInput): Promise<ReturnDetailResponse>;
   settleRefund(input: SettleRefundInput): Promise<ReturnDetailResponse>;
   getPosContext(): Promise<PosContextResponse>;
+  getPosAvailability(registerId: string): Promise<PosAvailabilityResponse>;
+  /**
+   * ADR-042 §13.5 — read-only post-sync conflict report (shared-stock shortfall, voucher, duplicate customer,
+   * stale debt, attendance, dependency, integrity). Pass `registerId` from a till (register permissions),
+   * omit it for the tenant-wide view (orders.read). Never an approval queue; never mutates a record.
+   */
+  listPosSyncConflicts(query?: ListPosSyncConflictsInput): Promise<ListPosSyncConflictsResponse>;
   posQuote(input: PosQuoteRequest): Promise<PosQuoteResponse>;
   createPosSale(input: CreatePosSaleInput): Promise<CreatePosSaleResponse>;
   listPromotions(query?: PromotionListQueryInput): Promise<PromotionListResponse>;
   getPromotion(promotionId: string): Promise<PromotionDetail>;
   createPromotion(input: CreatePromotionInput): Promise<PromotionDetail>;
   updatePromotion(input: UpdatePromotionInput): Promise<PromotionDetail>;
+  /** Deletes a never-used promotion, or archives one with sale-time history (promotions.manage). */
+  deletePromotion(promotionId: string): Promise<DeletePromotionResponse>;
   setPromotionStatus(input: SetPromotionStatusInput): Promise<PromotionDetail>;
   createPromotionCode(input: CreatePromotionCodeInput): Promise<PromotionDetail>;
   setPromotionCodeStatus(input: SetPromotionCodeStatusInput): Promise<PromotionDetail>;
+  /** ADR-042 §5: the voucher's per-channel limits and POS offline terms (promotions.read). */
+  getPromotionChannelPolicies(promotionId: string): Promise<PromotionChannelPoliciesResponse>;
+  /** ADR-042 §5: set one channel's limit; POS may add offline terms incl. the D-7 caps (promotions.manage). */
+  upsertPromotionChannelPolicy(
+    input: UpsertPromotionChannelPolicyInput,
+  ): Promise<PromotionChannelPoliciesResponse>;
+  upsertPromotionCodeChannelLimit(
+    input: UpsertPromotionCodeChannelLimitInput,
+  ): Promise<PromotionChannelPoliciesResponse>;
+  /** ADR-042 D-2 report: offline voucher discounts honoured without a valid reservation. */
+  listOfflineVoucherExceptions(query?: {
+    limit?: number;
+    offset?: number;
+  }): Promise<OfflineVoucherExceptionListResponse>;
+  /** ADR-042 D-6: set or change your own POS override password (re-enter POS username + PIN). */
+  setPosOverridePassword(input: SetPosOverridePasswordInput): Promise<PosOverridePasswordResponse>;
+  /** Offline PIN v2: enrol the caller on a device (no PIN is sent). */
+  enrollOfflinePin(input: EnrollOfflinePinInput): Promise<EnrollOfflinePinResponse>;
+  revokeOfflinePinEnrollments(
+    input: RevokeOfflinePinEnrollmentsInput,
+  ): Promise<RevokeOfflinePinEnrollmentsResponse>;
+  /** ADR-042 D-6: clear a staff member's override password (staff.manage). */
+  clearStaffOverridePassword(
+    input: ClearStaffOverridePasswordInput,
+  ): Promise<PosOverridePasswordResponse>;
+  /**
+   * Catalog sales (promotions.read / promotions.manage): per-unit ONLINE price reductions on all items,
+   * one collection, or selected products. The lowest matching sale price wins; never stacked.
+   */
+  listSales(): Promise<SaleListResponse>;
+  getSale(saleId: string): Promise<Sale>;
+  createSale(input: CreateSaleInput): Promise<Sale>;
+  updateSale(input: UpdateSaleInput): Promise<Sale>;
+  setSaleStatus(input: SetSaleStatusInput): Promise<Sale>;
+  deleteSale(saleId: string): Promise<DeleteSaleResponse>;
+  /** Storefront home-page content: hero + featured picks (catalog.author). */
+  getStorefrontContent(): Promise<StorefrontContent>;
+  updateStorefrontContent(input: UpdateStorefrontContentInput): Promise<StorefrontContent>;
+  createStorefrontHeroImageIntent(
+    input: CreateStorefrontHeroImageIntentRequest,
+  ): Promise<StorefrontHeroImageIntent>;
   /** Operational reporting (read-only, tenant-wide, requires reports.read). */
   getReportSummary(query: ReportPeriodQuery): Promise<ReportSummaryResponse>;
   getSalesReport(query: SalesReportQuery): Promise<SalesReportResponse>;
@@ -1088,6 +1370,14 @@ export interface TenantCommerceClient {
   ingestOfflineAttendance(
     input: IngestOfflineAttendanceInput,
   ): Promise<IngestOfflineAttendanceResponse>;
+  /** Device-signed offline operation intent; the server returns its final automatic disposition. */
+  ingestOfflineIntent(input: IngestOfflineIntentInput): Promise<IngestOfflineIntentResponse>;
+  issueOfflineReturnGrant(input: IssueOfflineReturnGrantInput): Promise<OfflineReturnGrantResponse>;
+  ingestOfflineReturn(input: IngestOfflineReturnInput): Promise<IngestOfflineReturnResponse>;
+  /** ADR-042 §8: device-signed new customer captured offline (duplicates flagged, never merged). */
+  ingestOfflineCustomer(input: IngestOfflineCustomerInput): Promise<IngestOfflineCustomerResponse>;
+  /** ADR-042 §4.6: terminal hold for an offline sale whose new customer was rejected. */
+  ingestOfflineSaleHold(input: IngestOfflineSaleHoldInput): Promise<IngestOfflineSaleHoldResponse>;
 }
 
 export interface CommerceClient {
@@ -1115,6 +1405,8 @@ export interface CommerceClient {
   /** Public Storefront collection reads. Unauthenticated; tenant is an explicit query parameter. */
   listPublishedCollections(query: PublicCollectionListQuery): Promise<PublicCollectionListResponse>;
   getPublishedCollection(query: PublicCollectionQuery): Promise<PublicCollectionDetailResponse>;
+  /** Public Storefront home-page content (hero + featured picks). Unauthenticated. */
+  getPublicStorefrontContent(query: PublicStorefrontContentQuery): Promise<PublicStorefrontContent>;
 }
 
 export class CommerceSdkError extends Error {}
@@ -1577,6 +1869,13 @@ export function createCommerceClient({
           body,
           idempotencyKey,
         }),
+      createStaffWithoutLogin: ({ idempotencyKey, ...body }: CreateStaffWithoutLoginInput) =>
+        request("/api/v1/staff/without-login", StaffDetailSchema, {
+          tenantId,
+          method: "POST",
+          body,
+          idempotencyKey,
+        }),
       createStaffLogin: ({ idempotencyKey, ...body }: CreateStaffLoginInput) =>
         request("/api/v1/staff/logins", StaffDetailSchema, {
           tenantId,
@@ -1616,6 +1915,13 @@ export function createCommerceClient({
         request(`/api/v1/staff/${encodeURIComponent(membershipId)}`, StaffDetailSchema, {
           tenantId,
           method: "PATCH",
+          body,
+          idempotencyKey,
+        }),
+      updateStaffProfile: ({ membershipId, idempotencyKey, ...body }: UpdateStaffProfileInput) =>
+        request(`/api/v1/staff/${encodeURIComponent(membershipId)}/profile`, StaffDetailSchema, {
+          tenantId,
+          method: "PUT",
           body,
           idempotencyKey,
         }),
@@ -1672,6 +1978,22 @@ export function createCommerceClient({
         request("/api/v1/attendance/settings", PayrollSettingsSchema, {
           tenantId,
           method: "PUT",
+          body: input,
+        }),
+      getPayrollCycleSettings: () =>
+        request("/api/v1/attendance/payroll-cycle", PayrollCycleSettingsSchema, { tenantId }),
+      updatePayrollCycleSettings: (input: PayrollCycleSettings) =>
+        request("/api/v1/attendance/payroll-cycle", PayrollCycleSettingsSchema, {
+          tenantId,
+          method: "PUT",
+          body: input,
+        }),
+      getPayrollDue: () =>
+        request("/api/v1/attendance/payroll-cycle/due", PayrollDueSchema, { tenantId }),
+      markPayrollPaid: (input: MarkPayrollPaidRequest = {}) =>
+        request("/api/v1/attendance/payroll-cycle/pay", PayrollDueSchema, {
+          tenantId,
+          method: "POST",
           body: input,
         }),
       getCompensation: (membershipId: string) =>
@@ -1754,6 +2076,33 @@ export function createCommerceClient({
           body,
           idempotencyKey,
         }),
+      getInventoryChannels: (query: { inventoryLocationId: string }) =>
+        request(
+          `/api/v1/inventory/channels${buildQuery({ inventoryLocationId: query.inventoryLocationId })}`,
+          InventoryChannelStateResponseSchema,
+          { tenantId },
+        ),
+      initializeInventoryChannels: ({
+        idempotencyKey,
+        ...body
+      }: InitializeInventoryChannelsInput) =>
+        request(
+          "/api/v1/inventory/channels/initialize",
+          InitializeInventoryChannelsResponseSchema,
+          {
+            tenantId,
+            method: "POST",
+            body,
+            idempotencyKey,
+          },
+        ),
+      allocateInventoryChannels: ({ idempotencyKey, ...body }: AllocateInventoryChannelsInput) =>
+        request("/api/v1/inventory/channels/allocations", AllocateInventoryChannelsResponseSchema, {
+          tenantId,
+          method: "POST",
+          body,
+          idempotencyKey,
+        }),
       transferInventory: ({ idempotencyKey, ...body }: TransferInventoryInput) =>
         request("/api/v1/inventory/transfers", TransferInventoryResponseSchema, {
           tenantId,
@@ -1777,6 +2126,19 @@ export function createCommerceClient({
       getOrder: (orderId: string) =>
         request(`/api/v1/orders/${encodeURIComponent(orderId)}`, OrderDetailResponseSchema, {
           tenantId,
+        }),
+      fulfillOrder: ({ orderId, idempotencyKey, ...body }: FulfillOrderInput) =>
+        request(
+          `/api/v1/orders/${encodeURIComponent(orderId)}/fulfillments`,
+          OrderDetailResponseSchema,
+          { tenantId, method: "POST", body, idempotencyKey },
+        ),
+      cancelOrder: ({ orderId, idempotencyKey, ...body }: CancelOrderInput) =>
+        request(`/api/v1/orders/${encodeURIComponent(orderId)}/cancel`, OrderDetailResponseSchema, {
+          tenantId,
+          method: "POST",
+          body,
+          idempotencyKey,
         }),
       listCustomers: (query = {}) =>
         request(
@@ -1828,6 +2190,23 @@ export function createCommerceClient({
       listCustomerDues: () =>
         request("/api/v1/customers/dues", CustomerDuesResponseSchema, { tenantId }),
       getPosContext: () => request("/api/v1/pos/context", PosContextResponseSchema, { tenantId }),
+      listPosSyncConflicts: (query: ListPosSyncConflictsInput = {}) =>
+        request(
+          `/api/v1/pos/sync-conflicts${buildQuery({
+            registerId: query.registerId,
+            kind: query.kind,
+            status: query.status,
+            limit: query.limit,
+          })}`,
+          ListPosSyncConflictsResponseSchema,
+          { tenantId },
+        ),
+      getPosAvailability: (registerId: string) =>
+        request(
+          `/api/v1/pos/availability?registerId=${encodeURIComponent(registerId)}`,
+          PosAvailabilityResponseSchema,
+          { tenantId },
+        ),
       getReturnEligibility: (orderId: string) =>
         request(
           `/api/v1/orders/${encodeURIComponent(orderId)}/return-eligibility`,
@@ -1889,6 +2268,12 @@ export function createCommerceClient({
           body,
           idempotencyKey,
         }),
+      deletePromotion: (promotionId: string) =>
+        request(
+          `/api/v1/promotions/${encodeURIComponent(promotionId)}`,
+          DeletePromotionResponseSchema,
+          { tenantId, method: "DELETE" },
+        ),
       setPromotionStatus: ({ promotionId, idempotencyKey, ...body }: SetPromotionStatusInput) =>
         request(
           `/api/v1/promotions/${encodeURIComponent(promotionId)}/status`,
@@ -1901,12 +2286,117 @@ export function createCommerceClient({
           PromotionDetailSchema,
           { tenantId, method: "POST", body, idempotencyKey },
         ),
+      getPromotionChannelPolicies: (promotionId: string) =>
+        request(
+          `/api/v1/promotions/${encodeURIComponent(promotionId)}/channel-policies`,
+          PromotionChannelPoliciesResponseSchema,
+          { tenantId },
+        ),
+      upsertPromotionChannelPolicy: ({
+        promotionId,
+        channel,
+        idempotencyKey,
+        ...body
+      }: UpsertPromotionChannelPolicyInput) =>
+        request(
+          `/api/v1/promotions/${encodeURIComponent(promotionId)}/channel-policies/${encodeURIComponent(channel)}`,
+          PromotionChannelPoliciesResponseSchema,
+          { tenantId, method: "PUT", body, idempotencyKey },
+        ),
+      upsertPromotionCodeChannelLimit: ({
+        codeId,
+        channel,
+        idempotencyKey,
+        ...body
+      }: UpsertPromotionCodeChannelLimitInput) =>
+        request(
+          `/api/v1/promotions/codes/${encodeURIComponent(codeId)}/channel-limits/${encodeURIComponent(channel)}`,
+          PromotionChannelPoliciesResponseSchema,
+          { tenantId, method: "PUT", body, idempotencyKey },
+        ),
+      listOfflineVoucherExceptions: (query: { limit?: number; offset?: number } = {}) =>
+        request(
+          `/api/v1/promotions/offline-exceptions${buildQuery({ limit: query.limit, offset: query.offset })}`,
+          OfflineVoucherExceptionListResponseSchema,
+          { tenantId },
+        ),
+      enrollOfflinePin: ({ idempotencyKey, ...body }: EnrollOfflinePinInput) =>
+        request("/api/v1/pos/offline-pin-enrollments", EnrollOfflinePinResponseSchema, {
+          tenantId,
+          method: "POST",
+          body,
+          idempotencyKey,
+        }),
+      revokeOfflinePinEnrollments: ({
+        idempotencyKey,
+        ...body
+      }: RevokeOfflinePinEnrollmentsInput) =>
+        request(
+          "/api/v1/pos/offline-pin-enrollments/revoke",
+          RevokeOfflinePinEnrollmentsResponseSchema,
+          { tenantId, method: "POST", body, idempotencyKey },
+        ),
+      setPosOverridePassword: ({ idempotencyKey, ...body }: SetPosOverridePasswordInput) =>
+        request("/api/v1/pos/override-password", PosOverridePasswordResponseSchema, {
+          tenantId,
+          method: "PUT",
+          body,
+          idempotencyKey,
+        }),
+      clearStaffOverridePassword: ({
+        membershipId,
+        idempotencyKey,
+      }: ClearStaffOverridePasswordInput) =>
+        request(
+          `/api/v1/staff/${encodeURIComponent(membershipId)}/override-password`,
+          PosOverridePasswordResponseSchema,
+          { tenantId, method: "DELETE", body: {}, idempotencyKey },
+        ),
       setPromotionCodeStatus: ({ codeId, idempotencyKey, ...body }: SetPromotionCodeStatusInput) =>
         request(
           `/api/v1/promotions/codes/${encodeURIComponent(codeId)}/status`,
           PromotionDetailSchema,
           { tenantId, method: "POST", body, idempotencyKey },
         ),
+      listSales: () => request("/api/v1/sales", SaleListResponseSchema, { tenantId }),
+      getSale: (saleId: string) =>
+        request(`/api/v1/sales/${encodeURIComponent(saleId)}`, SaleSchema, { tenantId }),
+      createSale: ({ idempotencyKey, ...body }: CreateSaleInput) =>
+        request("/api/v1/sales", SaleSchema, { tenantId, method: "POST", body, idempotencyKey }),
+      updateSale: ({ saleId, idempotencyKey, ...body }: UpdateSaleInput) =>
+        request(`/api/v1/sales/${encodeURIComponent(saleId)}`, SaleSchema, {
+          tenantId,
+          method: "PATCH",
+          body,
+          idempotencyKey,
+        }),
+      setSaleStatus: ({ saleId, idempotencyKey, ...body }: SetSaleStatusInput) =>
+        request(`/api/v1/sales/${encodeURIComponent(saleId)}/status`, SaleSchema, {
+          tenantId,
+          method: "POST",
+          body,
+          idempotencyKey,
+        }),
+      deleteSale: (saleId: string) =>
+        request(`/api/v1/sales/${encodeURIComponent(saleId)}`, DeleteSaleResponseSchema, {
+          tenantId,
+          method: "DELETE",
+        }),
+      getStorefrontContent: () =>
+        request("/api/v1/storefront-content", StorefrontContentSchema, { tenantId }),
+      updateStorefrontContent: ({ idempotencyKey, ...body }: UpdateStorefrontContentInput) =>
+        request("/api/v1/storefront-content", StorefrontContentSchema, {
+          tenantId,
+          method: "PUT",
+          body,
+          idempotencyKey,
+        }),
+      createStorefrontHeroImageIntent: (body: CreateStorefrontHeroImageIntentRequest) =>
+        request("/api/v1/storefront-content/hero-image-intent", StorefrontHeroImageIntentSchema, {
+          tenantId,
+          method: "POST",
+          body,
+        }),
       getReportSummary: (query: ReportPeriodQuery) =>
         request(
           `/api/v1/reports/summary${buildQuery({ startDate: query.startDate, endDate: query.endDate })}`,
@@ -2233,6 +2723,41 @@ export function createCommerceClient({
           body,
           idempotencyKey,
         }),
+      ingestOfflineIntent: ({ idempotencyKey, ...body }: IngestOfflineIntentInput) =>
+        request("/api/v1/pos/offline-intents", IngestOfflineIntentResponseSchema, {
+          tenantId,
+          method: "POST",
+          body,
+          idempotencyKey,
+        }),
+      issueOfflineReturnGrant: ({ idempotencyKey, ...body }: IssueOfflineReturnGrantInput) =>
+        request("/api/v1/pos/offline-return-grants", OfflineReturnGrantResponseSchema, {
+          tenantId,
+          method: "POST",
+          body,
+          idempotencyKey,
+        }),
+      ingestOfflineSaleHold: ({ idempotencyKey, ...body }: IngestOfflineSaleHoldInput) =>
+        request("/api/v1/pos/offline-sale-holds", IngestOfflineSaleHoldResponseSchema, {
+          tenantId,
+          method: "POST",
+          body,
+          idempotencyKey,
+        }),
+      ingestOfflineCustomer: ({ idempotencyKey, ...body }: IngestOfflineCustomerInput) =>
+        request("/api/v1/pos/offline-customers", IngestOfflineCustomerResponseSchema, {
+          tenantId,
+          method: "POST",
+          body,
+          idempotencyKey,
+        }),
+      ingestOfflineReturn: ({ idempotencyKey, ...body }: IngestOfflineReturnInput) =>
+        request("/api/v1/pos/offline-returns", IngestOfflineReturnResponseSchema, {
+          tenantId,
+          method: "POST",
+          body,
+          idempotencyKey,
+        }),
     };
   }
 
@@ -2287,6 +2812,14 @@ export function createCommerceClient({
         })}`,
         PublicCollectionDetailResponseSchema,
       ),
+    getPublicStorefrontContent: (query: PublicStorefrontContentQuery) =>
+      request(
+        `/api/v1/storefront/content${buildQuery({
+          tenantId: query.tenantId,
+          brandId: query.brandId,
+        })}`,
+        PublicStorefrontContentSchema,
+      ),
   };
 }
 
@@ -2300,9 +2833,14 @@ export type {
   ReceiveInventoryResponse,
   AdjustInventoryResponse,
   TransferInventoryResponse,
+  InventoryChannelStateResponse,
+  InitializeInventoryChannelsResponse,
+  AllocateInventoryChannelsResponse,
   OrderListResponse,
   OrderDetailResponse,
   OrderSummary,
+  FulfillOrderRequest,
+  CancelOrderRequest,
   CustomerSummary,
   CustomerListResponse,
   CustomerDetailResponse,
@@ -2315,9 +2853,14 @@ export type {
   CustomerDue,
   CustomerDuesResponse,
   PosContextResponse,
+  PosAvailabilityResponse,
+  PosSyncConflict,
+  PosSyncConflictKind,
+  ListPosSyncConflictsResponse,
   CreatePosSaleResponse,
   PosDeviceResponse,
   OfflineBootstrapResponse,
+  OfflineStockGrant,
   OfflineSaleCommand,
   IngestOfflineSaleResponse,
   OfflineCustomerPaymentCommand,
@@ -2325,6 +2868,18 @@ export type {
   OfflineAttendanceEventType,
   OfflineAttendanceCommand,
   IngestOfflineAttendanceResponse,
+  OfflineIntentOperation,
+  OfflineIntentCommand,
+  IngestOfflineIntentRequest,
+  IngestOfflineIntentResponse,
+  OfflineIntentDisposition,
+  OfflineReturnGrantLine,
+  IssueOfflineReturnGrantRequest,
+  OfflineReturnGrantResponse,
+  OfflineReturnCommand,
+  IngestOfflineReturnRequest,
+  OfflineReturnReconciliation,
+  IngestOfflineReturnResponse,
   OfflineStaffRosterEntry,
   StaffPinVerifier,
   SetStaffOfflinePinRequest,
@@ -2374,4 +2929,7 @@ export type {
   OrderReturnSummary,
 } from "../../../src/contracts/management/returns";
 export type CreateReturnInput = CreateReturnRequest & { orderId: string; idempotencyKey: string };
+export type FulfillOrderInput = FulfillOrderRequest & { orderId: string; idempotencyKey: string };
+export type CancelOrderInput = CancelOrderRequest & { orderId: string; idempotencyKey: string };
 export type SettleRefundInput = SettleRefundRequest & { returnId: string; idempotencyKey: string };
+export * from "./forms";

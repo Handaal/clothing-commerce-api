@@ -59,33 +59,25 @@ export function readSupabasePrivilegedConfiguration(environment: Environment = p
   };
 }
 
-export interface OfflinePinConfiguration {
-  readonly kek: Buffer;
-  readonly keyVersion: number;
+/**
+ * Offline PIN v2 (device-local verifiers, docs/pos/offline-pin-v2.md). DEFAULT OFF: only the exact value
+ * "enabled" lets staff enrol an offline PIN and lets the bootstrap list offline unlock authorizations. Off ⇒
+ * offline PIN sign-in is unavailable on every till. The retired server key OFFLINE_PIN_KEK is not read by
+ * anything (KEK-sealed PINs were withdrawn in 20261115170000); do not provision it.
+ */
+export function readOfflinePinV2Enabled(environment: Environment = process.env): boolean {
+  return environment.POS_OFFLINE_PIN_V2?.trim() === "enabled";
 }
 
 /**
- * The server key that seals offline-unlock PINs at rest (base64-encoded 32-byte AES-256 key) plus its
- * version. Returns null when unset so the feature stays dormant WITHOUT breaking the whole management
- * boundary in deployments that have not provisioned the key yet — set/rotate then rejects with a clear
- * config error and the offline bootstrap simply omits the staff roster. A present-but-malformed key is a
- * hard failure: a half-configured secret must not silently disable the feature.
+ * ADR-042 §13.6: whether the offline bootstrap issues cached policies of existing vouchers for emergency
+ * offline redemption. DEFAULT OFF: only the exact value "enabled" turns it on (any other value, or unset, keeps
+ * every voucher online-only). Per-voucher opt-in is still required (`pos` channel policy `offlineEnabled`).
+ * Sync-time reconciliation of an offline voucher sale always runs regardless of this flag, so a queued sale is
+ * never lost.
  */
-export function readOfflinePinConfiguration(
-  environment: Environment = process.env,
-): OfflinePinConfiguration | null {
-  const raw = environment.OFFLINE_PIN_KEK;
-  if (raw === undefined || raw.trim() === "") return null;
-  const kek = Buffer.from(raw.trim(), "base64");
-  if (kek.length !== 32) {
-    throw new Error("OFFLINE_PIN_KEK must be a base64-encoded 32-byte (256-bit) key.");
-  }
-  const versionRaw = environment.OFFLINE_PIN_KEK_VERSION?.trim();
-  const keyVersion = versionRaw ? Number(versionRaw) : 1;
-  if (!Number.isInteger(keyVersion) || keyVersion < 1) {
-    throw new Error("OFFLINE_PIN_KEK_VERSION must be a positive integer.");
-  }
-  return { kek, keyVersion };
+export function readOfflineCachedVouchersEnabled(environment: Environment = process.env): boolean {
+  return environment.POS_OFFLINE_CACHED_VOUCHERS?.trim() === "enabled";
 }
 
 export interface PosAuthSigningConfiguration {
@@ -102,7 +94,7 @@ const DEFAULT_POS_ACCESS_TTL_SECONDS = 12 * 60 * 60;
  * The server secret that signs POS-native (`pos_pin`) access tokens, plus their lifetime. Returns null
  * when `POS_AUTH_SIGNING_KEY` is unset so the provider stays dormant WITHOUT breaking the whole boundary
  * in deployments that have not provisioned it yet (the composite verifier simply never resolves a POS
- * token and login rejects with a clear config error) — exactly mirroring `readOfflinePinConfiguration`.
+ * token and login rejects with a clear config error) — exactly mirroring the dormant-when-unset pattern.
  * A present-but-malformed key is a hard failure: a half-configured secret must not silently disable auth.
  */
 export function readPosAuthSigningConfiguration(

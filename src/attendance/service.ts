@@ -17,6 +17,13 @@ import {
 } from "../contracts/management/attendance-payroll";
 import { AttendanceError } from "./errors";
 import {
+  MarkPayrollPaidRequestSchema,
+  PayrollCycleSettingsSchema,
+  PayrollDueSchema,
+  type MarkPayrollPaidRequest,
+  type PayrollCycleSettings,
+} from "../contracts/management/payroll-cycle";
+import {
   AttendanceListQuerySchema,
   DateRangeQuerySchema,
   MyAttendanceQuerySchema,
@@ -50,6 +57,64 @@ export class AttendanceService {
   private authorize(context: AuthorizationContext, permissionKey: string) {
     // No resource target: the shared authorizer requires a permission-coupled tenant-wide grant.
     return this.authorization.authorize(context, { permissionKey });
+  }
+
+  async getPayrollCycleSettings(context: AuthorizationContext) {
+    return this.repository.getCycleSettings(
+      await this.authorize(context, AttendancePermission.read),
+    );
+  }
+
+  async setPayrollCycleSettings(context: AuthorizationContext, input: PayrollCycleSettings) {
+    const proof = await this.authorize(context, AttendancePermission.manage);
+    return this.repository.setCycleSettings(proof, parse(PayrollCycleSettingsSchema, input));
+  }
+
+  private async dueFor(proof: Awaited<ReturnType<AttendanceService["authorize"]>>) {
+    const settings = await this.repository.getCycleSettings(proof);
+    const today = new Date();
+    const anchor = new Date(
+      Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), settings.anchorDay),
+    );
+    if (today < anchor) anchor.setUTCMonth(anchor.getUTCMonth() - 1);
+    const start = new Date(
+      Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth() - 1, settings.anchorDay),
+    );
+    const end = new Date(anchor.getTime() - 86_400_000);
+    const periodStart = start.toISOString().slice(0, 10);
+    const periodEnd = end.toISOString().slice(0, 10);
+    const [report, payment] = await Promise.all([
+      this.repository.payroll(proof, periodStart, periodEnd),
+      this.repository.getCyclePayment(proof, periodStart),
+    ]);
+    return PayrollDueSchema.parse({
+      due: settings.enabled && report.totals.netPayMinor > 0 && payment === null,
+      periodStart,
+      periodEnd,
+      totalMinor: Math.max(0, report.totals.netPayMinor),
+      currency: report.items[0]?.currency ?? "EGP",
+      payment,
+    });
+  }
+
+  async payrollDue(context: AuthorizationContext) {
+    return this.dueFor(await this.authorize(context, AttendancePermission.read));
+  }
+
+  async markPayrollPaid(context: AuthorizationContext, input: MarkPayrollPaidRequest) {
+    const proof = await this.authorize(context, AttendancePermission.manage);
+    const due = await this.dueFor(proof);
+    if (due.payment) return due;
+    if (!due.due) throw new AttendanceError("INVALID_ATTENDANCE");
+    const body = parse(MarkPayrollPaidRequestSchema, input);
+    await this.repository.markCyclePaid(proof, {
+      periodStart: due.periodStart,
+      periodEnd: due.periodEnd,
+      totalMinor: due.totalMinor,
+      currency: due.currency,
+      notes: body.notes ?? null,
+    });
+    return this.dueFor(proof);
   }
 
   async clockIn(context: AuthorizationContext, input: ClockInRequest) {

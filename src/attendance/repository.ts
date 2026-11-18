@@ -22,6 +22,11 @@ import {
   type UpdatePayrollSettingsRequest,
 } from "../contracts/management/attendance-payroll";
 import { InvalidCursorError } from "../management/cursor";
+import {
+  PayrollCyclePaymentSchema,
+  PayrollCycleSettingsSchema,
+  type PayrollCyclePayment,
+} from "../contracts/management/payroll-cycle";
 import { attendanceDatabaseError } from "./errors";
 import type { AttendanceListQuery, MyAttendanceQuery } from "./request";
 
@@ -54,6 +59,68 @@ export class AttendanceRepository {
   }
   private membership(proof: AuthorizedOperationContext) {
     return proof.authorization.membership.id;
+  }
+
+  async getCycleSettings(proof: AuthorizedOperationContext) {
+    const { data, error } = await this.client
+      .schema("attendance_private")
+      .rpc("get_payroll_cycle_settings", { p_tenant: this.tenant(proof) });
+    if (error) throw attendanceDatabaseError(error);
+    return PayrollCycleSettingsSchema.parse(data);
+  }
+
+  async setCycleSettings(
+    proof: AuthorizedOperationContext,
+    input: { enabled: boolean; anchorDay: number },
+  ) {
+    const { data, error } = await this.client
+      .schema("attendance_private")
+      .rpc("set_payroll_cycle_settings", {
+        p_tenant: this.tenant(proof),
+        p_enabled: input.enabled,
+        p_anchor: input.anchorDay,
+      });
+    if (error) throw attendanceDatabaseError(error);
+    return PayrollCycleSettingsSchema.parse(data);
+  }
+
+  async getCyclePayment(
+    proof: AuthorizedOperationContext,
+    periodStart: string,
+  ): Promise<PayrollCyclePayment | null> {
+    const { data, error } = await this.client
+      .schema("attendance_private")
+      .rpc("get_payroll_cycle_payment", {
+        p_tenant: this.tenant(proof),
+        p_start: periodStart,
+      });
+    if (error) throw attendanceDatabaseError(error);
+    return data === null ? null : PayrollCyclePaymentSchema.parse(data);
+  }
+
+  async markCyclePaid(
+    proof: AuthorizedOperationContext,
+    input: {
+      periodStart: string;
+      periodEnd: string;
+      totalMinor: number;
+      currency: string;
+      notes: string | null;
+    },
+  ) {
+    const { data, error } = await this.client
+      .schema("attendance_private")
+      .rpc("mark_payroll_cycle_paid", {
+        p_tenant: this.tenant(proof),
+        p_start: input.periodStart,
+        p_end: input.periodEnd,
+        p_total: input.totalMinor,
+        p_currency: input.currency,
+        p_actor: this.membership(proof),
+        p_notes: input.notes,
+      });
+    if (error) throw attendanceDatabaseError(error);
+    return PayrollCyclePaymentSchema.parse(data);
   }
 
   async clockIn(proof: AuthorizedOperationContext, branchId: string | null) {
