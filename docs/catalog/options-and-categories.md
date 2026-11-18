@@ -25,13 +25,13 @@ admin input simple and avoids a separate "define options first" step.
 
 Migration `supabase/migrations/20261119120000_catalog_options_categories_storefront.sql`:
 
-| Function (`catalog_private`, service_role only, idempotent) | Effect |
-|---|---|
-| `create_variant_with_options` | Inserts a variant and applies its options in one transaction. |
-| `set_variant_options` | Replaces a variant's whole selection; `[]` returns it to the `default` signature. |
-| `update_option_values` | Sets `swatch_hex` (`#rrggbb`, stored lowercase, null clears) and `position`. |
-| `create_category` / `update_category` / `set_category_status` | Category lifecycle (active ↔ archived). |
-| `set_product_categories` | Replaces a product's category membership. |
+| Function (`catalog_private`, service_role only, idempotent)   | Effect                                                                            |
+| ------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `create_variant_with_options`                                 | Inserts a variant and applies its options in one transaction.                     |
+| `set_variant_options`                                         | Replaces a variant's whole selection; `[]` returns it to the `default` signature. |
+| `update_option_values`                                        | Sets `swatch_hex` (`#rrggbb`, stored lowercase, null clears) and `position`.      |
+| `create_category` / `update_category` / `set_category_status` | Category lifecycle (active ↔ archived).                                           |
+| `set_product_categories`                                      | Replaces a product's category membership.                                         |
 
 `apply_variant_options` is the internal helper; it takes a per-product advisory lock so concurrent writes
 can't race the product-local unique names, then recomputes `option_signature`. Two variants of one product
@@ -46,16 +46,16 @@ Public read (`catalog_public`, SECURITY DEFINER):
 
 ## HTTP and SDK (0.44.0)
 
-| Method | Path | SDK |
-|---|---|---|
-| POST | `/api/v1/products/{productId}/variants` (optional `options`) | `createVariant` |
-| PUT | `/api/v1/products/{productId}/variants/{variantId}/options` | `setVariantOptions` |
-| PATCH | `/api/v1/products/{productId}/option-values` | `updateOptionValues` |
-| GET/POST | `/api/v1/categories` | `listCategories` / `createCategory` |
-| PATCH | `/api/v1/categories/{categoryId}` | `updateCategory` |
-| POST | `/api/v1/categories/{categoryId}/status` | `setCategoryStatus` |
-| PUT | `/api/v1/products/{productId}/categories` | `setProductCategories` |
-| GET | `/api/v1/storefront/categories?tenantId=` (public) | `listStorefrontCategories` |
+| Method   | Path                                                         | SDK                                 |
+| -------- | ------------------------------------------------------------ | ----------------------------------- |
+| POST     | `/api/v1/products/{productId}/variants` (optional `options`) | `createVariant`                     |
+| PUT      | `/api/v1/products/{productId}/variants/{variantId}/options`  | `setVariantOptions`                 |
+| PATCH    | `/api/v1/products/{productId}/option-values`                 | `updateOptionValues`                |
+| GET/POST | `/api/v1/categories`                                         | `listCategories` / `createCategory` |
+| PATCH    | `/api/v1/categories/{categoryId}`                            | `updateCategory`                    |
+| POST     | `/api/v1/categories/{categoryId}/status`                     | `setCategoryStatus`                 |
+| PUT      | `/api/v1/products/{productId}/categories`                    | `setProductCategories`              |
+| GET      | `/api/v1/storefront/categories?tenantId=` (public)           | `listStorefrontCategories`          |
 
 Authorization: option writes need `catalog.author` on the product's brand; categories are tenant-wide and
 need `catalog.author` tenant-wide (same as collections). Errors: `CATEGORY_NOT_FOUND` (404),
