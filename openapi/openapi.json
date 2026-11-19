@@ -5304,6 +5304,68 @@
         }
       }
     },
+    "/api/v1/storefront/subscribe": {
+      "post": {
+        "operationId": "subscribeToStorefront",
+        "tags": ["storefront"],
+        "summary": "Sign up an email for drop alerts.",
+        "description": "Public, unauthenticated. Adds the email to the tenant's sign-up list (once per address, case-insensitive). The response is identical whether or not the address was already listed. 404 STOREFRONT_UNAVAILABLE when the tenant or brand is not an active storefront.",
+        "requestBody": {
+          "required": true,
+          "description": "The tenant, optional brand, email and sign-up source.",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/StorefrontSubscribeRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Signed up.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StorefrontSubscribeResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/v1/subscribers": {
+      "get": {
+        "operationId": "listSubscribers",
+        "tags": ["customers"],
+        "summary": "List storefront email sign-ups.",
+        "description": "Newest first, with the tenant's total. Requires orders.read.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "minimum": 1, "maximum": 1000, "default": 200 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sign-ups, newest first.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SubscriberListResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
     "/api/v1/storefront/collections": {
       "get": {
         "operationId": "listPublishedCollections",
@@ -12404,6 +12466,79 @@
           }
         },
         "required": ["productIds"],
+        "additionalProperties": false
+      },
+      "StorefrontSubscribeRequest": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "tenantId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "brandId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "email": {
+            "type": "string",
+            "maxLength": 254,
+            "format": "email",
+            "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+          },
+          "source": { "type": "string", "pattern": "^[a-z0-9-]{1,40}$" }
+        },
+        "required": ["tenantId", "email"],
+        "additionalProperties": false
+      },
+      "StorefrontSubscribeResponse": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": { "subscribed": { "type": "boolean", "const": true } },
+        "required": ["subscribed"],
+        "additionalProperties": false
+      },
+      "SubscriberListResponse": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "subscribers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "email": { "type": "string" },
+                "brandId": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "source": { "type": "string" },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                }
+              },
+              "required": ["id", "email", "brandId", "source", "createdAt"],
+              "additionalProperties": false
+            }
+          },
+          "total": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+        },
+        "required": ["subscribers", "total"],
         "additionalProperties": false
       },
       "CreateVariantResponse": {

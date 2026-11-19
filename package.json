@@ -44,6 +44,7 @@
     "test:fulfillment:rls": "node scripts/test-fulfillment-rls.mjs",
     "test:catalog:persistence": "node scripts/test-catalog-persistence.mjs",
     "test:storefront:catalog:persistence": "node scripts/test-inventory-channels-persistence.mjs \"storefront options\"",
+    "test:storefront:subscribers:persistence": "node scripts/test-inventory-channels-persistence.mjs \"storefront subscribers\"",
     "test:storefront:size-guides:persistence": "node scripts/test-inventory-channels-persistence.mjs \"storefront size guides\"",
     "test:storefront:delivery:persistence": "node scripts/test-inventory-channels-persistence.mjs \"storefront delivery\"",
     "test:catalog:management": "node scripts/test-catalog-management.mjs",

@@ -287,6 +287,9 @@ its phase arrives.
 - **Size guides, few left, best sellers (SDK `0.46.0`, 2026-11-19)** — category size charts inherited by
   products (`sizeGuide`), a coarse `lowStock` flag on public variants, and a public best-seller ranking.
   See [options and categories](../catalog/options-and-categories.md).
+- **Storefront email sign-ups (SDK `0.47.0`, 2026-11-19)** — public drop-alert sign-up (never reveals
+  membership) and an `orders.read` list for managers. See
+  [storefront sign-ups](../marketing/storefront-subscribers.md).
 - **Detailed promotions / voucher / discount semantics** — Phase 2P-A delivers the validated **money
   core** (branch `phase/2p-promotions-core`): promotion/adjustment/redemption schema, the Order
   accounting evolution (`gross_subtotal_minor`/`discount_total_minor`/net `total_minor`, backward

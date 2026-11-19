@@ -756,6 +756,10 @@ import {
   PublicCategoryListResponseSchema,
   SetCategorySizeGuideResponseSchema,
   PublicBestSellersResponseSchema,
+  StorefrontSubscribeResponseSchema,
+  SubscriberListResponseSchema,
+  type StorefrontSubscribeResponse,
+  type SubscriberListResponse,
   type SetCategorySizeGuideResponse,
   type PublicBestSellersResponse,
   type SizeGuide,
@@ -916,6 +920,10 @@ export type {
   SetCategorySizeGuideRequest,
   SetCategorySizeGuideResponse,
   PublicBestSellersResponse,
+  StorefrontSubscribeRequest,
+  StorefrontSubscribeResponse,
+  SubscriberSummary,
+  SubscriberListResponse,
   PublicProductOption,
   PublicProductCategory,
   PublicVariantOptionValue,
@@ -1192,6 +1200,14 @@ export interface SetCategorySizeGuideInput extends IdempotentWrite {
   /** The complete size chart, or null to remove it. */
   sizeGuide: SizeGuide | null;
 }
+export interface StorefrontSubscribeInput {
+  tenantId: string;
+  brandId?: string;
+  email: string;
+  /** Where the sign-up came from, kebab-case (e.g. "home"). */
+  source?: string;
+}
+
 export interface PublicBestSellersQuery {
   tenantId: string;
   brandId?: string;
@@ -1234,6 +1250,8 @@ export interface TenantCommerceClient {
   setCategoryStatus(input: SetCategoryStatusInput): Promise<CategoryWriteResponse>;
   /** SDK 0.46: replace or clear the size chart for a category (and its descendants). */
   setCategorySizeGuide(input: SetCategorySizeGuideInput): Promise<SetCategorySizeGuideResponse>;
+  /** SDK 0.47: storefront email sign-ups, newest first (orders.read). */
+  listSubscribers(query?: { limit?: number }): Promise<SubscriberListResponse>;
   setProductCategories(input: SetProductCategoriesInput): Promise<SetProductCategoriesResponse>;
   listInventory(query?: InventoryListQuery): Promise<InventoryListResponse>;
   listSuppliers(query?: SupplierListQuery): Promise<SupplierListResponse>;
@@ -1531,6 +1549,8 @@ export interface CommerceClient {
   listStorefrontCategories(query: PublicCategoryListQuery): Promise<PublicCategoryListResponse>;
   /** SDK 0.46: publicly visible product ids ranked by recent units sold (best first). */
   listStorefrontBestSellers(query: PublicBestSellersQuery): Promise<PublicBestSellersResponse>;
+  /** SDK 0.47: public drop-alert sign-up; same answer whether or not already listed. */
+  subscribeToStorefront(input: StorefrontSubscribeInput): Promise<StorefrontSubscribeResponse>;
   /** Public Storefront home-page content (hero + featured picks). Unauthenticated. */
   getPublicStorefrontContent(query: PublicStorefrontContentQuery): Promise<PublicStorefrontContent>;
   /** Public delivery areas, fees and free-delivery threshold for a Storefront brand. */
@@ -1881,6 +1901,12 @@ export function createCommerceClient({
           `/api/v1/categories/${encodeURIComponent(categoryId)}/size-guide`,
           SetCategorySizeGuideResponseSchema,
           { tenantId, method: "PUT", body, idempotencyKey },
+        ),
+      listSubscribers: (query: { limit?: number } = {}) =>
+        request(
+          `/api/v1/subscribers${buildQuery({ limit: query.limit })}`,
+          SubscriberListResponseSchema,
+          { tenantId },
         ),
       setProductCategories: ({ idempotencyKey, productId, ...body }: SetProductCategoriesInput) =>
         request(
@@ -3020,6 +3046,11 @@ export function createCommerceClient({
         })}`,
         PublicBestSellersResponseSchema,
       ),
+    subscribeToStorefront: (input: StorefrontSubscribeInput) =>
+      request("/api/v1/storefront/subscribe", StorefrontSubscribeResponseSchema, {
+        method: "POST",
+        body: input,
+      }),
     getStorefrontDeliveryOptions: (query: PublicDeliveryOptionsQuery) =>
       request(
         `/api/v1/storefront/delivery${buildQuery({ tenantId: query.tenantId, brandId: query.brandId })}`,

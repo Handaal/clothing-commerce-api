@@ -133,6 +133,8 @@ describe("OpenAPI management surface", () => {
         "/api/v1/storefront/products/{slug}",
         "/api/v1/storefront/categories",
         "/api/v1/storefront/best-sellers",
+        "/api/v1/storefront/subscribe",
+        "/api/v1/subscribers",
         "/api/v1/storefront/delivery",
         "/api/v1/storefront/collections",
         "/api/v1/storefront/collections/{slug}",

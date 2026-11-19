@@ -15,6 +15,7 @@ import { StorefrontCollectionService } from "../catalog/storefront-collection-se
 import { createSupabaseStorefrontCollectionRepository } from "../catalog/storefront-collection-repository";
 import { CategoryService } from "../catalog/category-service";
 import { createSupabaseCategoryRepository } from "../catalog/category-repository";
+import { SubscriberService, createSupabaseSubscriberRepository } from "../marketing/subscribers";
 import {
   readClerkVerifierConfiguration,
   readOfflinePinV2Enabled,
@@ -138,6 +139,11 @@ export function createManagementApiBoundary(
     createSupabaseCategoryRepository(supabaseConfiguration),
   );
 
+  // Storefront email sign-ups: public subscribe + management list (orders.read).
+  const subscriberService = new SubscriberService(
+    createSupabaseSubscriberRepository(supabaseConfiguration),
+  );
+
   const inventoryReadService = new InventoryReadService(
     createSupabaseInventoryReadRepository(supabaseConfiguration),
   );
@@ -215,6 +221,7 @@ export function createManagementApiBoundary(
     collectionManagementService,
     storefrontCollectionService,
     categoryService,
+    subscriberService,
     inventoryReadService,
     inventoryService,
     // ADR-042 Website/POS channel stock (read + initialize + admin split). Enforcement is not reachable here.

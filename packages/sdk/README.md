@@ -83,6 +83,14 @@ signature. Omitted ⇒ canonical form unchanged. The server verifies it against 
 acceptance time, records the attribution, and reports `OFFLINE_OPERATOR_UNVERIFIED` /
 `OFFLINE_OPERATOR_CHANGED_BEFORE_SYNC` as `sync_integrity` sync conflicts. Deploy the server before tills send it.
 
+SDK 0.47.0 (additive; needs migration `20261119160000_storefront_subscribers`): email sign-ups.
+
+- `subscribeToStorefront({ tenantId, brandId?, email, source? })` (public) → `{ subscribed: true }`, the
+  same whether or not the address was already listed; `STOREFRONT_UNAVAILABLE` (404) for an inactive
+  tenant/brand.
+- Management: `listSubscribers({ limit? })` → `{ subscribers: [{ id, email, brandId, source, createdAt }],
+total }`, newest first (`orders.read`).
+
 SDK 0.46.0 (additive; needs migration `20261119150000_storefront_size_guides_best_sellers`): size guides,
 "few left" and best sellers for the Storefront.
 

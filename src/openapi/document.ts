@@ -167,6 +167,9 @@ import {
   SetCategorySizeGuideRequestSchema,
   SetCategorySizeGuideResponseSchema,
   PublicBestSellersResponseSchema,
+  StorefrontSubscribeRequestSchema,
+  StorefrontSubscribeResponseSchema,
+  SubscriberListResponseSchema,
   CreateVariantResponseSchema,
   SetVariantPriceRequestSchema,
   SetVariantPriceResponseSchema,
@@ -3512,6 +3515,50 @@ export function generateOpenApiDocument() {
           },
         },
       },
+      "/api/v1/storefront/subscribe": {
+        post: {
+          operationId: "subscribeToStorefront",
+          tags: ["storefront"],
+          summary: "Sign up an email for drop alerts.",
+          description:
+            "Public, unauthenticated. Adds the email to the tenant's sign-up list (once per address, " +
+            "case-insensitive). The response is identical whether or not the address was already " +
+            "listed. 404 STOREFRONT_UNAVAILABLE when the tenant or brand is not an active storefront.",
+          requestBody: jsonRequestBody(
+            "The tenant, optional brand, email and sign-up source.",
+            "#/components/schemas/StorefrontSubscribeRequest",
+          ),
+          responses: {
+            "200": jsonResponse("Signed up.", "#/components/schemas/StorefrontSubscribeResponse"),
+            ...errorResponses(400, 404, 500),
+          },
+        },
+      },
+      "/api/v1/subscribers": {
+        get: {
+          operationId: "listSubscribers",
+          tags: ["customers"],
+          summary: "List storefront email sign-ups.",
+          description: "Newest first, with the tenant's total. Requires orders.read.",
+          security: clerkSecurity,
+          parameters: [
+            tenantHeaderParameter,
+            {
+              name: "limit",
+              in: "query",
+              required: false,
+              schema: { type: "integer", minimum: 1, maximum: 1000, default: 200 },
+            },
+          ],
+          responses: {
+            "200": jsonResponse(
+              "Sign-ups, newest first.",
+              "#/components/schemas/SubscriberListResponse",
+            ),
+            ...errorResponses(400, 401, 403, 500),
+          },
+        },
+      },
       "/api/v1/storefront/collections": {
         get: {
           operationId: "listPublishedCollections",
@@ -4645,6 +4692,9 @@ export function generateOpenApiDocument() {
         SetCategorySizeGuideRequest: jsonSchema(SetCategorySizeGuideRequestSchema),
         SetCategorySizeGuideResponse: jsonSchema(SetCategorySizeGuideResponseSchema),
         PublicBestSellersResponse: jsonSchema(PublicBestSellersResponseSchema),
+        StorefrontSubscribeRequest: jsonSchema(StorefrontSubscribeRequestSchema),
+        StorefrontSubscribeResponse: jsonSchema(StorefrontSubscribeResponseSchema),
+        SubscriberListResponse: jsonSchema(SubscriberListResponseSchema),
         CreateVariantResponse: jsonSchema(CreateVariantResponseSchema),
         SetVariantPriceRequest: jsonSchema(SetVariantPriceRequestSchema),
         SetVariantPriceResponse: jsonSchema(SetVariantPriceResponseSchema),
