@@ -17,6 +17,10 @@ import { CategoryService } from "../catalog/category-service";
 import { createSupabaseCategoryRepository } from "../catalog/category-repository";
 import { SubscriberService, createSupabaseSubscriberRepository } from "../marketing/subscribers";
 import {
+  AfterPurchaseService,
+  createSupabaseAfterPurchaseRepository,
+} from "../orders/after-purchase";
+import {
   readClerkVerifierConfiguration,
   readOfflinePinV2Enabled,
   readOfflineCachedVouchersEnabled,
@@ -222,6 +226,11 @@ export function createManagementApiBoundary(
     storefrontCollectionService,
     categoryService,
     subscriberService,
+    // Phase 4 after purchase: public tracking + return requests, staff decisions.
+    afterPurchaseService: new AfterPurchaseService(
+      authorizationService,
+      createSupabaseAfterPurchaseRepository(supabaseConfiguration),
+    ),
     inventoryReadService,
     inventoryService,
     // ADR-042 Website/POS channel stock (read + initialize + admin split). Enforcement is not reachable here.

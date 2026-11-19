@@ -5334,6 +5334,160 @@
         }
       }
     },
+    "/api/v1/storefront/orders/track": {
+      "post": {
+        "operationId": "trackStorefrontOrder",
+        "tags": ["storefront"],
+        "summary": "Track an online order by its number and checkout phone.",
+        "description": "Public, unauthenticated. POST so the phone never appears in a URL. A wrong number and a wrong phone both answer 404 ORDER_NOT_FOUND. After 8 misses for one order number within 15 minutes, lookups for that number answer 429 TOO_MANY_ATTEMPTS. Shows first name and city only, never the street address or email.",
+        "requestBody": {
+          "required": true,
+          "description": "Tenant, optional brand, order number and phone.",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/StorefrontTrackOrderRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The order's progress.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StorefrontTrackedOrder" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "429": { "$ref": "#/components/responses/Error429" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/v1/storefront/return-requests": {
+      "post": {
+        "operationId": "requestStorefrontReturn",
+        "tags": ["storefront"],
+        "summary": "Ask to return delivered items from an online order.",
+        "description": "Public, unauthenticated; identified like tracking (order number + checkout phone). Opens a request for staff and moves no stock or money. Quantities are capped by what was delivered, minus returns and open requests. 422 RETURNS_DISABLED / ORDER_CANCELLED / RETURN_WINDOW_EXPIRED / NOT_YET_DELIVERED / NOTHING_TO_RETURN; 409 RETURN_QUANTITY_EXCEEDED.",
+        "requestBody": {
+          "required": true,
+          "description": "The order, lines with quantities and reasons, refund or exchange, optional note.",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/StorefrontReturnRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The request reference (e.g. 1042-R1).",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StorefrontReturnRequestResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "409": { "$ref": "#/components/responses/Error409" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "429": { "$ref": "#/components/responses/Error429" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/v1/return-requests": {
+      "get": {
+        "operationId": "listReturnRequests",
+        "tags": ["returns"],
+        "summary": "List customer return requests.",
+        "description": "Newest first. status defaults to open (requested + approved). Requires returns.read. awaitingDecision counts every request still waiting for a first decision.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["open", "requested", "approved", "declined", "completed", "all"],
+              "default": "open"
+            }
+          },
+          {
+            "name": "orderId",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "format": "uuid" }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "minimum": 1, "maximum": 200, "default": 50 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Return requests, newest first.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ReturnRequestListResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/v1/return-requests/{requestId}/status": {
+      "post": {
+        "operationId": "updateReturnRequestStatus",
+        "tags": ["returns"],
+        "summary": "Approve, decline or complete a customer return request.",
+        "description": "Requires returns.create on the order brand and Idempotency-Key. requested -> approved | declined; approved -> completed | declined. Repeating the current status is a no-op.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          { "$ref": "#/components/parameters/IdempotencyKeyHeader" },
+          {
+            "name": "requestId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "The new status and an optional staff note.",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateReturnRequestStatus" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated request.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ReturnRequest" } }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "409": { "$ref": "#/components/responses/Error409" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
     "/api/v1/subscribers": {
       "get": {
         "operationId": "listSubscribers",
@@ -6917,6 +7071,10 @@
       },
       "Error422": {
         "description": "The request was semantically rejected.",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } }
+      },
+      "Error429": {
+        "description": "Too many attempts; try again later.",
         "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } }
       },
       "Error500": {
@@ -12539,6 +12697,526 @@
           "total": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
         },
         "required": ["subscribers", "total"],
+        "additionalProperties": false
+      },
+      "StorefrontTrackOrderRequest": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "tenantId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "brandId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "orderReference": { "type": "string", "minLength": 1, "maxLength": 40 },
+          "phone": { "type": "string", "maxLength": 25, "pattern": "^\\+?[0-9 ()-]{8,25}$" }
+        },
+        "required": ["tenantId", "orderReference", "phone"],
+        "additionalProperties": false
+      },
+      "StorefrontTrackedOrder": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "orderReference": { "type": "string" },
+          "stage": {
+            "type": "string",
+            "enum": ["cancelled", "confirmed", "partially_shipped", "shipped", "delivered"]
+          },
+          "placedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "cancelledAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              { "type": "null" }
+            ]
+          },
+          "lastShippedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              { "type": "null" }
+            ]
+          },
+          "currency": { "type": "string", "pattern": "^[A-Z]{3}$" },
+          "totalMinor": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+          "grossSubtotalMinor": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+          "discountTotalMinor": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+          "deliveryFeeMinor": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+          "payment": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "method": {
+                    "type": "string",
+                    "enum": ["cash", "cash_on_delivery", "electronic"]
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": ["pending", "authorized", "captured", "failed", "cancelled", "refunded"]
+                  }
+                },
+                "required": ["method", "status"],
+                "additionalProperties": false
+              },
+              { "type": "null" }
+            ]
+          },
+          "recipientName": { "type": "string" },
+          "deliveryCity": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+          "deliveryRegion": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+          "lines": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "lineNumber": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+                "productName": { "type": "string" },
+                "variantName": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                "optionSummary": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                "quantity": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+                "unitPriceMinor": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+                "lineTotalMinor": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+                "shippedQuantity": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+                "returnedQuantity": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "requestedQuantity": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "returnableQuantity": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "lineNumber",
+                "productName",
+                "variantName",
+                "optionSummary",
+                "quantity",
+                "unitPriceMinor",
+                "lineTotalMinor",
+                "shippedQuantity",
+                "returnedQuantity",
+                "requestedQuantity",
+                "returnableQuantity"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "returns": {
+            "type": "object",
+            "properties": {
+              "accepting": { "type": "boolean" },
+              "reason": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "RETURNS_DISABLED",
+                      "ORDER_CANCELLED",
+                      "RETURN_WINDOW_EXPIRED",
+                      "NOT_YET_DELIVERED",
+                      "NOTHING_TO_RETURN"
+                    ]
+                  },
+                  { "type": "null" }
+                ]
+              },
+              "windowDays": {
+                "anyOf": [
+                  { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+                  { "type": "null" }
+                ]
+              },
+              "windowEndsAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                  },
+                  { "type": "null" }
+                ]
+              }
+            },
+            "required": ["accepting", "reason", "windowDays", "windowEndsAt"],
+            "additionalProperties": false
+          },
+          "returnRequests": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "reference": { "type": "string" },
+                "status": {
+                  "type": "string",
+                  "enum": ["requested", "approved", "declined", "completed"]
+                },
+                "preference": { "type": "string", "enum": ["refund", "exchange"] },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                },
+                "lines": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "lineNumber": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 9007199254740991
+                      },
+                      "quantity": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 }
+                    },
+                    "required": ["lineNumber", "quantity"],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": ["reference", "status", "preference", "createdAt", "lines"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "orderReference",
+          "stage",
+          "placedAt",
+          "cancelledAt",
+          "lastShippedAt",
+          "currency",
+          "totalMinor",
+          "grossSubtotalMinor",
+          "discountTotalMinor",
+          "deliveryFeeMinor",
+          "payment",
+          "recipientName",
+          "deliveryCity",
+          "deliveryRegion",
+          "lines",
+          "returns",
+          "returnRequests"
+        ],
+        "additionalProperties": false
+      },
+      "StorefrontReturnRequest": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "tenantId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "brandId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "orderReference": { "type": "string", "minLength": 1, "maxLength": 40 },
+          "phone": { "type": "string", "maxLength": 25, "pattern": "^\\+?[0-9 ()-]{8,25}$" },
+          "preference": { "default": "refund", "type": "string", "enum": ["refund", "exchange"] },
+          "note": { "type": "string", "maxLength": 500 },
+          "lines": {
+            "minItems": 1,
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "lineNumber": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+                "quantity": { "type": "integer", "minimum": 1, "maximum": 999 },
+                "reason": {
+                  "type": "string",
+                  "enum": [
+                    "too_small",
+                    "too_big",
+                    "not_as_pictured",
+                    "damaged",
+                    "wrong_item",
+                    "changed_mind",
+                    "other"
+                  ]
+                }
+              },
+              "required": ["lineNumber", "quantity", "reason"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["tenantId", "orderReference", "phone", "preference", "lines"],
+        "additionalProperties": false
+      },
+      "StorefrontReturnRequestResponse": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "reference": { "type": "string" },
+          "status": { "type": "string", "const": "requested" }
+        },
+        "required": ["reference", "status"],
+        "additionalProperties": false
+      },
+      "ReturnRequest": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "reference": { "type": "string" },
+          "orderId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "orderNumber": { "type": "string" },
+          "brandId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["requested", "approved", "declined", "completed"]
+          },
+          "preference": { "type": "string", "enum": ["refund", "exchange"] },
+          "customerNote": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+          "staffNote": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+          "customerName": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+          "customerPhone": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "decidedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              { "type": "null" }
+            ]
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "lineNumber": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "productName": { "type": "string" },
+                "variantName": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                "optionSummary": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                "sku": { "type": "string" },
+                "quantity": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "reason": {
+                  "type": "string",
+                  "enum": [
+                    "too_small",
+                    "too_big",
+                    "not_as_pictured",
+                    "damaged",
+                    "wrong_item",
+                    "changed_mind",
+                    "other"
+                  ]
+                }
+              },
+              "required": [
+                "lineNumber",
+                "productName",
+                "variantName",
+                "optionSummary",
+                "sku",
+                "quantity",
+                "reason"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "id",
+          "reference",
+          "orderId",
+          "orderNumber",
+          "brandId",
+          "status",
+          "preference",
+          "customerNote",
+          "staffNote",
+          "customerName",
+          "customerPhone",
+          "createdAt",
+          "decidedAt",
+          "lines"
+        ],
+        "additionalProperties": false
+      },
+      "ReturnRequestListResponse": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "requests": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "reference": { "type": "string" },
+                "orderId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "orderNumber": { "type": "string" },
+                "brandId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": ["requested", "approved", "declined", "completed"]
+                },
+                "preference": { "type": "string", "enum": ["refund", "exchange"] },
+                "customerNote": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                "staffNote": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                "customerName": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                "customerPhone": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                },
+                "decidedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "lines": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "lineNumber": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "productName": { "type": "string" },
+                      "variantName": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                      "optionSummary": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                      "sku": { "type": "string" },
+                      "quantity": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "reason": {
+                        "type": "string",
+                        "enum": [
+                          "too_small",
+                          "too_big",
+                          "not_as_pictured",
+                          "damaged",
+                          "wrong_item",
+                          "changed_mind",
+                          "other"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "lineNumber",
+                      "productName",
+                      "variantName",
+                      "optionSummary",
+                      "sku",
+                      "quantity",
+                      "reason"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "id",
+                "reference",
+                "orderId",
+                "orderNumber",
+                "brandId",
+                "status",
+                "preference",
+                "customerNote",
+                "staffNote",
+                "customerName",
+                "customerPhone",
+                "createdAt",
+                "decidedAt",
+                "lines"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "awaitingDecision": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+        },
+        "required": ["requests", "awaitingDecision"],
+        "additionalProperties": false
+      },
+      "UpdateReturnRequestStatus": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "status": { "type": "string", "enum": ["approved", "declined", "completed"] },
+          "note": { "type": "string", "maxLength": 500 }
+        },
+        "required": ["status"],
         "additionalProperties": false
       },
       "CreateVariantResponse": {

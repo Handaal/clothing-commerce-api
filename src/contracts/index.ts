@@ -435,3 +435,5 @@ export * from "./management/storefront-content";
 export * from "./storefront/content";
 export * from "./storefront/subscribers";
 export * from "./management/subscribers";
+export * from "./storefront/after-purchase";
+export * from "./management/return-requests";

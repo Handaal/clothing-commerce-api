@@ -18,6 +18,7 @@ import { CustomerArError } from "../customers/customers-ar-errors";
 import { StaffError } from "../staff/errors";
 import { AttendanceError } from "../attendance/errors";
 import { ReturnError } from "../returns/errors";
+import { AfterPurchaseError } from "../orders/after-purchase";
 import { PromotionError } from "../promotions/errors";
 import { MerchandisingError } from "../merchandising/errors";
 import { ReportingError } from "../reporting/errors";
@@ -246,6 +247,7 @@ function mapError(error: unknown, requestId: string, request?: Request): Respons
     error instanceof PosAuthError ||
     error instanceof CatalogError ||
     error instanceof ReturnError ||
+    error instanceof AfterPurchaseError ||
     error instanceof SupplierError ||
     error instanceof CustomerArError ||
     error instanceof StaffError ||

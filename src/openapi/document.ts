@@ -170,6 +170,13 @@ import {
   StorefrontSubscribeRequestSchema,
   StorefrontSubscribeResponseSchema,
   SubscriberListResponseSchema,
+  StorefrontTrackOrderRequestSchema,
+  StorefrontTrackedOrderSchema,
+  StorefrontReturnRequestSchema,
+  StorefrontReturnRequestResponseSchema,
+  ReturnRequestSchema,
+  ReturnRequestListResponseSchema,
+  UpdateReturnRequestStatusSchema,
   CreateVariantResponseSchema,
   SetVariantPriceRequestSchema,
   SetVariantPriceResponseSchema,
@@ -3534,6 +3541,124 @@ export function generateOpenApiDocument() {
           },
         },
       },
+      "/api/v1/storefront/orders/track": {
+        post: {
+          operationId: "trackStorefrontOrder",
+          tags: ["storefront"],
+          summary: "Track an online order by its number and checkout phone.",
+          description:
+            "Public, unauthenticated. POST so the phone never appears in a URL. A wrong number and a " +
+            "wrong phone both answer 404 ORDER_NOT_FOUND. After 8 misses for one order number within 15 " +
+            "minutes, lookups for that number answer 429 TOO_MANY_ATTEMPTS. Shows first name and city " +
+            "only, never the street address or email.",
+          requestBody: jsonRequestBody(
+            "Tenant, optional brand, order number and phone.",
+            "#/components/schemas/StorefrontTrackOrderRequest",
+          ),
+          responses: {
+            "200": jsonResponse(
+              "The order's progress.",
+              "#/components/schemas/StorefrontTrackedOrder",
+            ),
+            ...errorResponses(400, 404, 429, 500),
+          },
+        },
+      },
+      "/api/v1/storefront/return-requests": {
+        post: {
+          operationId: "requestStorefrontReturn",
+          tags: ["storefront"],
+          summary: "Ask to return delivered items from an online order.",
+          description:
+            "Public, unauthenticated; identified like tracking (order number + checkout phone). Opens a " +
+            "request for staff and moves no stock or money. Quantities are capped by what was delivered, " +
+            "minus returns and open requests. 422 RETURNS_DISABLED / ORDER_CANCELLED / " +
+            "RETURN_WINDOW_EXPIRED / NOT_YET_DELIVERED / NOTHING_TO_RETURN; 409 RETURN_QUANTITY_EXCEEDED.",
+          requestBody: jsonRequestBody(
+            "The order, lines with quantities and reasons, refund or exchange, optional note.",
+            "#/components/schemas/StorefrontReturnRequest",
+          ),
+          responses: {
+            "200": jsonResponse(
+              "The request reference (e.g. 1042-R1).",
+              "#/components/schemas/StorefrontReturnRequestResponse",
+            ),
+            ...errorResponses(400, 404, 409, 422, 429, 500),
+          },
+        },
+      },
+      "/api/v1/return-requests": {
+        get: {
+          operationId: "listReturnRequests",
+          tags: ["returns"],
+          summary: "List customer return requests.",
+          description:
+            "Newest first. status defaults to open (requested + approved). Requires returns.read. " +
+            "awaitingDecision counts every request still waiting for a first decision.",
+          security: clerkSecurity,
+          parameters: [
+            tenantHeaderParameter,
+            {
+              name: "status",
+              in: "query",
+              required: false,
+              schema: {
+                type: "string",
+                enum: ["open", "requested", "approved", "declined", "completed", "all"],
+                default: "open",
+              },
+            },
+            {
+              name: "orderId",
+              in: "query",
+              required: false,
+              schema: { type: "string", format: "uuid" },
+            },
+            {
+              name: "limit",
+              in: "query",
+              required: false,
+              schema: { type: "integer", minimum: 1, maximum: 200, default: 50 },
+            },
+          ],
+          responses: {
+            "200": jsonResponse(
+              "Return requests, newest first.",
+              "#/components/schemas/ReturnRequestListResponse",
+            ),
+            ...errorResponses(400, 401, 403, 500),
+          },
+        },
+      },
+      "/api/v1/return-requests/{requestId}/status": {
+        post: {
+          operationId: "updateReturnRequestStatus",
+          tags: ["returns"],
+          summary: "Approve, decline or complete a customer return request.",
+          description:
+            "Requires returns.create on the order brand and Idempotency-Key. requested -> approved | " +
+            "declined; approved -> completed | declined. Repeating the current status is a no-op.",
+          security: clerkSecurity,
+          parameters: [
+            tenantHeaderParameter,
+            idempotencyKeyHeaderParameter,
+            {
+              name: "requestId",
+              in: "path",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+          ],
+          requestBody: jsonRequestBody(
+            "The new status and an optional staff note.",
+            "#/components/schemas/UpdateReturnRequestStatus",
+          ),
+          responses: {
+            "200": jsonResponse("The updated request.", "#/components/schemas/ReturnRequest"),
+            ...errorResponses(400, 401, 403, 404, 409, 500),
+          },
+        },
+      },
       "/api/v1/subscribers": {
         get: {
           operationId: "listSubscribers",
@@ -4575,6 +4700,10 @@ export function generateOpenApiDocument() {
           "The request was semantically rejected.",
           "#/components/schemas/ApiError",
         ),
+        Error429: jsonResponse(
+          "Too many attempts; try again later.",
+          "#/components/schemas/ApiError",
+        ),
         Error500: jsonResponse("An unexpected error occurred.", "#/components/schemas/ApiError"),
       },
       schemas: {
@@ -4695,6 +4824,13 @@ export function generateOpenApiDocument() {
         StorefrontSubscribeRequest: jsonSchema(StorefrontSubscribeRequestSchema),
         StorefrontSubscribeResponse: jsonSchema(StorefrontSubscribeResponseSchema),
         SubscriberListResponse: jsonSchema(SubscriberListResponseSchema),
+        StorefrontTrackOrderRequest: jsonSchema(StorefrontTrackOrderRequestSchema),
+        StorefrontTrackedOrder: jsonSchema(StorefrontTrackedOrderSchema),
+        StorefrontReturnRequest: jsonSchema(StorefrontReturnRequestSchema),
+        StorefrontReturnRequestResponse: jsonSchema(StorefrontReturnRequestResponseSchema),
+        ReturnRequest: jsonSchema(ReturnRequestSchema),
+        ReturnRequestListResponse: jsonSchema(ReturnRequestListResponseSchema),
+        UpdateReturnRequestStatus: jsonSchema(UpdateReturnRequestStatusSchema),
         CreateVariantResponse: jsonSchema(CreateVariantResponseSchema),
         SetVariantPriceRequest: jsonSchema(SetVariantPriceRequestSchema),
         SetVariantPriceResponse: jsonSchema(SetVariantPriceResponseSchema),

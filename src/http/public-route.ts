@@ -4,6 +4,7 @@ import { z } from "zod";
 import { CatalogError } from "../catalog/catalog-errors";
 import type { ApiError } from "../contracts";
 import { SubscriberError } from "../marketing/subscribers";
+import { AfterPurchaseError } from "../orders/after-purchase";
 import { corsHeaders } from "./cors";
 import { RequestValidationError } from "./management-route";
 
@@ -76,7 +77,7 @@ function mapError(error: unknown, requestId: string, request: Request): Response
       request,
     );
   }
-  if (error instanceof SubscriberError) {
+  if (error instanceof SubscriberError || error instanceof AfterPurchaseError) {
     return jsonResponse(
       error.httpStatus,
       errorBody(error.code, error.message, requestId),

@@ -758,6 +758,14 @@ import {
   PublicBestSellersResponseSchema,
   StorefrontSubscribeResponseSchema,
   SubscriberListResponseSchema,
+  StorefrontTrackedOrderSchema,
+  StorefrontReturnRequestResponseSchema,
+  ReturnRequestSchema,
+  ReturnRequestListResponseSchema,
+  type StorefrontTrackedOrder,
+  type StorefrontReturnRequestResponse,
+  type ReturnRequest,
+  type ReturnRequestListResponse,
   type StorefrontSubscribeResponse,
   type SubscriberListResponse,
   type SetCategorySizeGuideResponse,
@@ -922,6 +930,19 @@ export type {
   PublicBestSellersResponse,
   StorefrontSubscribeRequest,
   StorefrontSubscribeResponse,
+  StorefrontTrackOrderRequest,
+  StorefrontTrackedOrder,
+  StorefrontReturnRequest,
+  StorefrontReturnRequestResponse,
+  TrackingStage,
+  ReturnRequestReason,
+  ReturnRequestStatus,
+  ReturnRequestPreference,
+  ReturnRequestRefusal,
+  ReturnRequest,
+  ReturnRequestListResponse,
+  ReturnRequestListQuery,
+  UpdateReturnRequestStatus,
   SubscriberSummary,
   SubscriberListResponse,
   PublicProductOption,
@@ -1208,6 +1229,40 @@ export interface StorefrontSubscribeInput {
   source?: string;
 }
 
+/** SDK 0.48: identify an online order with its number + the phone given at checkout. */
+export interface StorefrontOrderLookup {
+  tenantId: string;
+  brandId?: string;
+  orderReference: string;
+  phone: string;
+}
+export interface StorefrontReturnRequestInput extends StorefrontOrderLookup {
+  preference?: "refund" | "exchange";
+  note?: string;
+  lines: {
+    lineNumber: number;
+    quantity: number;
+    reason:
+      | "too_small"
+      | "too_big"
+      | "not_as_pictured"
+      | "damaged"
+      | "wrong_item"
+      | "changed_mind"
+      | "other";
+  }[];
+}
+export interface ReturnRequestListInput {
+  status?: "open" | "requested" | "approved" | "declined" | "completed" | "all";
+  orderId?: string;
+  limit?: number;
+}
+export interface UpdateReturnRequestStatusInput extends IdempotentWrite {
+  requestId: string;
+  status: "approved" | "declined" | "completed";
+  note?: string;
+}
+
 export interface PublicBestSellersQuery {
   tenantId: string;
   brandId?: string;
@@ -1252,6 +1307,10 @@ export interface TenantCommerceClient {
   setCategorySizeGuide(input: SetCategorySizeGuideInput): Promise<SetCategorySizeGuideResponse>;
   /** SDK 0.47: storefront email sign-ups, newest first (orders.read). */
   listSubscribers(query?: { limit?: number }): Promise<SubscriberListResponse>;
+  /** SDK 0.48: customer return requests from the Storefront (returns.read). Default: open ones. */
+  listReturnRequests(query?: ReturnRequestListInput): Promise<ReturnRequestListResponse>;
+  /** SDK 0.48: approve / decline / complete a return request (returns.create). */
+  updateReturnRequestStatus(input: UpdateReturnRequestStatusInput): Promise<ReturnRequest>;
   setProductCategories(input: SetProductCategoriesInput): Promise<SetProductCategoriesResponse>;
   listInventory(query?: InventoryListQuery): Promise<InventoryListResponse>;
   listSuppliers(query?: SupplierListQuery): Promise<SupplierListResponse>;
@@ -1551,6 +1610,12 @@ export interface CommerceClient {
   listStorefrontBestSellers(query: PublicBestSellersQuery): Promise<PublicBestSellersResponse>;
   /** SDK 0.47: public drop-alert sign-up; same answer whether or not already listed. */
   subscribeToStorefront(input: StorefrontSubscribeInput): Promise<StorefrontSubscribeResponse>;
+  /** SDK 0.48: public order tracking by number + checkout phone (404 ORDER_NOT_FOUND / 429). */
+  trackStorefrontOrder(input: StorefrontOrderLookup): Promise<StorefrontTrackedOrder>;
+  /** SDK 0.48: public return request for delivered items; staff decide. */
+  requestStorefrontReturn(
+    input: StorefrontReturnRequestInput,
+  ): Promise<StorefrontReturnRequestResponse>;
   /** Public Storefront home-page content (hero + featured picks). Unauthenticated. */
   getPublicStorefrontContent(query: PublicStorefrontContentQuery): Promise<PublicStorefrontContent>;
   /** Public delivery areas, fees and free-delivery threshold for a Storefront brand. */
@@ -1907,6 +1972,26 @@ export function createCommerceClient({
           `/api/v1/subscribers${buildQuery({ limit: query.limit })}`,
           SubscriberListResponseSchema,
           { tenantId },
+        ),
+      listReturnRequests: (query: ReturnRequestListInput = {}) =>
+        request(
+          `/api/v1/return-requests${buildQuery({
+            status: query.status,
+            orderId: query.orderId,
+            limit: query.limit,
+          })}`,
+          ReturnRequestListResponseSchema,
+          { tenantId },
+        ),
+      updateReturnRequestStatus: ({
+        idempotencyKey,
+        requestId,
+        ...body
+      }: UpdateReturnRequestStatusInput) =>
+        request(
+          `/api/v1/return-requests/${encodeURIComponent(requestId)}/status`,
+          ReturnRequestSchema,
+          { tenantId, method: "POST", body, idempotencyKey },
         ),
       setProductCategories: ({ idempotencyKey, productId, ...body }: SetProductCategoriesInput) =>
         request(
@@ -3051,6 +3136,16 @@ export function createCommerceClient({
         method: "POST",
         body: input,
       }),
+    trackStorefrontOrder: (input: StorefrontOrderLookup) =>
+      request("/api/v1/storefront/orders/track", StorefrontTrackedOrderSchema, {
+        method: "POST",
+        body: input,
+      }),
+    requestStorefrontReturn: (input: StorefrontReturnRequestInput) =>
+      request("/api/v1/storefront/return-requests", StorefrontReturnRequestResponseSchema, {
+        method: "POST",
+        body: input,
+      }),
     getStorefrontDeliveryOptions: (query: PublicDeliveryOptionsQuery) =>
       request(
         `/api/v1/storefront/delivery${buildQuery({ tenantId: query.tenantId, brandId: query.brandId })}`,
@@ -3177,3 +3272,4 @@ export type FulfillOrderInput = FulfillOrderRequest & { orderId: string; idempot
 export type CancelOrderInput = CancelOrderRequest & { orderId: string; idempotencyKey: string };
 export type SettleRefundInput = SettleRefundRequest & { returnId: string; idempotencyKey: string };
 export * from "./forms";
+export * from "./messages";

@@ -290,6 +290,9 @@ its phase arrives.
 - **Storefront email sign-ups (SDK `0.47.0`, 2026-11-19)** — public drop-alert sign-up (never reveals
   membership) and an `orders.read` list for managers. See
   [storefront sign-ups](../marketing/storefront-subscribers.md).
+- **After purchase (SDK `0.48.0`, 2026-11-19)** — public order tracking by number + checkout phone
+  (throttled), customer return requests that staff approve/decline/complete (no stock or money moves),
+  and free click-to-chat confirmation messages. See [after purchase](../storefront/after-purchase.md).
 - **Detailed promotions / voucher / discount semantics** — Phase 2P-A delivers the validated **money
   core** (branch `phase/2p-promotions-core`): promotion/adjustment/redemption schema, the Order
   accounting evolution (`gross_subtotal_minor`/`discount_total_minor`/net `total_minor`, backward

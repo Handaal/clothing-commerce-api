@@ -83,6 +83,24 @@ signature. Omitted ⇒ canonical form unchanged. The server verifies it against 
 acceptance time, records the attribution, and reports `OFFLINE_OPERATOR_UNVERIFIED` /
 `OFFLINE_OPERATOR_CHANGED_BEFORE_SYNC` as `sync_integrity` sync conflicts. Deploy the server before tills send it.
 
+SDK 0.48.0 (additive; needs migration `20261119200000_storefront_tracking_and_return_requests`): after
+purchase — order tracking, customer return requests, click-to-chat confirmation messages.
+
+- `trackStorefrontOrder({ tenantId, brandId?, orderReference, phone })` (public) → the order's `stage`
+  (`confirmed` / `partially_shipped` / `shipped` / `delivered` / `cancelled`), lines with readable option
+  names and shipped/returned/returnable quantities, totals, first name + city, and whether returns are
+  open. A wrong number and a wrong phone both give `ORDER_NOT_FOUND` (404); 8 misses for one order
+  number in 15 minutes give `TOO_MANY_ATTEMPTS` (429).
+- `requestStorefrontReturn({ ...lookup, preference?, note?, lines: [{ lineNumber, quantity, reason }] })`
+  (public) → `{ reference: "1042-R1", status: "requested" }`. Moves no stock or money. Refusals:
+  `RETURNS_DISABLED`, `ORDER_CANCELLED`, `RETURN_WINDOW_EXPIRED`, `NOT_YET_DELIVERED`, `NOTHING_TO_RETURN`
+  (422), `RETURN_QUANTITY_EXCEEDED` (409).
+- Management: `listReturnRequests({ status?, orderId?, limit? })` (`returns.read`, default open) and
+  `updateReturnRequestStatus({ requestId, status, note?, idempotencyKey })` (`returns.create`):
+  requested → approved | declined, approved → completed | declined.
+- Messages (no network): `orderConfirmationMessage`, `customerOrderConfirmMessage` (EN/AR),
+  `whatsAppLink(phone, text)`, `smsLink(phone, text)`, `whatsAppNumber(phone)`.
+
 SDK 0.47.0 (additive; needs migration `20261119160000_storefront_subscribers`): email sign-ups.
 
 - `subscribeToStorefront({ tenantId, brandId?, email, source? })` (public) → `{ subscribed: true }`, the
