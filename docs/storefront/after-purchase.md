@@ -66,3 +66,11 @@ Automatic sending (WhatsApp Business API or an SMS gateway) is not built; it nee
 
 Tests: `pnpm test:storefront:tracking:persistence` (database), `tests/orders/after-purchase.test.ts`,
 `packages/sdk/src/messages.test.ts`.
+
+## Return window on the website (SDK 0.49)
+
+The window is the tenant's return setting (`return_settings.window_days`), edited by admins in Admin
+Mobile or POS → Settings → Returns. `GET /api/v1/storefront/returns-policy?tenantId=`
+(`getStorefrontReturnPolicy`, migration `20261119210000_storefront_return_policy`) returns
+`{ acceptingReturns, windowDays }`, and the website's policy page, trust strip and tracking page use it,
+so no number is hard-coded.

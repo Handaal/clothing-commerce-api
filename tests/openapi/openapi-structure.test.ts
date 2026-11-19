@@ -137,6 +137,7 @@ describe("OpenAPI management surface", () => {
         "/api/v1/subscribers",
         "/api/v1/storefront/orders/track",
         "/api/v1/storefront/return-requests",
+        "/api/v1/storefront/returns-policy",
         "/api/v1/return-requests",
         "/api/v1/return-requests/{requestId}/status",
         "/api/v1/storefront/delivery",

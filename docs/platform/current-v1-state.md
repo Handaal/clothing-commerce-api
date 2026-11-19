@@ -290,6 +290,7 @@ its phase arrives.
 - **Storefront email sign-ups (SDK `0.47.0`, 2026-11-19)** — public drop-alert sign-up (never reveals
   membership) and an `orders.read` list for managers. See
   [storefront sign-ups](../marketing/storefront-subscribers.md).
+- **Public return policy (SDK `0.49.0`, 2026-11-19)** — `GET /storefront/returns-policy` exposes the admin-editable return window so website copy follows Settings → Returns.
 - **After purchase (SDK `0.48.0`, 2026-11-19)** — public order tracking by number + checkout phone
   (throttled), customer return requests that staff approve/decline/complete (no stock or money moves),
   and free click-to-chat confirmation messages. See [after purchase](../storefront/after-purchase.md).

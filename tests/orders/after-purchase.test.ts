@@ -64,6 +64,7 @@ function setup(permissionKeys: string[] = []) {
     })),
     list: vi.fn(async () => ({ requests: [], awaitingDecision: 0 })),
     requestBrand: vi.fn(async () => BRAND),
+    returnPolicy: vi.fn(async () => ({ acceptingReturns: true, windowDays: 14 })),
     setStatus: vi.fn(async () => ({}) as never),
   };
   const authorization = {
@@ -141,6 +142,21 @@ describe("public tracking", () => {
         email: "x@y.co",
       }).success,
     ).toBe(false);
+  });
+});
+
+describe("public return policy", () => {
+  it("passes the editable window through and closes returns for unknown stores", async () => {
+    const { service, repository } = setup();
+    await expect(service.returnPolicy(TENANT)).resolves.toEqual({
+      acceptingReturns: true,
+      windowDays: 14,
+    });
+    vi.mocked(repository.returnPolicy).mockResolvedValueOnce(null);
+    await expect(service.returnPolicy(TENANT)).resolves.toEqual({
+      acceptingReturns: false,
+      windowDays: null,
+    });
   });
 });
 

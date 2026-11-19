@@ -172,6 +172,7 @@ import {
   SubscriberListResponseSchema,
   StorefrontTrackOrderRequestSchema,
   StorefrontTrackedOrderSchema,
+  StorefrontReturnPolicySchema,
   StorefrontReturnRequestSchema,
   StorefrontReturnRequestResponseSchema,
   ReturnRequestSchema,
@@ -3564,6 +3565,32 @@ export function generateOpenApiDocument() {
           },
         },
       },
+      "/api/v1/storefront/returns-policy": {
+        get: {
+          operationId: "getStorefrontReturnPolicy",
+          tags: ["storefront"],
+          summary: "The store's return policy for website copy.",
+          description:
+            "Public, unauthenticated. acceptingReturns follows the tenant's return settings; windowDays " +
+            "is the admin-editable return window in days from placing the order (null = no limit or " +
+            "not accepting). Unknown or inactive tenants answer acceptingReturns false.",
+          parameters: [
+            {
+              name: "tenantId",
+              in: "query",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+          ],
+          responses: {
+            "200": jsonResponse(
+              "The return policy.",
+              "#/components/schemas/StorefrontReturnPolicy",
+            ),
+            ...errorResponses(400, 500),
+          },
+        },
+      },
       "/api/v1/storefront/return-requests": {
         post: {
           operationId: "requestStorefrontReturn",
@@ -4826,6 +4853,7 @@ export function generateOpenApiDocument() {
         SubscriberListResponse: jsonSchema(SubscriberListResponseSchema),
         StorefrontTrackOrderRequest: jsonSchema(StorefrontTrackOrderRequestSchema),
         StorefrontTrackedOrder: jsonSchema(StorefrontTrackedOrderSchema),
+        StorefrontReturnPolicy: jsonSchema(StorefrontReturnPolicySchema),
         StorefrontReturnRequest: jsonSchema(StorefrontReturnRequestSchema),
         StorefrontReturnRequestResponse: jsonSchema(StorefrontReturnRequestResponseSchema),
         ReturnRequest: jsonSchema(ReturnRequestSchema),

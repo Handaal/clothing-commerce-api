@@ -128,6 +128,17 @@ export const StorefrontTrackedOrderSchema = z.object({
 });
 export type StorefrontTrackedOrder = z.infer<typeof StorefrontTrackedOrderSchema>;
 
+/**
+ * SDK 0.49: the store's return policy for website copy. windowDays is the admin-editable return window
+ * (days from placing the order); null means no limit, or returns aren't accepted.
+ */
+export const StorefrontReturnPolicyQuerySchema = z.object({ tenantId: z.string().uuid() });
+export const StorefrontReturnPolicySchema = z.object({
+  acceptingReturns: z.boolean(),
+  windowDays: NonNegativeIntegerSchema.nullable(),
+});
+export type StorefrontReturnPolicy = z.infer<typeof StorefrontReturnPolicySchema>;
+
 export const StorefrontReturnRequestSchema = z
   .object({
     ...OrderLookupFields,

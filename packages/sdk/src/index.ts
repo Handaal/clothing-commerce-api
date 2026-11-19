@@ -759,6 +759,8 @@ import {
   StorefrontSubscribeResponseSchema,
   SubscriberListResponseSchema,
   StorefrontTrackedOrderSchema,
+  StorefrontReturnPolicySchema,
+  type StorefrontReturnPolicy,
   StorefrontReturnRequestResponseSchema,
   ReturnRequestSchema,
   ReturnRequestListResponseSchema,
@@ -932,6 +934,7 @@ export type {
   StorefrontSubscribeResponse,
   StorefrontTrackOrderRequest,
   StorefrontTrackedOrder,
+  StorefrontReturnPolicy,
   StorefrontReturnRequest,
   StorefrontReturnRequestResponse,
   TrackingStage,
@@ -1612,6 +1615,8 @@ export interface CommerceClient {
   subscribeToStorefront(input: StorefrontSubscribeInput): Promise<StorefrontSubscribeResponse>;
   /** SDK 0.48: public order tracking by number + checkout phone (404 ORDER_NOT_FOUND / 429). */
   trackStorefrontOrder(input: StorefrontOrderLookup): Promise<StorefrontTrackedOrder>;
+  /** SDK 0.49: whether the store accepts returns and its admin-editable window (days). */
+  getStorefrontReturnPolicy(query: { tenantId: string }): Promise<StorefrontReturnPolicy>;
   /** SDK 0.48: public return request for delivered items; staff decide. */
   requestStorefrontReturn(
     input: StorefrontReturnRequestInput,
@@ -3141,6 +3146,11 @@ export function createCommerceClient({
         method: "POST",
         body: input,
       }),
+    getStorefrontReturnPolicy: (query: { tenantId: string }) =>
+      request(
+        `/api/v1/storefront/returns-policy${buildQuery({ tenantId: query.tenantId })}`,
+        StorefrontReturnPolicySchema,
+      ),
     requestStorefrontReturn: (input: StorefrontReturnRequestInput) =>
       request("/api/v1/storefront/return-requests", StorefrontReturnRequestResponseSchema, {
         method: "POST",

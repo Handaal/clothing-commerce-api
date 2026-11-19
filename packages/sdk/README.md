@@ -83,6 +83,11 @@ signature. Omitted ⇒ canonical form unchanged. The server verifies it against 
 acceptance time, records the attribution, and reports `OFFLINE_OPERATOR_UNVERIFIED` /
 `OFFLINE_OPERATOR_CHANGED_BEFORE_SYNC` as `sync_integrity` sync conflicts. Deploy the server before tills send it.
 
+SDK 0.49.0 (additive; needs migration `20261119210000_storefront_return_policy`):
+`getStorefrontReturnPolicy({ tenantId })` (public) → `{ acceptingReturns, windowDays }`, the tenant's
+admin-editable return window (Settings → Returns) for website copy; `windowDays: null` = no limit or not
+accepting.
+
 SDK 0.48.0 (additive; needs migration `20261119200000_storefront_tracking_and_return_requests`): after
 purchase — order tracking, customer return requests, click-to-chat confirmation messages.
 

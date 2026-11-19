@@ -70,6 +70,14 @@ begin
 end $b$;
 
 -- 4. Returns ------------------------------------------------------------------------------------------------
+do $b$ begin
+  assert online_private.storefront_return_policy('2a000001-0000-4000-8000-000000000001')
+    = '{"acceptingReturns": false, "windowDays": null}'::jsonb, 'RP1 no settings: not accepting';
+  assert online_private.storefront_return_policy(gen_random_uuid()) is null, 'RP2 unknown tenant';
+  assert has_function_privilege('service_role', 'online_private.storefront_return_policy(uuid)', 'execute')
+     and not has_function_privilege('anon', 'online_private.storefront_return_policy(uuid)', 'execute'),
+    'RP3 only the server reads it';
+end $b$;
 insert into public.return_settings (tenant_id, enabled, window_days)
 values ('2a000001-0000-4000-8000-000000000001', true, 14);
 
@@ -78,6 +86,8 @@ declare ref text := (select r->>'orderReference' from placed);
 begin
   assert pg_temp.track(ref, '+201000000001')->'returns'->>'reason' = 'NOT_YET_DELIVERED',
     'R1 nothing can be returned before it is handed over';
+  assert online_private.storefront_return_policy('2a000001-0000-4000-8000-000000000001')
+    = '{"acceptingReturns": true, "windowDays": 14}'::jsonb, 'RP4 the edited window is public';
   assert pg_temp.req(ref, '+201000000001', '[{"lineNumber":1,"quantity":1,"reason":"too_small"}]')->>'refusal'
     = 'NOT_YET_DELIVERED', 'R2 request refused before delivery';
 end $b$;

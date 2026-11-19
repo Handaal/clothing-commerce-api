@@ -13,6 +13,8 @@ import {
 } from "../contracts/management/return-requests";
 import {
   ReturnRequestRefusalSchema,
+  StorefrontReturnPolicySchema,
+  type StorefrontReturnPolicy,
   type StorefrontReturnRequest,
   StorefrontReturnRequestSchema,
   type StorefrontReturnRequestResponse,
@@ -190,6 +192,7 @@ export interface AfterPurchaseRepository {
     query: z.output<typeof ReturnRequestListQuerySchema>,
   ): Promise<ReturnRequestListResponse>;
   requestBrand(tenantId: string, requestId: string): Promise<string | null>;
+  returnPolicy(tenantId: string): Promise<StorefrontReturnPolicy | null>;
   setStatus(input: {
     tenantId: string;
     requestId: string;
@@ -264,6 +267,14 @@ export class SupabaseAfterPurchaseRepository implements AfterPurchaseRepository 
     return { requests, awaitingDecision: awaiting.count ?? 0 };
   }
 
+  async returnPolicy(tenantId: string) {
+    const { data, error } = await this.client
+      .schema("online_private")
+      .rpc("storefront_return_policy", { p_tenant: tenantId });
+    if (error) throw databaseError(error);
+    return data ? StorefrontReturnPolicySchema.parse(data) : null;
+  }
+
   async requestBrand(tenantId: string, requestId: string) {
     const { data, error } = await this.client
       .from("return_requests")
@@ -306,6 +317,16 @@ export class AfterPurchaseService {
     });
     if (!row) throw new AfterPurchaseError("ORDER_NOT_FOUND");
     return toTrackedOrder(row);
+  }
+
+  /** PUBLIC. The admin-editable return window, for website copy. Unknown tenant → not accepting. */
+  async returnPolicy(tenantId: string): Promise<StorefrontReturnPolicy> {
+    return (
+      (await this.repository.returnPolicy(tenantId)) ?? {
+        acceptingReturns: false,
+        windowDays: null,
+      }
+    );
   }
 
   /** PUBLIC. Opens a request for staff; moves no stock or money. */
