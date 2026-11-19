@@ -71,6 +71,36 @@ describe("public product shape", () => {
     expect(product.offers).toEqual([baseProduct.offers[0]]);
   });
 
+  it("flags a few left without exposing the quantity", () => {
+    const at = (availableQuantity: string) =>
+      shapePublicProduct({
+        ...baseProduct,
+        variants: [{ ...baseProduct.variants[0]!, availableQuantity }],
+      }).variants[0]!;
+    expect(at("3")).toMatchObject({ inStock: true, lowStock: true });
+    expect(at("4")).toMatchObject({ inStock: true, lowStock: false });
+    expect(at("0")).toMatchObject({ inStock: false, lowStock: false });
+    expect(at("3")).not.toHaveProperty("availableQuantity");
+  });
+
+  it("passes a valid size guide through and hides a malformed one", () => {
+    const sizeGuide = {
+      title: "Tees",
+      unit: "cm",
+      columns: ["Chest", "Length"],
+      rows: [{ size: "M", values: ["104", "72"] }],
+      note: null,
+    };
+    expect(shapePublicProduct({ ...baseProduct, sizeGuide }).sizeGuide).toEqual(sizeGuide);
+    expect(shapePublicProduct(baseProduct).sizeGuide).toBeNull();
+    expect(
+      shapePublicProduct({
+        ...baseProduct,
+        sizeGuide: { ...sizeGuide, rows: [{ size: "M", values: ["104"] }] },
+      }).sizeGuide,
+    ).toBeNull();
+  });
+
   it("drops a compare-at that is not above the selling price and defaults offers", () => {
     const product = shapePublicProduct({
       ...baseProduct,

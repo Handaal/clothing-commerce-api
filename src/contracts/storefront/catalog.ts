@@ -58,6 +58,9 @@ export const PublicProductVariantSchema = z.object({
   // Conservative availability: true when the canonical on-hand across the tenant's locations is
   // positive. Exact quantity is intentionally not exposed publicly.
   inStock: z.boolean(),
+  // SDK 0.46: true when only a few units remain (1..LOW_STOCK_THRESHOLD) — a coarse "few left" hint
+  // for urgency copy; the exact quantity stays private.
+  lowStock: z.boolean().optional(),
 });
 export type PublicProductVariant = z.infer<typeof PublicProductVariantSchema>;
 
@@ -94,6 +97,32 @@ export const PublicProductCategorySchema = z.object({
 });
 export type PublicProductCategory = z.infer<typeof PublicProductCategorySchema>;
 
+// A size chart (SDK 0.46). Brands attach one to a category; a product shows the guide of its nearest
+// category that has one. `columns` are measurement names (e.g. Chest, Length); each row gives one size's
+// measurements in column order, as display text (e.g. "104" or "102–106").
+const SizeGuideCellSchema = z.string().trim().max(24);
+export const SizeGuideSchema = z
+  .object({
+    title: z.string().trim().min(1).max(120).nullable(),
+    unit: z.enum(["cm", "in"]),
+    columns: z.array(z.string().trim().min(1).max(40)).min(1).max(8),
+    rows: z
+      .array(
+        z.object({
+          size: z.string().trim().min(1).max(24),
+          values: z.array(SizeGuideCellSchema).max(8),
+        }),
+      )
+      .min(1)
+      .max(30),
+    note: z.string().trim().min(1).max(500).nullable(),
+  })
+  .refine((guide) => guide.rows.every((row) => row.values.length === guide.columns.length), {
+    message: "Every size row needs one value per column.",
+    path: ["rows"],
+  });
+export type SizeGuide = z.infer<typeof SizeGuideSchema>;
+
 export const PublicProductSchema = z.object({
   id: UuidSchema,
   brandId: UuidSchema,
@@ -106,6 +135,7 @@ export const PublicProductSchema = z.object({
   offers: z.array(PublicProductOfferSchema).optional(),
   options: z.array(PublicProductOptionSchema).optional(),
   categories: z.array(PublicProductCategorySchema).optional(),
+  sizeGuide: SizeGuideSchema.nullable().optional(),
 });
 export type PublicProduct = z.infer<typeof PublicProductSchema>;
 
@@ -119,7 +149,7 @@ export type PublicProductDetailResponse = z.infer<typeof PublicProductDetailResp
 
 // ---- Public category list (navigation + filtering) ----
 // Active categories that hold at least one publicly visible product (directly or in a descendant).
-// `parentId` builds the tree (null = top level, e.g. Men / Women); `productCount` includes descendants.
+// `parentId` builds the tree (null = top level, e.g. Men); `productCount` includes descendants.
 export const PublicCategorySchema = z.object({
   id: UuidSchema,
   parentId: UuidSchema.nullable(),
@@ -135,3 +165,11 @@ export const PublicCategoryListResponseSchema = z.object({
   categories: z.array(PublicCategorySchema),
 });
 export type PublicCategoryListResponse = z.infer<typeof PublicCategoryListResponseSchema>;
+
+// ---- Public best sellers (SDK 0.46) ----
+// Publicly visible products ranked by units sold on placed orders (POS + online) over the last `days`,
+// best first. Only the ranking is public; unit counts are never exposed. Empty when nothing has sold.
+export const PublicBestSellersResponseSchema = z.object({
+  productIds: z.array(UuidSchema),
+});
+export type PublicBestSellersResponse = z.infer<typeof PublicBestSellersResponseSchema>;

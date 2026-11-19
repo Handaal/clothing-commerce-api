@@ -3,7 +3,9 @@ import { z } from "zod";
 
 import { assertAuthorizedOperationProof, type AuthorizedOperationContext } from "../authorization";
 import type { CategoryStatus, CategorySummary } from "../contracts/management/categories";
+import type { SizeGuide } from "../contracts/storefront/catalog";
 import { CatalogError } from "./catalog-errors";
+import { shapeSizeGuide } from "./public-product-shape";
 
 const CATALOG_PRIVATE_SCHEMA = "catalog_private";
 const CATALOG_PUBLIC_SCHEMA = "catalog_public";
@@ -34,6 +36,13 @@ export interface SetProductCategoriesCommand {
   idempotencyKey: string;
 }
 
+export interface SetCategorySizeGuideCommand {
+  tenantId: string;
+  categoryId: string;
+  sizeGuide: SizeGuide | null;
+  idempotencyKey: string;
+}
+
 export interface CategoryRepository {
   listCategories(proof: AuthorizedOperationContext, tenantId: string): Promise<CategorySummary[]>;
   createCategory(
@@ -52,6 +61,10 @@ export interface CategoryRepository {
     proof: AuthorizedOperationContext,
     command: SetProductCategoriesCommand,
   ): Promise<{ productId: string; categoryCount: number }>;
+  setCategorySizeGuide(
+    proof: AuthorizedOperationContext,
+    command: SetCategorySizeGuideCommand,
+  ): Promise<{ categoryId: string; hasSizeGuide: boolean }>;
   /** Public, published-only category list (DB-enforced projection). */
   listStorefrontCategories(tenantId: string): Promise<unknown[]>;
 }
@@ -90,7 +103,12 @@ const CategoryRowSchema = z.object({
   description: z.string().nullable(),
   position: z.number().int(),
   status: z.enum(["active", "archived"]),
+  size_guide: z.unknown().optional(),
   product_categories: z.array(z.object({ count: z.number() })).optional(),
+});
+const SizeGuideRowSchema = z.object({
+  category_id: z.string().uuid(),
+  has_size_guide: z.boolean(),
 });
 const CreateRowSchema = z.object({
   category_id: z.string().uuid(),
@@ -119,7 +137,7 @@ export class SupabaseCategoryRepository implements CategoryRepository {
     const { data, error } = await this.client
       .from("categories")
       .select(
-        "id, parent_category_id, name, slug, description, position, status, product_categories(count)",
+        "id, parent_category_id, name, slug, description, position, status, size_guide, product_categories(count)",
       )
       .eq("tenant_id", tenantId)
       .order("position", { ascending: true })
@@ -138,6 +156,7 @@ export class SupabaseCategoryRepository implements CategoryRepository {
         position: row.position,
         status: row.status,
         productCount: row.product_categories?.[0]?.count ?? 0,
+        sizeGuide: shapeSizeGuide(row.size_guide),
       };
     });
   }
@@ -203,6 +222,22 @@ export class SupabaseCategoryRepository implements CategoryRepository {
       }),
     );
     return { productId: row.product_id, categoryCount: Number(row.category_count) };
+  }
+
+  async setCategorySizeGuide(
+    proof: AuthorizedOperationContext,
+    command: SetCategorySizeGuideCommand,
+  ) {
+    assertAuthorizedOperationProof(proof);
+    const row = SizeGuideRowSchema.parse(
+      await this.callFunction("set_category_size_guide", {
+        p_tenant_id: command.tenantId,
+        p_category_id: command.categoryId,
+        p_size_guide: command.sizeGuide,
+        p_idempotency_key: command.idempotencyKey,
+      }),
+    );
+    return { categoryId: row.category_id, hasSizeGuide: row.has_size_guide };
   }
 
   async listStorefrontCategories(tenantId: string): Promise<unknown[]> {

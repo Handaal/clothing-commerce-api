@@ -7,7 +7,7 @@ Lets a brand describe its products the way shoppers browse them:
 - **Options**: each variant's values per dimension, e.g. Size `M` and Colour `Black`, with an optional
   colour **swatch** per value. The Storefront uses them for size chips, colour swatches and filters.
 - **Categories**: a single-parent tree, e.g. `Men → T-Shirts`. Top-level categories usually stand for the
-  audience (Men, Women, Kids); children are product types. The Storefront uses them for the menu, category
+  audience (e.g. Men); children are product types. The Storefront uses them for the menu, category
   pages and filters.
 
 ## Why this approach
@@ -66,7 +66,22 @@ Responsible files: `src/catalog/category-{repository,service}.ts`, `src/catalog/
 `src/catalog/supabase-catalog-{read,write}-repository.ts`, `src/catalog/public-product-shape.ts`,
 `src/contracts/management/{categories,catalog-management,products}.ts`, `src/contracts/storefront/catalog.ts`.
 
-## Testing
+## Size guides, "few left" and best sellers (SDK 0.46)
+
+Migration `20261119150000_storefront_size_guides_best_sellers`.
+
+- **Size guides** live on categories (`categories.size_guide`, jsonb): `{ title, unit: "cm"|"in", columns,
+rows: [{ size, values }], note }` — 1–8 columns, 1–30 rows, one value per column (validated by
+  `SizeGuideSchema`; the DB checks the outline). A product shows the guide of its **nearest** active
+  category that has one (its own categories first, then their ancestors), exposed as `sizeGuide` on the
+  public product (null when none). Write: `PUT /api/v1/categories/{categoryId}/size-guide`
+  (`setCategorySizeGuide`, `catalog.author`, idempotent; `sizeGuide: null` removes it). Management
+  `listCategories` rows include `sizeGuide`.
+- **Few left**: public variants gain `lowStock` — true when 1–3 units are sellable online
+  (`LOW_STOCK_THRESHOLD` in `public-product-shape.ts`). Exact quantities stay private.
+- **Best sellers**: `GET /api/v1/storefront/best-sellers?tenantId=&brandId=&days=90&limit=12` (public,
+  `listStorefrontBestSellers`) returns `productIds` of publicly visible products ranked by units sold on
+  placed orders (POS + online) in the window, best first. Only the ranking is exposed, never units.
 
 ```bash
 pnpm test:storefront:catalog:persistence
@@ -76,6 +91,14 @@ Runs `supabase/tests/phase_4a_catalog_options_categories_persistence.sql` on a d
 every migration: privileges, first-use creation, case-insensitive matching, replay/ID409, duplicate
 combinations, swatch validation, category cycles/slug conflicts/tenant isolation, the public projection, and
 archived-branch hiding.
+
+```bash
+pnpm test:storefront:size-guides:persistence
+```
+
+Runs `supabase/tests/phase_4c_size_guides_best_sellers_persistence.sql`: privileges, guide inheritance and
+nearest-wins, idempotency/ID409, shape check, clearing, archived branches, and best-seller ranking (brand
+filter, tenant isolation, unpublished products excluded).
 
 ## Known limitations
 

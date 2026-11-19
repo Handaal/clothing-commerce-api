@@ -1,5 +1,7 @@
 -- DEV-ONLY: give the rich catalog fixture (seed-rich-catalog.sql) colours with swatches and an audience
--- category tree (Men / Women / Accessories), through the sanctioned Phase 1A write functions. Idempotent:
+-- category tree (Men / Accessories), through the sanctioned Phase 1A write functions. Zee Store is menswear
+-- only: there is no Women section, so women's fixture pieces are unpublished and their categories archived.
+-- Idempotent:
 -- every write uses a deterministic idempotency key, so re-running replays instead of duplicating.
 -- Not part of the product; production starts with an empty catalogue.
 --
@@ -38,7 +40,7 @@ declare
   selection jsonb;
   colour_value uuid;
   men uuid;
-  women uuid;
+  womens_piece record;
   child record;
 begin
   -- Colours: keep each variant's existing Size and add Colour (Size first, Colour second).
@@ -69,24 +71,39 @@ begin
       'dev-seed-swatch:' || product.id);
   end loop;
 
-  -- Audience tree: Men / Women at the top, the existing type categories underneath; Accessories stays top-level.
+  -- Audience tree: Men at the top with the type categories underneath; Accessories stays top-level.
   perform catalog_private.create_category(t, null, 'Men', 'men', null, 0, 'dev-seed-cat:men');
-  perform catalog_private.create_category(t, null, 'Women', 'women', null, 1, 'dev-seed-cat:women');
   select id into men from public.categories where tenant_id = t and slug = 'men';
-  select id into women from public.categories where tenant_id = t and slug = 'women';
 
   for child in
     select c.id, c.name, c.slug, c.description,
-      case when c.slug in ('dresses', 'activewear') then women
-           when c.slug = 'accessories' then null
-           else men end as parent,
+      case when c.slug = 'accessories' then null else men end as parent,
       case c.slug when 't-shirts' then 0 when 'shirts' then 1 when 'denim' then 2 when 'knitwear' then 3
-                  when 'outerwear' then 4 when 'dresses' then 0 when 'activewear' then 1 else 2 end as pos
+                  when 'outerwear' then 4 when 'activewear' then 5 else 1 end as pos
       from public.categories c
-     where c.tenant_id = t and c.slug in ('t-shirts','shirts','denim','knitwear','outerwear','dresses','activewear','accessories')
+     where c.tenant_id = t and c.slug in ('t-shirts','shirts','denim','knitwear','outerwear','activewear','accessories')
   loop
     perform catalog_private.update_category(t, child.id, child.parent, child.name, child.slug, child.description,
-      child.pos, 'dev-seed-cat-parent:' || child.id);
+      child.pos, 'dev-seed-cat-parent-men-only:' || child.id);
+  end loop;
+
+  -- No Women section: archive the Dresses type and the Women audience (left by older runs of this seed).
+  for child in
+    select c.id from public.categories c
+     where c.tenant_id = t and c.slug in ('dresses', 'women') and c.status = 'active'
+     order by (c.slug = 'women')
+  loop
+    perform catalog_private.set_category_status(t, child.id, 'archived', 'Zee Store is menswear only',
+      'dev-seed-cat-archive-men-only:' || child.id);
+  end loop;
+
+  -- Women's pieces stay as internal drafts (test orders may reference them) but leave the website.
+  for womens_piece in
+    select p.id from public.products p
+     where p.tenant_id = t and p.slug in ('wrap-midi-dress', 'tiered-linen-dress', 'seamless-leggings')
+       and p.storefront_status = 'published'
+  loop
+    perform catalog_private.unpublish_product(t, womens_piece.id, 'dev-seed-unpublish-men-only:' || womens_piece.id);
   end loop;
 end
 $seed$;

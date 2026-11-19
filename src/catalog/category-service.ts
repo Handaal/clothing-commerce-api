@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { type AuthorizationContext, type AuthorizationService } from "../authorization";
 import type { CategoryListResponse, CategoryStatus } from "../contracts/management/categories";
-import type { PublicCategoryListResponse } from "../contracts/storefront/catalog";
+import type { PublicCategoryListResponse, SizeGuide } from "../contracts/storefront/catalog";
 import { IntegerLikeSchema } from "./public-product-shape";
 import type { CategoryRepository } from "./category-repository";
 
@@ -109,6 +109,21 @@ export class CategoryService {
       tenantId: context.tenant.id,
       productId,
       categoryIds: [...categoryIds],
+      idempotencyKey,
+    });
+  }
+
+  async setCategorySizeGuide(
+    context: AuthorizationContext,
+    categoryId: string,
+    idempotencyKey: string,
+    sizeGuide: SizeGuide | null,
+  ) {
+    const proof = await this.authorize(context);
+    return this.repository.setCategorySizeGuide(proof, {
+      tenantId: context.tenant.id,
+      categoryId,
+      sizeGuide,
       idempotencyKey,
     });
   }

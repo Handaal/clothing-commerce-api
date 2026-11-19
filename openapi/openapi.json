@@ -4684,6 +4684,51 @@
         }
       }
     },
+    "/api/v1/categories/{categoryId}/size-guide": {
+      "put": {
+        "operationId": "setCategorySizeGuide",
+        "tags": ["catalog-management"],
+        "summary": "Replace or clear a category's size guide.",
+        "description": "Sets the size chart shown on the Storefront for products in this category and its descendants (a product uses its nearest category with a guide). Send null to remove it.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          { "$ref": "#/components/parameters/IdempotencyKeyHeader" },
+          {
+            "name": "categoryId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "The complete size guide, or null.",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SetCategorySizeGuideRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The category id and whether it now has a guide.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SetCategorySizeGuideResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "409": { "$ref": "#/components/responses/Error409" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
     "/api/v1/products/{productId}/categories": {
       "put": {
         "operationId": "setProductCategories",
@@ -5203,6 +5248,54 @@
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/PublicCategoryListResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/v1/storefront/best-sellers": {
+      "get": {
+        "operationId": "listStorefrontBestSellers",
+        "tags": ["storefront"],
+        "summary": "Rank the storefront's best-selling products.",
+        "description": "Public, unauthenticated. Returns ids of publicly visible products ranked by units sold on placed orders (POS and online) over the last `days` days, best first. Unit counts are never exposed. Empty when nothing has sold in the window.",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "query",
+            "required": true,
+            "description": "The tenant the storefront serves.",
+            "schema": { "type": "string", "format": "uuid" }
+          },
+          {
+            "name": "brandId",
+            "in": "query",
+            "required": false,
+            "description": "Only rank this brand's products.",
+            "schema": { "type": "string", "format": "uuid" }
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "minimum": 1, "maximum": 365, "default": 90 }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "minimum": 1, "maximum": 50, "default": 12 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Product ids, best first.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PublicBestSellersResponse" }
               }
             }
           },
@@ -11990,7 +12083,56 @@
                 "description": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
                 "position": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
                 "status": { "type": "string", "enum": ["active", "archived"] },
-                "productCount": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+                "productCount": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+                "sizeGuide": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "title": {
+                          "anyOf": [
+                            { "type": "string", "minLength": 1, "maxLength": 120 },
+                            { "type": "null" }
+                          ]
+                        },
+                        "unit": { "type": "string", "enum": ["cm", "in"] },
+                        "columns": {
+                          "minItems": 1,
+                          "maxItems": 8,
+                          "type": "array",
+                          "items": { "type": "string", "minLength": 1, "maxLength": 40 }
+                        },
+                        "rows": {
+                          "minItems": 1,
+                          "maxItems": 30,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "size": { "type": "string", "minLength": 1, "maxLength": 24 },
+                              "values": {
+                                "maxItems": 8,
+                                "type": "array",
+                                "items": { "type": "string", "maxLength": 24 }
+                              }
+                            },
+                            "required": ["size", "values"],
+                            "additionalProperties": false
+                          }
+                        },
+                        "note": {
+                          "anyOf": [
+                            { "type": "string", "minLength": 1, "maxLength": 500 },
+                            { "type": "null" }
+                          ]
+                        }
+                      },
+                      "required": ["title", "unit", "columns", "rows", "note"],
+                      "additionalProperties": false
+                    },
+                    { "type": "null" }
+                  ]
+                }
               },
               "required": [
                 "id",
@@ -12175,6 +12317,93 @@
           }
         },
         "required": ["categories"],
+        "additionalProperties": false
+      },
+      "SetCategorySizeGuideRequest": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "sizeGuide": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "anyOf": [
+                      { "type": "string", "minLength": 1, "maxLength": 120 },
+                      { "type": "null" }
+                    ]
+                  },
+                  "unit": { "type": "string", "enum": ["cm", "in"] },
+                  "columns": {
+                    "minItems": 1,
+                    "maxItems": 8,
+                    "type": "array",
+                    "items": { "type": "string", "minLength": 1, "maxLength": 40 }
+                  },
+                  "rows": {
+                    "minItems": 1,
+                    "maxItems": 30,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "size": { "type": "string", "minLength": 1, "maxLength": 24 },
+                        "values": {
+                          "maxItems": 8,
+                          "type": "array",
+                          "items": { "type": "string", "maxLength": 24 }
+                        }
+                      },
+                      "required": ["size", "values"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "note": {
+                    "anyOf": [
+                      { "type": "string", "minLength": 1, "maxLength": 500 },
+                      { "type": "null" }
+                    ]
+                  }
+                },
+                "required": ["title", "unit", "columns", "rows", "note"],
+                "additionalProperties": false
+              },
+              { "type": "null" }
+            ]
+          }
+        },
+        "required": ["sizeGuide"],
+        "additionalProperties": false
+      },
+      "SetCategorySizeGuideResponse": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "categoryId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "hasSizeGuide": { "type": "boolean" }
+        },
+        "required": ["categoryId", "hasSizeGuide"],
+        "additionalProperties": false
+      },
+      "PublicBestSellersResponse": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "productIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            }
+          }
+        },
+        "required": ["productIds"],
         "additionalProperties": false
       },
       "CreateVariantResponse": {
@@ -12444,7 +12673,8 @@
                           "additionalProperties": false
                         }
                       },
-                      "inStock": { "type": "boolean" }
+                      "inStock": { "type": "boolean" },
+                      "lowStock": { "type": "boolean" }
                     },
                     "required": [
                       "id",
@@ -12527,6 +12757,55 @@
                     "required": ["id", "slug", "name"],
                     "additionalProperties": false
                   }
+                },
+                "sizeGuide": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "title": {
+                          "anyOf": [
+                            { "type": "string", "minLength": 1, "maxLength": 120 },
+                            { "type": "null" }
+                          ]
+                        },
+                        "unit": { "type": "string", "enum": ["cm", "in"] },
+                        "columns": {
+                          "minItems": 1,
+                          "maxItems": 8,
+                          "type": "array",
+                          "items": { "type": "string", "minLength": 1, "maxLength": 40 }
+                        },
+                        "rows": {
+                          "minItems": 1,
+                          "maxItems": 30,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "size": { "type": "string", "minLength": 1, "maxLength": 24 },
+                              "values": {
+                                "maxItems": 8,
+                                "type": "array",
+                                "items": { "type": "string", "maxLength": 24 }
+                              }
+                            },
+                            "required": ["size", "values"],
+                            "additionalProperties": false
+                          }
+                        },
+                        "note": {
+                          "anyOf": [
+                            { "type": "string", "minLength": 1, "maxLength": 500 },
+                            { "type": "null" }
+                          ]
+                        }
+                      },
+                      "required": ["title", "unit", "columns", "rows", "note"],
+                      "additionalProperties": false
+                    },
+                    { "type": "null" }
+                  ]
                 }
               },
               "required": [
@@ -12647,7 +12926,8 @@
                     "additionalProperties": false
                   }
                 },
-                "inStock": { "type": "boolean" }
+                "inStock": { "type": "boolean" },
+                "lowStock": { "type": "boolean" }
               },
               "required": ["id", "sku", "displayName", "optionSignature", "prices", "inStock"],
               "additionalProperties": false
@@ -12723,6 +13003,55 @@
               "required": ["id", "slug", "name"],
               "additionalProperties": false
             }
+          },
+          "sizeGuide": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "anyOf": [
+                      { "type": "string", "minLength": 1, "maxLength": 120 },
+                      { "type": "null" }
+                    ]
+                  },
+                  "unit": { "type": "string", "enum": ["cm", "in"] },
+                  "columns": {
+                    "minItems": 1,
+                    "maxItems": 8,
+                    "type": "array",
+                    "items": { "type": "string", "minLength": 1, "maxLength": 40 }
+                  },
+                  "rows": {
+                    "minItems": 1,
+                    "maxItems": 30,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "size": { "type": "string", "minLength": 1, "maxLength": 24 },
+                        "values": {
+                          "maxItems": 8,
+                          "type": "array",
+                          "items": { "type": "string", "maxLength": 24 }
+                        }
+                      },
+                      "required": ["size", "values"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "note": {
+                    "anyOf": [
+                      { "type": "string", "minLength": 1, "maxLength": 500 },
+                      { "type": "null" }
+                    ]
+                  }
+                },
+                "required": ["title", "unit", "columns", "rows", "note"],
+                "additionalProperties": false
+              },
+              { "type": "null" }
+            ]
           }
         },
         "required": [
@@ -13459,7 +13788,8 @@
                           "additionalProperties": false
                         }
                       },
-                      "inStock": { "type": "boolean" }
+                      "inStock": { "type": "boolean" },
+                      "lowStock": { "type": "boolean" }
                     },
                     "required": [
                       "id",
@@ -13542,6 +13872,55 @@
                     "required": ["id", "slug", "name"],
                     "additionalProperties": false
                   }
+                },
+                "sizeGuide": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "title": {
+                          "anyOf": [
+                            { "type": "string", "minLength": 1, "maxLength": 120 },
+                            { "type": "null" }
+                          ]
+                        },
+                        "unit": { "type": "string", "enum": ["cm", "in"] },
+                        "columns": {
+                          "minItems": 1,
+                          "maxItems": 8,
+                          "type": "array",
+                          "items": { "type": "string", "minLength": 1, "maxLength": 40 }
+                        },
+                        "rows": {
+                          "minItems": 1,
+                          "maxItems": 30,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "size": { "type": "string", "minLength": 1, "maxLength": 24 },
+                              "values": {
+                                "maxItems": 8,
+                                "type": "array",
+                                "items": { "type": "string", "maxLength": 24 }
+                              }
+                            },
+                            "required": ["size", "values"],
+                            "additionalProperties": false
+                          }
+                        },
+                        "note": {
+                          "anyOf": [
+                            { "type": "string", "minLength": 1, "maxLength": 500 },
+                            { "type": "null" }
+                          ]
+                        }
+                      },
+                      "required": ["title", "unit", "columns", "rows", "note"],
+                      "additionalProperties": false
+                    },
+                    { "type": "null" }
+                  ]
                 }
               },
               "required": [
@@ -13762,7 +14141,8 @@
                           "additionalProperties": false
                         }
                       },
-                      "inStock": { "type": "boolean" }
+                      "inStock": { "type": "boolean" },
+                      "lowStock": { "type": "boolean" }
                     },
                     "required": [
                       "id",
@@ -13845,6 +14225,55 @@
                     "required": ["id", "slug", "name"],
                     "additionalProperties": false
                   }
+                },
+                "sizeGuide": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "title": {
+                          "anyOf": [
+                            { "type": "string", "minLength": 1, "maxLength": 120 },
+                            { "type": "null" }
+                          ]
+                        },
+                        "unit": { "type": "string", "enum": ["cm", "in"] },
+                        "columns": {
+                          "minItems": 1,
+                          "maxItems": 8,
+                          "type": "array",
+                          "items": { "type": "string", "minLength": 1, "maxLength": 40 }
+                        },
+                        "rows": {
+                          "minItems": 1,
+                          "maxItems": 30,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "size": { "type": "string", "minLength": 1, "maxLength": 24 },
+                              "values": {
+                                "maxItems": 8,
+                                "type": "array",
+                                "items": { "type": "string", "maxLength": 24 }
+                              }
+                            },
+                            "required": ["size", "values"],
+                            "additionalProperties": false
+                          }
+                        },
+                        "note": {
+                          "anyOf": [
+                            { "type": "string", "minLength": 1, "maxLength": 500 },
+                            { "type": "null" }
+                          ]
+                        }
+                      },
+                      "required": ["title", "unit", "columns", "rows", "note"],
+                      "additionalProperties": false
+                    },
+                    { "type": "null" }
+                  ]
                 }
               },
               "required": [

@@ -1,4 +1,10 @@
-import type { PublicProduct, PublicProductListResponse } from "../contracts/storefront/catalog";
+import { z } from "zod";
+
+import type {
+  PublicBestSellersResponse,
+  PublicProduct,
+  PublicProductListResponse,
+} from "../contracts/storefront/catalog";
 import { CatalogError } from "./catalog-errors";
 import { shapePublicProduct as shapeProduct } from "./public-product-shape";
 import type { StorefrontCatalogRepository } from "./storefront-catalog-repository";
@@ -29,5 +35,16 @@ export class StorefrontCatalogService {
       throw new CatalogError("PRODUCT_NOT_FOUND");
     }
     return shapeProduct(row);
+  }
+
+  /** Ranking only (best first); unit counts never leave the database. */
+  async listBestSellers(
+    tenantId: string,
+    brandId: string | null,
+    days: number,
+    limit: number,
+  ): Promise<PublicBestSellersResponse> {
+    const raw = await this.repository.listBestSellingProductIds(tenantId, brandId, days, limit);
+    return { productIds: z.array(z.string().uuid()).parse(raw ?? []) };
   }
 }

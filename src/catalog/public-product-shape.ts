@@ -1,6 +1,13 @@
 import { z } from "zod";
 
-import type { PublicProduct } from "../contracts/storefront/catalog";
+import {
+  SizeGuideSchema,
+  type PublicProduct,
+  type SizeGuide,
+} from "../contracts/storefront/catalog";
+
+/** At or below this many sellable units a variant reports `lowStock` ("only a few left"). */
+export const LOW_STOCK_THRESHOLD = 3;
 
 /**
  * The single shaper from the DB-enforced public product projection (catalog_public.build_published_product)
@@ -68,6 +75,7 @@ export const DbPublicProductSchema = z.object({
     )
     .optional(),
   categories: z.array(z.object({ id: z.string(), slug: z.string(), name: z.string() })).optional(),
+  sizeGuide: z.unknown().optional(),
 });
 
 export function shapePublicProduct(raw: unknown): PublicProduct {
@@ -108,6 +116,7 @@ export function shapePublicProduct(raw: unknown): PublicProduct {
             : null,
       })),
       inStock: variant.availableQuantity > 0,
+      lowStock: variant.availableQuantity > 0 && variant.availableQuantity <= LOW_STOCK_THRESHOLD,
     })),
     offers: (parsed.offers ?? []).map((offer) => ({
       id: offer.id,
@@ -129,5 +138,13 @@ export function shapePublicProduct(raw: unknown): PublicProduct {
       slug: category.slug,
       name: category.name,
     })),
+    sizeGuide: shapeSizeGuide(parsed.sizeGuide),
   };
+}
+
+/** A stored guide that no longer matches the contract is hidden rather than breaking the product. */
+export function shapeSizeGuide(raw: unknown): SizeGuide | null {
+  if (raw === null || raw === undefined) return null;
+  const parsed = SizeGuideSchema.safeParse(raw);
+  return parsed.success ? parsed.data : null;
 }

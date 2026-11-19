@@ -135,6 +135,10 @@ export {
   type PublicProductCategory,
   type PublicCategory,
   type PublicCategoryListResponse,
+  SizeGuideSchema,
+  PublicBestSellersResponseSchema,
+  type SizeGuide,
+  type PublicBestSellersResponse,
 } from "./storefront/catalog";
 export {
   PublicCollectionCoverSchema,

@@ -284,6 +284,9 @@ its phase arrives.
 - **Delivery fees (SDK `0.45.0`, 2026-11-19)** — per-brand delivery zones with fees and an optional
   free-delivery threshold; the fee is part of the order total and COD amount. See
   [delivery fees](../orders/delivery-fees.md).
+- **Size guides, few left, best sellers (SDK `0.46.0`, 2026-11-19)** — category size charts inherited by
+  products (`sizeGuide`), a coarse `lowStock` flag on public variants, and a public best-seller ranking.
+  See [options and categories](../catalog/options-and-categories.md).
 - **Detailed promotions / voucher / discount semantics** — Phase 2P-A delivers the validated **money
   core** (branch `phase/2p-promotions-core`): promotion/adjustment/redemption schema, the Order
   accounting evolution (`gross_subtotal_minor`/`discount_total_minor`/net `total_minor`, backward

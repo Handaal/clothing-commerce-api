@@ -1,9 +1,11 @@
 import { z } from "zod";
 
+import { SizeGuideSchema } from "../storefront/catalog";
+
 /**
  * Category management DTOs. Categories are a tenant-owned single-parent taxonomy (e.g. Men → T-Shirts)
  * used for Storefront navigation and filtering. Top-level categories typically represent the audience
- * (Men, Women, Kids); children are product types. Cycles are rejected by the database. Lifecycle is
+ * (e.g. Men); children are product types. Cycles are rejected by the database. Lifecycle is
  * active ↔ archived; an archived category (or any descendant of one) disappears from the Storefront.
  */
 
@@ -30,6 +32,8 @@ export const CategorySummarySchema = z.object({
   status: CategoryStatusSchema,
   // Products directly assigned to this category (any product status).
   productCount: z.number().int().nonnegative(),
+  // SDK 0.46: the size chart products in this category (or its descendants) show; null when none.
+  sizeGuide: SizeGuideSchema.nullable().optional(),
 });
 export type CategorySummary = z.infer<typeof CategorySummarySchema>;
 
@@ -77,6 +81,20 @@ export type CategoryWriteResponse = z.infer<typeof CategoryWriteResponseSchema>;
 
 export const CategoryUpdatedResponseSchema = z.object({ categoryId: UuidSchema });
 export type CategoryUpdatedResponse = z.infer<typeof CategoryUpdatedResponseSchema>;
+
+export const SetCategorySizeGuideRequestSchema = z
+  .object({
+    // The complete size chart; null removes it.
+    sizeGuide: SizeGuideSchema.nullable(),
+  })
+  .strict();
+export type SetCategorySizeGuideRequest = z.infer<typeof SetCategorySizeGuideRequestSchema>;
+
+export const SetCategorySizeGuideResponseSchema = z.object({
+  categoryId: UuidSchema,
+  hasSizeGuide: z.boolean(),
+});
+export type SetCategorySizeGuideResponse = z.infer<typeof SetCategorySizeGuideResponseSchema>;
 
 export const SetProductCategoriesRequestSchema = z
   .object({

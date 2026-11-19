@@ -164,6 +164,9 @@ import {
   SetProductCategoriesRequestSchema,
   SetProductCategoriesResponseSchema,
   PublicCategoryListResponseSchema,
+  SetCategorySizeGuideRequestSchema,
+  SetCategorySizeGuideResponseSchema,
+  PublicBestSellersResponseSchema,
   CreateVariantResponseSchema,
   SetVariantPriceRequestSchema,
   SetVariantPriceResponseSchema,
@@ -3060,6 +3063,38 @@ export function generateOpenApiDocument() {
           },
         },
       },
+      "/api/v1/categories/{categoryId}/size-guide": {
+        put: {
+          operationId: "setCategorySizeGuide",
+          tags: ["catalog-management"],
+          summary: "Replace or clear a category's size guide.",
+          description:
+            "Sets the size chart shown on the Storefront for products in this category and its " +
+            "descendants (a product uses its nearest category with a guide). Send null to remove it.",
+          security: clerkSecurity,
+          parameters: [
+            tenantHeaderParameter,
+            idempotencyKeyHeaderParameter,
+            {
+              name: "categoryId",
+              in: "path",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+          ],
+          requestBody: jsonRequestBody(
+            "The complete size guide, or null.",
+            "#/components/schemas/SetCategorySizeGuideRequest",
+          ),
+          responses: {
+            "200": jsonResponse(
+              "The category id and whether it now has a guide.",
+              "#/components/schemas/SetCategorySizeGuideResponse",
+            ),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
       "/api/v1/products/{productId}/categories": {
         put: {
           operationId: "setProductCategories",
@@ -3426,6 +3461,52 @@ export function generateOpenApiDocument() {
             "200": jsonResponse(
               "The published category list.",
               "#/components/schemas/PublicCategoryListResponse",
+            ),
+            ...errorResponses(400, 500),
+          },
+        },
+      },
+      "/api/v1/storefront/best-sellers": {
+        get: {
+          operationId: "listStorefrontBestSellers",
+          tags: ["storefront"],
+          summary: "Rank the storefront's best-selling products.",
+          description:
+            "Public, unauthenticated. Returns ids of publicly visible products ranked by units sold " +
+            "on placed orders (POS and online) over the last `days` days, best first. Unit counts are " +
+            "never exposed. Empty when nothing has sold in the window.",
+          parameters: [
+            {
+              name: "tenantId",
+              in: "query",
+              required: true,
+              description: "The tenant the storefront serves.",
+              schema: { type: "string", format: "uuid" },
+            },
+            {
+              name: "brandId",
+              in: "query",
+              required: false,
+              description: "Only rank this brand's products.",
+              schema: { type: "string", format: "uuid" },
+            },
+            {
+              name: "days",
+              in: "query",
+              required: false,
+              schema: { type: "integer", minimum: 1, maximum: 365, default: 90 },
+            },
+            {
+              name: "limit",
+              in: "query",
+              required: false,
+              schema: { type: "integer", minimum: 1, maximum: 50, default: 12 },
+            },
+          ],
+          responses: {
+            "200": jsonResponse(
+              "Product ids, best first.",
+              "#/components/schemas/PublicBestSellersResponse",
             ),
             ...errorResponses(400, 500),
           },
@@ -4561,6 +4642,9 @@ export function generateOpenApiDocument() {
         SetProductCategoriesRequest: jsonSchema(SetProductCategoriesRequestSchema),
         SetProductCategoriesResponse: jsonSchema(SetProductCategoriesResponseSchema),
         PublicCategoryListResponse: jsonSchema(PublicCategoryListResponseSchema),
+        SetCategorySizeGuideRequest: jsonSchema(SetCategorySizeGuideRequestSchema),
+        SetCategorySizeGuideResponse: jsonSchema(SetCategorySizeGuideResponseSchema),
+        PublicBestSellersResponse: jsonSchema(PublicBestSellersResponseSchema),
         CreateVariantResponse: jsonSchema(CreateVariantResponseSchema),
         SetVariantPriceRequest: jsonSchema(SetVariantPriceRequestSchema),
         SetVariantPriceResponse: jsonSchema(SetVariantPriceResponseSchema),

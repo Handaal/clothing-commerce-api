@@ -754,6 +754,11 @@ import {
   CategoryUpdatedResponseSchema,
   SetProductCategoriesResponseSchema,
   PublicCategoryListResponseSchema,
+  SetCategorySizeGuideResponseSchema,
+  PublicBestSellersResponseSchema,
+  type SetCategorySizeGuideResponse,
+  type PublicBestSellersResponse,
+  type SizeGuide,
   type VariantOptionSelection,
   type SetVariantOptionsResponse,
   type UpdateOptionValuesRequest,
@@ -907,6 +912,10 @@ export type {
   SetProductCategoriesResponse,
   PublicCategory,
   PublicCategoryListResponse,
+  SizeGuide,
+  SetCategorySizeGuideRequest,
+  SetCategorySizeGuideResponse,
+  PublicBestSellersResponse,
   PublicProductOption,
   PublicProductCategory,
   PublicVariantOptionValue,
@@ -1178,6 +1187,19 @@ export interface PublicCollectionQuery {
 export interface PublicCategoryListQuery {
   tenantId: string;
 }
+export interface SetCategorySizeGuideInput extends IdempotentWrite {
+  categoryId: string;
+  /** The complete size chart, or null to remove it. */
+  sizeGuide: SizeGuide | null;
+}
+export interface PublicBestSellersQuery {
+  tenantId: string;
+  brandId?: string;
+  /** Look-back window in days (1-365, default 90). */
+  days?: number;
+  /** How many ids to return (1-50, default 12). */
+  limit?: number;
+}
 
 /** Tenant-scoped management surface, obtained via `client.withTenant(tenantId)`. */
 export interface TenantCommerceClient {
@@ -1210,6 +1232,8 @@ export interface TenantCommerceClient {
   createCategory(input: CreateCategoryInput): Promise<CategoryWriteResponse>;
   updateCategory(input: UpdateCategoryInput): Promise<CategoryUpdatedResponse>;
   setCategoryStatus(input: SetCategoryStatusInput): Promise<CategoryWriteResponse>;
+  /** SDK 0.46: replace or clear the size chart for a category (and its descendants). */
+  setCategorySizeGuide(input: SetCategorySizeGuideInput): Promise<SetCategorySizeGuideResponse>;
   setProductCategories(input: SetProductCategoriesInput): Promise<SetProductCategoriesResponse>;
   listInventory(query?: InventoryListQuery): Promise<InventoryListResponse>;
   listSuppliers(query?: SupplierListQuery): Promise<SupplierListResponse>;
@@ -1505,6 +1529,8 @@ export interface CommerceClient {
   getPublishedCollection(query: PublicCollectionQuery): Promise<PublicCollectionDetailResponse>;
   /** Public Storefront category tree (active categories with publicly visible products). */
   listStorefrontCategories(query: PublicCategoryListQuery): Promise<PublicCategoryListResponse>;
+  /** SDK 0.46: publicly visible product ids ranked by recent units sold (best first). */
+  listStorefrontBestSellers(query: PublicBestSellersQuery): Promise<PublicBestSellersResponse>;
   /** Public Storefront home-page content (hero + featured picks). Unauthenticated. */
   getPublicStorefrontContent(query: PublicStorefrontContentQuery): Promise<PublicStorefrontContent>;
   /** Public delivery areas, fees and free-delivery threshold for a Storefront brand. */
@@ -1849,6 +1875,12 @@ export function createCommerceClient({
           `/api/v1/categories/${encodeURIComponent(categoryId)}/status`,
           CategoryWriteResponseSchema,
           { tenantId, method: "POST", body, idempotencyKey },
+        ),
+      setCategorySizeGuide: ({ idempotencyKey, categoryId, ...body }: SetCategorySizeGuideInput) =>
+        request(
+          `/api/v1/categories/${encodeURIComponent(categoryId)}/size-guide`,
+          SetCategorySizeGuideResponseSchema,
+          { tenantId, method: "PUT", body, idempotencyKey },
         ),
       setProductCategories: ({ idempotencyKey, productId, ...body }: SetProductCategoriesInput) =>
         request(
@@ -2977,6 +3009,16 @@ export function createCommerceClient({
       request(
         `/api/v1/storefront/categories${buildQuery({ tenantId: query.tenantId })}`,
         PublicCategoryListResponseSchema,
+      ),
+    listStorefrontBestSellers: (query: PublicBestSellersQuery) =>
+      request(
+        `/api/v1/storefront/best-sellers${buildQuery({
+          tenantId: query.tenantId,
+          brandId: query.brandId,
+          days: query.days,
+          limit: query.limit,
+        })}`,
+        PublicBestSellersResponseSchema,
       ),
     getStorefrontDeliveryOptions: (query: PublicDeliveryOptionsQuery) =>
       request(

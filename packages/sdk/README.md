@@ -83,6 +83,15 @@ signature. Omitted ⇒ canonical form unchanged. The server verifies it against 
 acceptance time, records the attribution, and reports `OFFLINE_OPERATOR_UNVERIFIED` /
 `OFFLINE_OPERATOR_CHANGED_BEFORE_SYNC` as `sync_integrity` sync conflicts. Deploy the server before tills send it.
 
+SDK 0.46.0 (additive; needs migration `20261119150000_storefront_size_guides_best_sellers`): size guides,
+"few left" and best sellers for the Storefront.
+
+- Public products gain `sizeGuide` (`{ title, unit, columns, rows: [{ size, values }], note }` or null — the
+  nearest category's guide) and variants gain `lowStock` (1–3 units left). Both optional in the schema.
+- `listStorefrontBestSellers({ tenantId, brandId?, days?, limit? })` (public) → `{ productIds }`, best first.
+- Management: `setCategorySizeGuide({ categoryId, sizeGuide | null, idempotencyKey })`; `listCategories`
+  rows include `sizeGuide`. `SizeGuide` / `SizeGuideSchema` are exported.
+
 SDK 0.45.0 (additive; needs migration `20261119130000_storefront_delivery_fees`): delivery fees per area.
 
 - `getStorefrontDeliveryOptions({ tenantId, brandId })` (public) → active zones (`code`, `name`, `feeMinor`)
