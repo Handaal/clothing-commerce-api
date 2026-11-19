@@ -22,3 +22,5 @@ node scripts/seed-rich-product-photos.mjs
 - `seed-rich-options-categories.sql`: a Colour (with swatch) per product next to its Size, and a Men / Women /
   Accessories category tree over the type categories, via the sanctioned Phase 1A functions.
 - `scripts/seed-rich-product-photos.mjs`: real Unsplash photos at the seeded media paths.
+- `seed-storefront-delivery.sql`: COD checkout + Egypt's 27 governorates (test fees, free over 2,000 EGP) for
+  every dev brand with published products. Checkout needs `STOREFRONT_BRAND_ID` in the Storefront `.env`.

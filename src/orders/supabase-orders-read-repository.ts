@@ -20,6 +20,7 @@ const OrderListRowSchema = z.object({
   branch_id: z.string().uuid().nullable(),
   currency: z.string(),
   total_minor: z.union([z.number(), z.string()]),
+  delivery_fee_minor: z.union([z.number(), z.string()]).optional(),
   placed_at: z.string().min(1),
 });
 
@@ -51,7 +52,7 @@ export class SupabaseOrdersReadRepository implements OrdersReadRepository {
     const [order, payment, reservations] = await Promise.all([
       this.client
         .from("orders")
-        .select("customer_id,customer_snapshot,delivery_snapshot")
+        .select("customer_id,customer_snapshot,delivery_snapshot,delivery_fee_minor")
         .eq("tenant_id", tenantId)
         .eq("id", orderId)
         .single(),
@@ -74,6 +75,7 @@ export class SupabaseOrdersReadRepository implements OrdersReadRepository {
         customer_id: z.string().nullable(),
         customer_snapshot: z.unknown(),
         delivery_snapshot: z.unknown(),
+        delivery_fee_minor: z.union([z.number(), z.string()]).optional(),
       })
       .parse(order.data);
     const p =
@@ -101,6 +103,7 @@ export class SupabaseOrdersReadRepository implements OrdersReadRepository {
       )
       .parse(reservations.data);
     return OrderCommerceDetailsSchema.parse({
+      deliveryFeeMinor: toSafeInteger(o.delivery_fee_minor ?? 0),
       customerId: o.customer_id,
       customer: o.customer_snapshot,
       delivery: o.delivery_snapshot,
@@ -172,7 +175,9 @@ export class SupabaseOrdersReadRepository implements OrdersReadRepository {
   async listOrders(query: OrderListQuery): Promise<OrderListRow[]> {
     let request = this.client
       .from("orders")
-      .select("id,order_number,channel,status,brand_id,branch_id,currency,total_minor,placed_at")
+      .select(
+        "id,order_number,channel,status,brand_id,branch_id,currency,total_minor,delivery_fee_minor,placed_at",
+      )
       .eq("tenant_id", query.tenantId);
 
     if (query.filters.channel !== undefined) {
@@ -237,6 +242,7 @@ export class SupabaseOrdersReadRepository implements OrdersReadRepository {
         branchId: row.branch_id,
         currency: row.currency,
         totalMinor: toSafeInteger(row.total_minor),
+        deliveryFeeMinor: toSafeInteger(row.delivery_fee_minor ?? 0),
         placedAt: normalizeTimestampUtc(row.placed_at),
       },
       cursor: { placedAt: normalizeTimestampUtc(row.placed_at), id: row.id },

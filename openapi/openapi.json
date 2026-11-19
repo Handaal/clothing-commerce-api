@@ -1041,6 +1041,83 @@
         }
       }
     },
+    "/api/v1/settings/storefront/{brandId}/delivery": {
+      "get": {
+        "operationId": "getStorefrontDeliverySettings",
+        "tags": ["settings"],
+        "summary": "getStorefrontDeliverySettings",
+        "description": "Requires a tenant-wide settings.read grant.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          {
+            "name": "brandId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StorefrontDeliverySettings" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      },
+      "put": {
+        "operationId": "updateStorefrontDeliverySettings",
+        "tags": ["settings"],
+        "summary": "updateStorefrontDeliverySettings",
+        "description": "Requires settings.manage and Idempotency-Key. Replaces the brand's delivery zones (codes stored upper-case) and the free-delivery threshold. With at least one active zone, online checkout requires delivery.zoneCode and charges that zone's fee; orders keep their own zone snapshot.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          { "$ref": "#/components/parameters/IdempotencyKeyHeader" },
+          {
+            "name": "brandId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Settings mutation payload",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateStorefrontDeliveryRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StorefrontDeliverySettings" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "409": { "$ref": "#/components/responses/Error409" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
     "/api/v1/settings/returns": {
       "get": {
         "operationId": "getReturnSettings",
@@ -5069,6 +5146,42 @@
         }
       }
     },
+    "/api/v1/storefront/delivery": {
+      "get": {
+        "operationId": "getStorefrontDeliveryOptions",
+        "tags": ["storefront"],
+        "summary": "Delivery areas, fees and free-delivery threshold for a storefront brand.",
+        "description": "Public, unauthenticated. Active delivery zones in display order. An empty list means delivery is free and checkout needs no zone.",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "query",
+            "required": true,
+            "description": "The tenant the storefront serves.",
+            "schema": { "type": "string", "format": "uuid" }
+          },
+          {
+            "name": "brandId",
+            "in": "query",
+            "required": true,
+            "description": "The storefront brand.",
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Delivery options.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PublicDeliveryOptions" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
     "/api/v1/storefront/categories": {
       "get": {
         "operationId": "listStorefrontCategories",
@@ -8953,7 +9066,13 @@
                 "anyOf": [{ "type": "string", "maxLength": 30 }, { "type": "null" }]
               },
               "countryCode": { "type": "string", "pattern": "^[A-Z]{2}$" },
-              "notes": { "anyOf": [{ "type": "string", "maxLength": 500 }, { "type": "null" }] }
+              "notes": { "anyOf": [{ "type": "string", "maxLength": 500 }, { "type": "null" }] },
+              "zoneCode": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 20,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9-]*$"
+              }
             },
             "required": [
               "recipientName",
@@ -9001,6 +9120,18 @@
           "currency": { "type": "string", "pattern": "^[A-Z]{3}$" },
           "grossSubtotalMinor": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
           "discountTotalMinor": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+          "deliveryFeeMinor": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+          "deliveryZone": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": { "code": { "type": "string" }, "name": { "type": "string" } },
+                "required": ["code", "name"],
+                "additionalProperties": false
+              },
+              { "type": "null" }
+            ]
+          },
           "promotion": {
             "anyOf": [
               {
@@ -9103,6 +9234,17 @@
           "promotionCode": {
             "anyOf": [
               { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[A-Za-z0-9_-]+$" },
+              { "type": "null" }
+            ]
+          },
+          "zoneCode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 20,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9-]*$"
+              },
               { "type": "null" }
             ]
           }
@@ -13751,6 +13893,7 @@
           },
           "currency": { "type": "string", "pattern": "^[A-Z]{3}$" },
           "totalMinor": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+          "deliveryFeeMinor": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
           "placedAt": {
             "type": "string",
             "format": "date-time",
@@ -13804,6 +13947,11 @@
                 },
                 "currency": { "type": "string", "pattern": "^[A-Z]{3}$" },
                 "totalMinor": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+                "deliveryFeeMinor": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
                 "placedAt": {
                   "type": "string",
                   "format": "date-time",
@@ -13878,6 +14026,7 @@
           "commerce": {
             "type": "object",
             "properties": {
+              "deliveryFeeMinor": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
               "customerId": {
                 "anyOf": [
                   {
@@ -13942,6 +14091,12 @@
                       "countryCode": { "type": "string", "pattern": "^[A-Z]{2}$" },
                       "notes": {
                         "anyOf": [{ "type": "string", "maxLength": 500 }, { "type": "null" }]
+                      },
+                      "zoneCode": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 20,
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9-]*$"
                       }
                     },
                     "required": [
@@ -14064,6 +14219,7 @@
               },
               "currency": { "type": "string", "pattern": "^[A-Z]{3}$" },
               "totalMinor": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+              "deliveryFeeMinor": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
               "placedAt": {
                 "type": "string",
                 "format": "date-time",
@@ -20990,6 +21146,106 @@
           "codEnabled": { "type": "boolean" }
         },
         "required": ["tenantId", "brandId", "inventoryLocationId", "currency", "codEnabled"],
+        "additionalProperties": false
+      },
+      "StorefrontDeliverySettings": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "brandId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "currency": { "type": "string", "pattern": "^[A-Z]{3}$" },
+          "freeDeliveryThresholdMinor": {
+            "anyOf": [
+              { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+              { "type": "null" }
+            ]
+          },
+          "zones": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": { "type": "string" },
+                "name": { "type": "string" },
+                "feeMinor": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+                "active": { "type": "boolean" },
+                "position": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+              },
+              "required": ["code", "name", "feeMinor", "active", "position"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["brandId", "currency", "freeDeliveryThresholdMinor", "zones"],
+        "additionalProperties": false
+      },
+      "UpdateStorefrontDeliveryRequest": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "freeDeliveryThresholdMinor": {
+            "anyOf": [
+              { "type": "integer", "minimum": 0, "maximum": 100000000000 },
+              { "type": "null" }
+            ]
+          },
+          "zones": {
+            "maxItems": 60,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 20,
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9-]*$"
+                },
+                "name": { "type": "string", "minLength": 1, "maxLength": 100 },
+                "feeMinor": { "type": "integer", "minimum": 0, "maximum": 100000000 },
+                "active": { "type": "boolean" },
+                "position": { "type": "integer", "minimum": 0, "maximum": 1000 }
+              },
+              "required": ["code", "name", "feeMinor"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["freeDeliveryThresholdMinor", "zones"],
+        "additionalProperties": false
+      },
+      "PublicDeliveryOptions": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "currency": {
+            "anyOf": [{ "type": "string", "pattern": "^[A-Z]{3}$" }, { "type": "null" }]
+          },
+          "freeDeliveryThresholdMinor": {
+            "anyOf": [
+              { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+              { "type": "null" }
+            ]
+          },
+          "zones": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": { "type": "string" },
+                "name": { "type": "string" },
+                "feeMinor": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+              },
+              "required": ["code", "name", "feeMinor"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["currency", "freeDeliveryThresholdMinor", "zones"],
         "additionalProperties": false
       },
       "UpsertStorefrontSettingsRequest": {

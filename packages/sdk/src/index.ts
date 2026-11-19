@@ -597,6 +597,13 @@ import {
   type RevokeDeviceRequest,
   type AssignDeviceRequest,
 } from "../../../src/contracts/management/settings";
+import {
+  StorefrontDeliverySettingsSchema,
+  PublicDeliveryOptionsSchema,
+  type StorefrontDeliverySettings,
+  type UpdateStorefrontDeliveryRequest,
+  type PublicDeliveryOptions,
+} from "../../../src/contracts/storefront/delivery";
 export type {
   BusinessSettings,
   UpdateBusinessRequest,
@@ -666,6 +673,12 @@ export type CreateRegisterInput = CreateRegisterRequest & IdempotentWrite;
 export type UpdateRegisterInput = UpdateRegisterRequest & IdempotentWrite & { registerId: string };
 export type UpsertStorefrontSettingsInput = UpsertStorefrontSettingsRequest &
   IdempotentWrite & { brandId: string };
+export type UpdateStorefrontDeliveryInput = UpdateStorefrontDeliveryRequest &
+  IdempotentWrite & { brandId: string };
+export interface PublicDeliveryOptionsQuery {
+  tenantId: string;
+  brandId: string;
+}
 export type UpdateReturnSettingsInput = UpdateReturnSettingsRequest & IdempotentWrite;
 export type RevokeDeviceInput = RevokeDeviceRequest & IdempotentWrite & { deviceId: string };
 export type AssignDeviceInput = AssignDeviceRequest & IdempotentWrite & { deviceId: string };
@@ -873,6 +886,12 @@ export {
   canonicalizeOfflineSaleHoldCommand,
 } from "../../../src/contracts";
 export type {
+  StorefrontDeliverySettings,
+  UpdateStorefrontDeliveryRequest,
+  PublicDeliveryOptions,
+  StorefrontDeliveryQuote,
+  StorefrontDeliveryZone,
+  DeliveryZoneRef,
   VariantOptionSelection,
   SetVariantOptionsResponse,
   UpdateOptionValuesRequest,
@@ -1426,6 +1445,12 @@ export interface TenantCommerceClient {
   listStorefrontSettings(): Promise<StorefrontSettingsListResponse>;
   getStorefrontSettings(brandId: string): Promise<StorefrontSettings>;
   upsertStorefrontSettings(input: UpsertStorefrontSettingsInput): Promise<StorefrontSettings>;
+  /** Delivery areas + free-delivery threshold of a brand's Storefront (settings.read). */
+  getStorefrontDeliverySettings(brandId: string): Promise<StorefrontDeliverySettings>;
+  /** Replace the delivery areas and threshold (settings.manage). */
+  updateStorefrontDeliverySettings(
+    input: UpdateStorefrontDeliveryInput,
+  ): Promise<StorefrontDeliverySettings>;
   getReturnSettings(): Promise<ReturnSettings>;
   updateReturnSettings(input: UpdateReturnSettingsInput): Promise<ReturnSettings>;
   listDevices(query?: DeviceListQuery): Promise<DeviceListResponse>;
@@ -1482,6 +1507,8 @@ export interface CommerceClient {
   listStorefrontCategories(query: PublicCategoryListQuery): Promise<PublicCategoryListResponse>;
   /** Public Storefront home-page content (hero + featured picks). Unauthenticated. */
   getPublicStorefrontContent(query: PublicStorefrontContentQuery): Promise<PublicStorefrontContent>;
+  /** Public delivery areas, fees and free-delivery threshold for a Storefront brand. */
+  getStorefrontDeliveryOptions(query: PublicDeliveryOptionsQuery): Promise<PublicDeliveryOptions>;
 }
 
 export class CommerceSdkError extends Error {}
@@ -2756,6 +2783,22 @@ export function createCommerceClient({
           StorefrontSettingsSchema,
           { tenantId, method: "PUT", body, idempotencyKey },
         ),
+      getStorefrontDeliverySettings: (brandId: string) =>
+        request(
+          `/api/v1/settings/storefront/${encodeURIComponent(brandId)}/delivery`,
+          StorefrontDeliverySettingsSchema,
+          { tenantId },
+        ),
+      updateStorefrontDeliverySettings: ({
+        brandId,
+        idempotencyKey,
+        ...body
+      }: UpdateStorefrontDeliveryInput) =>
+        request(
+          `/api/v1/settings/storefront/${encodeURIComponent(brandId)}/delivery`,
+          StorefrontDeliverySettingsSchema,
+          { tenantId, method: "PUT", body, idempotencyKey },
+        ),
       getReturnSettings: () =>
         request("/api/v1/settings/returns", ReturnSettingsSchema, { tenantId }),
       updateReturnSettings: ({ idempotencyKey, ...body }: UpdateReturnSettingsInput) =>
@@ -2934,6 +2977,11 @@ export function createCommerceClient({
       request(
         `/api/v1/storefront/categories${buildQuery({ tenantId: query.tenantId })}`,
         PublicCategoryListResponseSchema,
+      ),
+    getStorefrontDeliveryOptions: (query: PublicDeliveryOptionsQuery) =>
+      request(
+        `/api/v1/storefront/delivery${buildQuery({ tenantId: query.tenantId, brandId: query.brandId })}`,
+        PublicDeliveryOptionsSchema,
       ),
     getPublicStorefrontContent: (query: PublicStorefrontContentQuery) =>
       request(

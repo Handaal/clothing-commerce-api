@@ -18,6 +18,7 @@ import {
   RevokeDeviceRequestSchema,
   AssignDeviceRequestSchema,
 } from "../contracts/management/settings";
+import { UpdateStorefrontDeliveryRequestSchema } from "../contracts/storefront/delivery";
 import { SettingsError } from "./errors";
 import {
   BrandListQuerySchema,
@@ -247,6 +248,31 @@ export class SettingsService {
       parse(z.uuid(), brandId),
       key,
       parse(UpsertStorefrontSettingsRequestSchema, input),
+    );
+  }
+
+  // ---- Storefront delivery zones ----
+  async getStorefrontDelivery(context: AuthorizationContext, brandId: string) {
+    return this.repository.getStorefrontDelivery(
+      await this.read(context),
+      parse(z.uuid(), brandId),
+    );
+  }
+  async updateStorefrontDelivery(
+    context: AuthorizationContext,
+    brandId: string,
+    key: string,
+    input: unknown,
+  ) {
+    const body = parse(UpdateStorefrontDeliveryRequestSchema, input);
+    return this.repository.writeStorefrontDelivery(
+      await this.manage(context),
+      parse(z.uuid(), brandId),
+      key,
+      {
+        freeDeliveryThresholdMinor: body.freeDeliveryThresholdMinor,
+        zones: body.zones.map((zone) => ({ ...zone, code: zone.code.toUpperCase() })),
+      },
     );
   }
 

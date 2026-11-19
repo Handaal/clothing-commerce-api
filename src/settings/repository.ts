@@ -19,6 +19,7 @@ import {
   DeviceSchema,
   DeviceListResponseSchema,
 } from "../contracts/management/settings";
+import { StorefrontDeliverySettingsSchema } from "../contracts/storefront/delivery";
 import { InvalidCursorError } from "../management/cursor";
 import { settingsDatabaseError } from "./errors";
 import type {
@@ -353,6 +354,33 @@ export class SettingsRepository {
         p_input: input,
       },
       StorefrontSettingsSchema,
+    );
+  }
+
+  // ---- Storefront delivery zones ----
+  async getStorefrontDelivery(proof: AuthorizedOperationContext, brandId: string) {
+    return this.rpc(
+      "get_storefront_delivery",
+      { p_tenant: this.tenant(proof), p_brand: brandId },
+      StorefrontDeliverySettingsSchema,
+    );
+  }
+  async writeStorefrontDelivery(
+    proof: AuthorizedOperationContext,
+    brandId: string,
+    key: string,
+    input: unknown,
+  ) {
+    return this.rpc(
+      "write_storefront_delivery",
+      {
+        p_tenant: this.tenant(proof),
+        p_brand: brandId,
+        p_actor: this.actor(proof),
+        p_key: key,
+        p_input: input,
+      },
+      StorefrontDeliverySettingsSchema,
     );
   }
 

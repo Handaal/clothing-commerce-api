@@ -83,6 +83,18 @@ signature. Omitted ⇒ canonical form unchanged. The server verifies it against 
 acceptance time, records the attribution, and reports `OFFLINE_OPERATOR_UNVERIFIED` /
 `OFFLINE_OPERATOR_CHANGED_BEFORE_SYNC` as `sync_integrity` sync conflicts. Deploy the server before tills send it.
 
+SDK 0.45.0 (additive; needs migration `20261119130000_storefront_delivery_fees`): delivery fees per area.
+
+- `getStorefrontDeliveryOptions({ tenantId, brandId })` (public) → active zones (`code`, `name`, `feeMinor`)
+  and `freeDeliveryThresholdMinor`. Empty zones = free delivery, no zone needed.
+- `quote` accepts `zoneCode`; the response gains `delivery` (`required`, `feeMinor` — null until a zone is
+  chosen, `zone`, `freeDeliveryThresholdMinor`, `freeApplied`). `totalMinor` includes a known fee.
+- `checkout`: `delivery.zoneCode` is required when the brand has zones (`DELIVERY_ZONE_UNAVAILABLE`
+  otherwise); `expectedTotalMinor` includes the fee; the result adds `deliveryFeeMinor` and `deliveryZone`.
+- Orders: list items gain `deliveryFeeMinor`; online order detail `commerce.deliveryFeeMinor` (the fee is included in `totalMinor`).
+- Settings: `getStorefrontDeliverySettings(brandId)` / `updateStorefrontDeliverySettings({ brandId,
+idempotencyKey, freeDeliveryThresholdMinor, zones })` (replace-all; settings.read / settings.manage).
+
 SDK 0.44.0 (additive; needs migration `20261119120000_catalog_options_categories_storefront`): structured
 product options and categories for the Storefront.
 

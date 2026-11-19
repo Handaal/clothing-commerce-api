@@ -281,6 +281,9 @@ its phase arrives.
 - **Product options and categories (SDK `0.44.0`, 2026-11-19)** — sanctioned writes for variant option values
   (Size/Colour, with colour swatches) and the category tree, plus options/categories in the public product
   projection and a public category list. See [options and categories](../catalog/options-and-categories.md).
+- **Delivery fees (SDK `0.45.0`, 2026-11-19)** — per-brand delivery zones with fees and an optional
+  free-delivery threshold; the fee is part of the order total and COD amount. See
+  [delivery fees](../orders/delivery-fees.md).
 - **Detailed promotions / voucher / discount semantics** — Phase 2P-A delivers the validated **money
   core** (branch `phase/2p-promotions-core`): promotion/adjustment/redemption schema, the Order
   accounting evolution (`gross_subtotal_minor`/`discount_total_minor`/net `total_minor`, backward

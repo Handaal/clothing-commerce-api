@@ -34,6 +34,8 @@ export const OrderSummarySchema = z.object({
   branchId: UuidSchema.nullable(),
   currency: CurrencySchema,
   totalMinor: NonNegativeIntegerSchema,
+  // Delivery fee included in totalMinor (online orders; 0 for POS).
+  deliveryFeeMinor: NonNegativeIntegerSchema.optional(),
   placedAt: IsoDateTimeSchema,
 });
 

@@ -405,6 +405,7 @@ export * from "./management/promotions";
 export * from "./management/inventory-channels";
 
 export * from "./storefront/checkout";
+export * from "./storefront/delivery";
 export * from "./management/returns";
 export * from "./management/customers";
 

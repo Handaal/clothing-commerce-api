@@ -222,6 +222,11 @@ import {
   RevokeDeviceRequestSchema,
   AssignDeviceRequestSchema,
 } from "../contracts/management/settings";
+import {
+  PublicDeliveryOptionsSchema,
+  StorefrontDeliverySettingsSchema,
+  UpdateStorefrontDeliveryRequestSchema,
+} from "../contracts/storefront/delivery";
 
 import {
   SaleSchema,
@@ -677,6 +682,20 @@ export function generateOpenApiDocument() {
           "#/components/schemas/UpsertStorefrontSettingsRequest",
           [settingsPathParameter("brandId")],
           "Requires settings.manage and Idempotency-Key. currency is rejected once the brand has an online order (same value is a no-op).",
+        ),
+      },
+      "/api/v1/settings/storefront/{brandId}/delivery": {
+        get: settingsRead(
+          "getStorefrontDeliverySettings",
+          "#/components/schemas/StorefrontDeliverySettings",
+          [settingsPathParameter("brandId")],
+        ),
+        put: settingsWrite(
+          "updateStorefrontDeliverySettings",
+          "#/components/schemas/StorefrontDeliverySettings",
+          "#/components/schemas/UpdateStorefrontDeliveryRequest",
+          [settingsPathParameter("brandId")],
+          "Requires settings.manage and Idempotency-Key. Replaces the brand's delivery zones (codes stored upper-case) and the free-delivery threshold. With at least one active zone, online checkout requires delivery.zoneCode and charges that zone's fee; orders keep their own zone snapshot.",
         ),
       },
       "/api/v1/settings/returns": {
@@ -3355,6 +3374,36 @@ export function generateOpenApiDocument() {
           },
         },
       },
+      "/api/v1/storefront/delivery": {
+        get: {
+          operationId: "getStorefrontDeliveryOptions",
+          tags: ["storefront"],
+          summary: "Delivery areas, fees and free-delivery threshold for a storefront brand.",
+          description:
+            "Public, unauthenticated. Active delivery zones in display order. An empty list means " +
+            "delivery is free and checkout needs no zone.",
+          parameters: [
+            {
+              name: "tenantId",
+              in: "query",
+              required: true,
+              description: "The tenant the storefront serves.",
+              schema: { type: "string", format: "uuid" },
+            },
+            {
+              name: "brandId",
+              in: "query",
+              required: true,
+              description: "The storefront brand.",
+              schema: { type: "string", format: "uuid" },
+            },
+          ],
+          responses: {
+            "200": jsonResponse("Delivery options.", "#/components/schemas/PublicDeliveryOptions"),
+            ...errorResponses(400, 500),
+          },
+        },
+      },
       "/api/v1/storefront/categories": {
         get: {
           operationId: "listStorefrontCategories",
@@ -4622,6 +4671,9 @@ export function generateOpenApiDocument() {
         UpdateRegisterRequest: jsonSchema(UpdateRegisterRequestSchema),
         RegisterListResponse: jsonSchema(RegisterListResponseSchema),
         StorefrontSettings: jsonSchema(StorefrontSettingsSchema),
+        StorefrontDeliverySettings: jsonSchema(StorefrontDeliverySettingsSchema),
+        UpdateStorefrontDeliveryRequest: jsonSchema(UpdateStorefrontDeliveryRequestSchema),
+        PublicDeliveryOptions: jsonSchema(PublicDeliveryOptionsSchema),
         UpsertStorefrontSettingsRequest: jsonSchema(UpsertStorefrontSettingsRequestSchema),
         StorefrontSettingsListResponse: jsonSchema(StorefrontSettingsListResponseSchema),
         ReturnSettings: jsonSchema(ReturnSettingsSchema),
