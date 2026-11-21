@@ -22,7 +22,42 @@ const OrderListRowSchema = z.object({
   total_minor: z.union([z.number(), z.string()]),
   delivery_fee_minor: z.union([z.number(), z.string()]).optional(),
   placed_at: z.string().min(1),
+  customer_snapshot: z.unknown().optional(),
+  delivery_snapshot: z.unknown().optional(),
 });
+
+const ListLineRowSchema = z.object({
+  id: z.string().uuid(),
+  order_id: z.string().uuid(),
+  quantity: z.union([z.number(), z.string()]),
+});
+const ListFulfilledRowSchema = z.object({
+  order_line_id: z.string().uuid(),
+  quantity: z.union([z.number(), z.string()]),
+});
+
+const LineLabelRowSchema = z.object({
+  line_number: z.number().int(),
+  variant_name_snapshot: z.string().nullable().optional(),
+  option_summary_snapshot: z.string().nullable().optional(),
+});
+const OptionValueRowSchema = z.object({ id: z.string().uuid(), display_value: z.string() });
+const UUID_LIST =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(\s*,\s*[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})*$/iu;
+
+/** The option value ids of an id-list snapshot, or null when the snapshot is readable text. */
+function optionIdList(snapshot: string | null | undefined): string[] | null {
+  const text = snapshot?.trim();
+  if (!text || !UUID_LIST.test(text)) return null;
+  return text.split(",").map((id) => id.trim().toLowerCase());
+}
+
+/** A string field from a stored JSON snapshot, or null. */
+function snapshotText(snapshot: unknown, key: string): string | null {
+  if (typeof snapshot !== "object" || snapshot === null) return null;
+  const value = (snapshot as Record<string, unknown>)[key];
+  return typeof value === "string" && value.trim() !== "" ? value : null;
+}
 
 function parseRows<T>(schema: z.ZodType<T>, value: unknown): T[] {
   const parsed = z.array(schema).safeParse(value);
@@ -172,11 +207,113 @@ export class SupabaseOrdersReadRepository implements OrdersReadRepository {
     return parseRows(IdRowSchema, data).length === 1;
   }
 
+  async getLineLabels(
+    tenantId: string,
+    orderId: string,
+  ): Promise<Map<number, { variantName: string | null; optionSummary: string | null }>> {
+    const { data, error } = await this.client
+      .from("order_lines")
+      .select("line_number,variant_name_snapshot,option_summary_snapshot")
+      .eq("tenant_id", tenantId)
+      .eq("order_id", orderId);
+    requireNoQueryError(error);
+    const rows = parseRows(LineLabelRowSchema, data);
+    // Online lines snapshot option VALUE ids ("uuid,uuid"); POS lines snapshot readable text. Resolve
+    // ids to their display values in the listed order ("S · White"), like the Storefront tracker.
+    const ids = new Set<string>();
+    for (const row of rows) {
+      for (const id of optionIdList(row.option_summary_snapshot) ?? []) ids.add(id);
+    }
+    const names = new Map<string, string>();
+    if (ids.size > 0) {
+      const values = await this.client
+        .from("product_option_values")
+        .select("id,display_value")
+        .eq("tenant_id", tenantId)
+        .in("id", [...ids]);
+      requireNoQueryError(values.error);
+      for (const value of parseRows(OptionValueRowSchema, values.data)) {
+        names.set(value.id, value.display_value);
+      }
+    }
+    const labels = new Map<number, { variantName: string | null; optionSummary: string | null }>();
+    for (const row of rows) {
+      const raw = row.option_summary_snapshot?.trim() || null;
+      const idList = optionIdList(raw);
+      const optionSummary = idList
+        ? idList
+            .map((id) => names.get(id))
+            .filter((name): name is string => Boolean(name))
+            .join(" · ") || null
+        : raw;
+      labels.set(row.line_number, {
+        variantName: row.variant_name_snapshot?.trim() || null,
+        optionSummary,
+      });
+    }
+    return labels;
+  }
+
+  /**
+   * Order-level fulfilment progress for one list page, from two batched reads (the page's order lines
+   * and their fulfilled quantities). Same rule as the detail summary: nothing shipped = unfulfilled,
+   * every line fully shipped = fulfilled, anything between = partially_fulfilled.
+   */
+  private async fulfillmentStatuses(
+    tenantId: string,
+    orderIds: readonly string[],
+  ): Promise<Map<string, "unfulfilled" | "partially_fulfilled" | "fulfilled">> {
+    const result = new Map<string, "unfulfilled" | "partially_fulfilled" | "fulfilled">();
+    if (orderIds.length === 0) return result;
+    const [lines, fulfilled] = await Promise.all([
+      this.client
+        .from("order_lines")
+        .select("id,order_id,quantity")
+        .eq("tenant_id", tenantId)
+        .in("order_id", [...orderIds]),
+      this.client
+        .from("fulfillment_lines")
+        .select("order_line_id,quantity")
+        .eq("tenant_id", tenantId)
+        .in("order_id", [...orderIds]),
+    ]);
+    requireNoQueryError(lines.error);
+    requireNoQueryError(fulfilled.error);
+    const shipped = new Map<string, number>();
+    for (const row of parseRows(ListFulfilledRowSchema, fulfilled.data)) {
+      shipped.set(
+        row.order_line_id,
+        (shipped.get(row.order_line_id) ?? 0) + toSafeInteger(row.quantity),
+      );
+    }
+    const totals = new Map<string, { ordered: number; done: number; any: boolean }>();
+    for (const row of parseRows(ListLineRowSchema, lines.data)) {
+      const ordered = toSafeInteger(row.quantity);
+      const done = Math.min(ordered, shipped.get(row.id) ?? 0);
+      const entry = totals.get(row.order_id) ?? { ordered: 0, done: 0, any: false };
+      entry.ordered += ordered;
+      entry.done += done;
+      entry.any ||= done > 0;
+      totals.set(row.order_id, entry);
+    }
+    for (const [orderId, entry] of totals) {
+      result.set(
+        orderId,
+        entry.ordered > 0 && entry.done >= entry.ordered
+          ? "fulfilled"
+          : entry.any
+            ? "partially_fulfilled"
+            : "unfulfilled",
+      );
+    }
+    return result;
+  }
+
   async listOrders(query: OrderListQuery): Promise<OrderListRow[]> {
     let request = this.client
       .from("orders")
       .select(
-        "id,order_number,channel,status,brand_id,branch_id,currency,total_minor,delivery_fee_minor,placed_at",
+        "id,order_number,channel,status,brand_id,branch_id,currency,total_minor,delivery_fee_minor,placed_at,customer_snapshot,delivery_snapshot",
       )
       .eq("tenant_id", query.tenantId);
 
@@ -232,7 +369,12 @@ export class SupabaseOrdersReadRepository implements OrdersReadRepository {
       .limit(query.fetchLimit);
     requireNoQueryError(error);
 
-    return parseRows(OrderListRowSchema, data).map((row) => ({
+    const rows = parseRows(OrderListRowSchema, data);
+    const fulfillment = await this.fulfillmentStatuses(
+      query.tenantId,
+      rows.map((row) => row.id),
+    );
+    return rows.map((row) => ({
       summary: {
         id: row.id,
         orderNumber: row.order_number,
@@ -244,6 +386,10 @@ export class SupabaseOrdersReadRepository implements OrdersReadRepository {
         totalMinor: toSafeInteger(row.total_minor),
         deliveryFeeMinor: toSafeInteger(row.delivery_fee_minor ?? 0),
         placedAt: normalizeTimestampUtc(row.placed_at),
+        fulfillmentStatus: fulfillment.get(row.id) ?? "unfulfilled",
+        customerName: snapshotText(row.customer_snapshot, "name"),
+        customerPhone: snapshotText(row.customer_snapshot, "phone"),
+        deliveryCity: snapshotText(row.delivery_snapshot, "city"),
       },
       cursor: { placedAt: normalizeTimestampUtc(row.placed_at), id: row.id },
     }));

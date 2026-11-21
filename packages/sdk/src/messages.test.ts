@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   customerOrderConfirmMessage,
   orderConfirmationMessage,
+  orderShippedMessage,
   smsLink,
   whatsAppLink,
   whatsAppNumber,
@@ -61,5 +62,25 @@ describe("click-to-chat messages", () => {
     expect(smsLink("+20 100 123 4567", "Hi")).toBe("sms:+201001234567?body=Hi");
     expect(whatsAppLink("abc", "x")).toBeNull();
     expect(smsLink("12", "x")).toBeNull();
+  });
+});
+
+describe("orderShippedMessage", () => {
+  it("tells the customer the order is on its way, with the amount to have ready", () => {
+    const text = orderShippedMessage({
+      storeName: "Zee Store",
+      orderReference: "21",
+      customerName: "Omar Hassan",
+      totalLabel: "EGP 510.68",
+      deliveryCity: "Dokki",
+      trackingUrl: "https://zee.example/track?order=21",
+    });
+    expect(text).toContain("Hi Omar,");
+    expect(text).toContain("your Zee Store order #21 is on its way to Dokki.");
+    expect(text).toContain("EGP 510.68 ready to pay on delivery");
+    expect(text).not.toContain("Confirm");
+    expect(
+      orderShippedMessage({ storeName: "Zee", orderReference: "7", language: "ar" }),
+    ).toContain("في الطريق");
   });
 });

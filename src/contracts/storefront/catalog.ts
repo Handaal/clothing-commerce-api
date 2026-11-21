@@ -123,6 +123,14 @@ export const SizeGuideSchema = z
   });
 export type SizeGuide = z.infer<typeof SizeGuideSchema>;
 
+// SDK 0.50: the label a product is made by (e.g. Zara), shown as "Brand". Not the tenant's own brand.
+export const PublicProductVendorSchema = z.object({
+  id: UuidSchema,
+  slug: z.string(),
+  name: z.string(),
+});
+export type PublicProductVendor = z.infer<typeof PublicProductVendorSchema>;
+
 export const PublicProductSchema = z.object({
   id: UuidSchema,
   brandId: UuidSchema,
@@ -136,6 +144,8 @@ export const PublicProductSchema = z.object({
   options: z.array(PublicProductOptionSchema).optional(),
   categories: z.array(PublicProductCategorySchema).optional(),
   sizeGuide: SizeGuideSchema.nullable().optional(),
+  // SDK 0.50: the label that makes the piece (e.g. Zara), when set and active; else null.
+  vendor: PublicProductVendorSchema.nullable().optional(),
 });
 export type PublicProduct = z.infer<typeof PublicProductSchema>;
 
@@ -165,6 +175,22 @@ export const PublicCategoryListResponseSchema = z.object({
   categories: z.array(PublicCategorySchema),
 });
 export type PublicCategoryListResponse = z.infer<typeof PublicCategoryListResponseSchema>;
+
+// ---- Public vendor list (SDK 0.50, "shop by brand") ----
+// Active vendors that hold at least one publicly visible product, in display order.
+export const PublicVendorSchema = z.object({
+  id: UuidSchema,
+  slug: z.string(),
+  name: z.string(),
+  position: NonNegativeIntegerSchema,
+  productCount: NonNegativeIntegerSchema,
+});
+export type PublicVendor = z.infer<typeof PublicVendorSchema>;
+
+export const PublicVendorListResponseSchema = z.object({
+  vendors: z.array(PublicVendorSchema),
+});
+export type PublicVendorListResponse = z.infer<typeof PublicVendorListResponseSchema>;
 
 // ---- Public best sellers (SDK 0.46) ----
 // Publicly visible products ranked by units sold on placed orders (POS + online) over the last `days`,

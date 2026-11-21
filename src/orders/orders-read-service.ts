@@ -112,8 +112,19 @@ export class OrdersReadService {
     const order = await this.orderService.getOrder(context, { orderId });
     const summary = await this.fulfillmentService.getOrderFulfillmentSummary(context, { orderId });
     const commerce = await this.repository.getCommerceDetails(context.tenant.id, orderId);
+    const labels = await this.repository.getLineLabels(context.tenant.id, orderId);
     const returns = await this.returnsService?.summaryIfAuthorized(context, orderId);
-    return { ...this.mapDetail(order, summary), commerce, ...(returns ? { returns } : {}) };
+    const detail = this.mapDetail(order, summary);
+    return {
+      ...detail,
+      lines: detail.lines.map((line) => ({
+        ...line,
+        variantName: labels.get(line.lineNumber)?.variantName ?? null,
+        optionSummary: labels.get(line.lineNumber)?.optionSummary ?? null,
+      })),
+      commerce,
+      ...(returns ? { returns } : {}),
+    };
   }
 
   private mapDetail(order: OrderResult, summary: OrderFulfillmentSummary): OrderDetailResponse {

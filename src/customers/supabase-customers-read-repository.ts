@@ -71,10 +71,13 @@ export class SupabaseCustomersReadRepository implements CustomersReadRepository 
   async listCustomers(params: CustomerListParams): Promise<CustomerListRow[]> {
     const term = params.search ? sanitizeTerm(params.search) : "";
     const phoneTerm = params.search ? params.search.replace(/[^+0-9]/g, "") : "";
-    const searchSub =
-      term === "" && phoneTerm === ""
-        ? null
-        : `or(name.ilike.*${term}*,normalized_phone.ilike.*${phoneTerm}*)`;
+    // Only emit a clause for a non-empty fragment: an empty `ilike.**` matches every row, so a name-only
+    // term ("samy" → no digits) used to return the whole customer book via the phone clause.
+    const searchClauses = [
+      ...(term !== "" ? [`name.ilike.*${term}*`] : []),
+      ...(phoneTerm !== "" ? [`normalized_phone.ilike.*${phoneTerm}*`] : []),
+    ];
+    const searchSub = searchClauses.length === 0 ? null : `or(${searchClauses.join(",")})`;
     const keysetSub =
       params.cursor === null
         ? null

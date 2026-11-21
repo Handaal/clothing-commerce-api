@@ -31,6 +31,11 @@ export interface OrderListRow {
 export interface OrdersReadRepository {
   brandExistsInTenant(tenantId: string, brandId: string): Promise<boolean>;
   branchExistsInTenant(tenantId: string, branchId: string): Promise<boolean>;
+  /** Readable variant name / option summary per order line number (SDK 0.51). */
+  getLineLabels(
+    tenantId: string,
+    orderId: string,
+  ): Promise<Map<number, { variantName: string | null; optionSummary: string | null }>>;
   getCommerceDetails(
     tenantId: string,
     orderId: string,

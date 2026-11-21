@@ -76,6 +76,7 @@ export const DbPublicProductSchema = z.object({
     .optional(),
   categories: z.array(z.object({ id: z.string(), slug: z.string(), name: z.string() })).optional(),
   sizeGuide: z.unknown().optional(),
+  vendor: z.object({ id: z.string(), slug: z.string(), name: z.string() }).nullable().optional(),
 });
 
 export function shapePublicProduct(raw: unknown): PublicProduct {
@@ -139,6 +140,9 @@ export function shapePublicProduct(raw: unknown): PublicProduct {
       name: category.name,
     })),
     sizeGuide: shapeSizeGuide(parsed.sizeGuide),
+    vendor: parsed.vendor
+      ? { id: parsed.vendor.id, slug: parsed.vendor.slug, name: parsed.vendor.name }
+      : null,
   };
 }
 

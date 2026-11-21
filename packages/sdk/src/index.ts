@@ -755,6 +755,11 @@ import {
   SetProductCategoriesResponseSchema,
   PublicCategoryListResponseSchema,
   SetCategorySizeGuideResponseSchema,
+  VendorListResponseSchema,
+  VendorWriteResponseSchema,
+  VendorUpdatedResponseSchema,
+  SetProductVendorResponseSchema,
+  PublicVendorListResponseSchema,
   PublicBestSellersResponseSchema,
   StorefrontSubscribeResponseSchema,
   SubscriberListResponseSchema,
@@ -771,6 +776,14 @@ import {
   type StorefrontSubscribeResponse,
   type SubscriberListResponse,
   type SetCategorySizeGuideResponse,
+  type VendorListResponse,
+  type VendorWriteResponse,
+  type VendorUpdatedResponse,
+  type SetProductVendorResponse,
+  type PublicVendorListResponse,
+  type CreateVendorRequest,
+  type UpdateVendorRequest,
+  type VendorStatus,
   type PublicBestSellersResponse,
   type SizeGuide,
   type VariantOptionSelection,
@@ -929,6 +942,17 @@ export type {
   SizeGuide,
   SetCategorySizeGuideRequest,
   SetCategorySizeGuideResponse,
+  VendorListResponse,
+  VendorSummary,
+  VendorStatus,
+  VendorWriteResponse,
+  VendorUpdatedResponse,
+  CreateVendorRequest,
+  UpdateVendorRequest,
+  SetProductVendorResponse,
+  PublicVendor,
+  PublicVendorListResponse,
+  PublicProductVendor,
   PublicBestSellersResponse,
   StorefrontSubscribeRequest,
   StorefrontSubscribeResponse,
@@ -1158,6 +1182,24 @@ export interface SetProductCategoriesInput extends IdempotentWrite {
   productId: string;
   categoryIds: string[];
 }
+
+// ---- Vendors (SDK 0.50): the labels the tenant sells, shown as "Brand" ----
+export interface CreateVendorInput extends IdempotentWrite, CreateVendorRequest {}
+export interface UpdateVendorInput extends IdempotentWrite, UpdateVendorRequest {
+  vendorId: string;
+}
+export interface SetVendorStatusInput extends IdempotentWrite {
+  vendorId: string;
+  status: VendorStatus;
+}
+export interface SetProductVendorInput extends IdempotentWrite {
+  productId: string;
+  /** The vendor id, or null to clear it. */
+  vendorId: string | null;
+}
+export interface PublicVendorListQuery {
+  tenantId: string;
+}
 export interface SetVariantPriceInput extends IdempotentWrite {
   variantId: string;
   currency: string;
@@ -1315,6 +1357,13 @@ export interface TenantCommerceClient {
   /** SDK 0.48: approve / decline / complete a return request (returns.create). */
   updateReturnRequestStatus(input: UpdateReturnRequestStatusInput): Promise<ReturnRequest>;
   setProductCategories(input: SetProductCategoriesInput): Promise<SetProductCategoriesResponse>;
+  /** SDK 0.50: the labels the tenant sells (shown as "Brand"), any status (catalog.author). */
+  listVendors(): Promise<VendorListResponse>;
+  createVendor(input: CreateVendorInput): Promise<VendorWriteResponse>;
+  updateVendor(input: UpdateVendorInput): Promise<VendorUpdatedResponse>;
+  setVendorStatus(input: SetVendorStatusInput): Promise<VendorWriteResponse>;
+  /** SDK 0.50: set or clear (null) the label a product is made by. */
+  setProductVendor(input: SetProductVendorInput): Promise<SetProductVendorResponse>;
   listInventory(query?: InventoryListQuery): Promise<InventoryListResponse>;
   listSuppliers(query?: SupplierListQuery): Promise<SupplierListResponse>;
   getSupplier(supplierId: string): Promise<Supplier>;
@@ -1609,6 +1658,8 @@ export interface CommerceClient {
   getPublishedCollection(query: PublicCollectionQuery): Promise<PublicCollectionDetailResponse>;
   /** Public Storefront category tree (active categories with publicly visible products). */
   listStorefrontCategories(query: PublicCategoryListQuery): Promise<PublicCategoryListResponse>;
+  /** SDK 0.50: public "shop by brand" list (active vendors with publicly visible products). */
+  listStorefrontVendors(query: PublicVendorListQuery): Promise<PublicVendorListResponse>;
   /** SDK 0.46: publicly visible product ids ranked by recent units sold (best first). */
   listStorefrontBestSellers(query: PublicBestSellersQuery): Promise<PublicBestSellersResponse>;
   /** SDK 0.47: public drop-alert sign-up; same answer whether or not already listed. */
@@ -2002,6 +2053,33 @@ export function createCommerceClient({
         request(
           `/api/v1/products/${encodeURIComponent(productId)}/categories`,
           SetProductCategoriesResponseSchema,
+          { tenantId, method: "PUT", body, idempotencyKey },
+        ),
+      listVendors: () => request("/api/v1/vendors", VendorListResponseSchema, { tenantId }),
+      createVendor: ({ idempotencyKey, ...body }: CreateVendorInput) =>
+        request("/api/v1/vendors", VendorWriteResponseSchema, {
+          tenantId,
+          method: "POST",
+          body,
+          idempotencyKey,
+        }),
+      updateVendor: ({ idempotencyKey, vendorId, ...body }: UpdateVendorInput) =>
+        request(`/api/v1/vendors/${encodeURIComponent(vendorId)}`, VendorUpdatedResponseSchema, {
+          tenantId,
+          method: "PATCH",
+          body,
+          idempotencyKey,
+        }),
+      setVendorStatus: ({ idempotencyKey, vendorId, ...body }: SetVendorStatusInput) =>
+        request(
+          `/api/v1/vendors/${encodeURIComponent(vendorId)}/status`,
+          VendorWriteResponseSchema,
+          { tenantId, method: "POST", body, idempotencyKey },
+        ),
+      setProductVendor: ({ idempotencyKey, productId, ...body }: SetProductVendorInput) =>
+        request(
+          `/api/v1/products/${encodeURIComponent(productId)}/vendor`,
+          SetProductVendorResponseSchema,
           { tenantId, method: "PUT", body, idempotencyKey },
         ),
       listInventory: (query = {}) =>
@@ -3125,6 +3203,11 @@ export function createCommerceClient({
       request(
         `/api/v1/storefront/categories${buildQuery({ tenantId: query.tenantId })}`,
         PublicCategoryListResponseSchema,
+      ),
+    listStorefrontVendors: (query: PublicVendorListQuery) =>
+      request(
+        `/api/v1/storefront/vendors${buildQuery({ tenantId: query.tenantId })}`,
+        PublicVendorListResponseSchema,
       ),
     listStorefrontBestSellers: (query: PublicBestSellersQuery) =>
       request(

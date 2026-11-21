@@ -166,6 +166,15 @@ import {
   PublicCategoryListResponseSchema,
   SetCategorySizeGuideRequestSchema,
   SetCategorySizeGuideResponseSchema,
+  VendorListResponseSchema,
+  CreateVendorRequestSchema,
+  UpdateVendorRequestSchema,
+  SetVendorStatusRequestSchema,
+  VendorWriteResponseSchema,
+  VendorUpdatedResponseSchema,
+  SetProductVendorRequestSchema,
+  SetProductVendorResponseSchema,
+  PublicVendorListResponseSchema,
   PublicBestSellersResponseSchema,
   StorefrontSubscribeRequestSchema,
   StorefrontSubscribeResponseSchema,
@@ -2983,7 +2992,7 @@ export function generateOpenApiDocument() {
           summary: "List categories in the caller's tenant.",
           description:
             "Lists every category (any status) with its parent and direct product count. Requires " +
-            "catalog.author tenant-wide.",
+            "catalog.author tenant-wide, or catalog.read over any brand (selling channels group by it).",
           security: clerkSecurity,
           parameters: [tenantHeaderParameter],
           responses: {
@@ -3101,6 +3110,135 @@ export function generateOpenApiDocument() {
             "200": jsonResponse(
               "The category id and whether it now has a guide.",
               "#/components/schemas/SetCategorySizeGuideResponse",
+            ),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
+      "/api/v1/vendors": {
+        get: {
+          operationId: "listVendors",
+          tags: ["catalog-management"],
+          summary: "List brands (vendors) in the caller's tenant.",
+          description:
+            "Lists every vendor (the labels the tenant sells, e.g. Zara; shown as Brand in the apps) of " +
+            "any status with its product count. Requires catalog.author tenant-wide, or catalog.read " +
+            "over any brand (selling channels search by it).",
+          security: clerkSecurity,
+          parameters: [tenantHeaderParameter],
+          responses: {
+            "200": jsonResponse("All vendors.", "#/components/schemas/VendorListResponse"),
+            ...errorResponses(400, 401, 403, 500),
+          },
+        },
+        post: {
+          operationId: "createVendor",
+          tags: ["catalog-management"],
+          summary: "Create a brand (vendor).",
+          description:
+            "Creates an active vendor. Requires catalog.author tenant-wide and an Idempotency-Key header.",
+          security: clerkSecurity,
+          parameters: [tenantHeaderParameter, idempotencyKeyHeaderParameter],
+          requestBody: jsonRequestBody(
+            "Create a vendor.",
+            "#/components/schemas/CreateVendorRequest",
+          ),
+          responses: {
+            "200": jsonResponse(
+              "The created vendor id and status.",
+              "#/components/schemas/VendorWriteResponse",
+            ),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
+      "/api/v1/vendors/{vendorId}": {
+        patch: {
+          operationId: "updateVendor",
+          tags: ["catalog-management"],
+          summary: "Update a brand (vendor).",
+          description:
+            "Updates name, slug and position. A duplicate slug is rejected (409 SLUG_CONFLICT).",
+          security: clerkSecurity,
+          parameters: [
+            tenantHeaderParameter,
+            idempotencyKeyHeaderParameter,
+            {
+              name: "vendorId",
+              in: "path",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+          ],
+          requestBody: jsonRequestBody(
+            "Update a vendor.",
+            "#/components/schemas/UpdateVendorRequest",
+          ),
+          responses: {
+            "200": jsonResponse(
+              "The updated vendor id.",
+              "#/components/schemas/VendorUpdatedResponse",
+            ),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
+      "/api/v1/vendors/{vendorId}/status": {
+        post: {
+          operationId: "setVendorStatus",
+          tags: ["catalog-management"],
+          summary: "Archive or restore a brand (vendor).",
+          description:
+            "An archived vendor is hidden from the Storefront; its products stay listed without a brand.",
+          security: clerkSecurity,
+          parameters: [
+            tenantHeaderParameter,
+            idempotencyKeyHeaderParameter,
+            {
+              name: "vendorId",
+              in: "path",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+          ],
+          requestBody: jsonRequestBody(
+            "Archive or restore a vendor.",
+            "#/components/schemas/SetVendorStatusRequest",
+          ),
+          responses: {
+            "200": jsonResponse(
+              "The vendor id and new status.",
+              "#/components/schemas/VendorWriteResponse",
+            ),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
+      "/api/v1/products/{productId}/vendor": {
+        put: {
+          operationId: "setProductVendor",
+          tags: ["catalog-management"],
+          summary: "Set or clear a product's brand (vendor).",
+          description: "Sets the label the product is made by; send vendorId null to clear it.",
+          security: clerkSecurity,
+          parameters: [
+            tenantHeaderParameter,
+            idempotencyKeyHeaderParameter,
+            {
+              name: "productId",
+              in: "path",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+          ],
+          requestBody: jsonRequestBody(
+            "Set a product's vendor.",
+            "#/components/schemas/SetProductVendorRequest",
+          ),
+          responses: {
+            "200": jsonResponse(
+              "The product id and vendor id.",
+              "#/components/schemas/SetProductVendorResponse",
             ),
             ...errorResponses(400, 401, 403, 404, 409, 422, 500),
           },
@@ -3472,6 +3610,32 @@ export function generateOpenApiDocument() {
             "200": jsonResponse(
               "The published category list.",
               "#/components/schemas/PublicCategoryListResponse",
+            ),
+            ...errorResponses(400, 500),
+          },
+        },
+      },
+      "/api/v1/storefront/vendors": {
+        get: {
+          operationId: "listStorefrontVendors",
+          tags: ["storefront"],
+          summary: "List the brands (vendors) the storefront sells.",
+          description:
+            "Public, unauthenticated. Returns active vendors that hold at least one publicly visible " +
+            "product, in display order, with productCount.",
+          parameters: [
+            {
+              name: "tenantId",
+              in: "query",
+              required: true,
+              description: "The tenant the storefront serves.",
+              schema: { type: "string", format: "uuid" },
+            },
+          ],
+          responses: {
+            "200": jsonResponse(
+              "The published vendor list.",
+              "#/components/schemas/PublicVendorListResponse",
             ),
             ...errorResponses(400, 500),
           },
@@ -4845,6 +5009,15 @@ export function generateOpenApiDocument() {
         SetProductCategoriesRequest: jsonSchema(SetProductCategoriesRequestSchema),
         SetProductCategoriesResponse: jsonSchema(SetProductCategoriesResponseSchema),
         PublicCategoryListResponse: jsonSchema(PublicCategoryListResponseSchema),
+        VendorListResponse: jsonSchema(VendorListResponseSchema),
+        CreateVendorRequest: jsonSchema(CreateVendorRequestSchema),
+        UpdateVendorRequest: jsonSchema(UpdateVendorRequestSchema),
+        SetVendorStatusRequest: jsonSchema(SetVendorStatusRequestSchema),
+        VendorWriteResponse: jsonSchema(VendorWriteResponseSchema),
+        VendorUpdatedResponse: jsonSchema(VendorUpdatedResponseSchema),
+        SetProductVendorRequest: jsonSchema(SetProductVendorRequestSchema),
+        SetProductVendorResponse: jsonSchema(SetProductVendorResponseSchema),
+        PublicVendorListResponse: jsonSchema(PublicVendorListResponseSchema),
         SetCategorySizeGuideRequest: jsonSchema(SetCategorySizeGuideRequestSchema),
         SetCategorySizeGuideResponse: jsonSchema(SetCategorySizeGuideResponseSchema),
         PublicBestSellersResponse: jsonSchema(PublicBestSellersResponseSchema),

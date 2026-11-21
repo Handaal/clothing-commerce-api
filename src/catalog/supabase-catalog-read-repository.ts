@@ -29,6 +29,7 @@ const ProductRowSchema = z.object({
   style_code: z.string().nullable(),
   status: ProductStatus,
   brand_id: z.string().uuid(),
+  vendor_id: z.string().uuid().nullable().optional(),
 });
 
 const VariantRowSchema = z.object({
@@ -155,7 +156,7 @@ export class SupabaseCatalogReadRepository implements CatalogReadRepository {
   ): Promise<ProductDetailResponse | null> {
     const { data: productData, error: productError } = await this.client
       .from("products")
-      .select("id,name,style_code,status,brand_id")
+      .select("id,name,style_code,status,brand_id,vendor_id")
       .eq("tenant_id", tenantId)
       .eq("id", productId)
       .limit(2);
@@ -276,6 +277,7 @@ export class SupabaseCatalogReadRepository implements CatalogReadRepository {
       })),
       prices,
       categoryIds,
+      vendorId: product.vendor_id ?? null,
     };
   }
 

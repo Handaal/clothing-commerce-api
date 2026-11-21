@@ -64,6 +64,8 @@ export const ProductDetailResponseSchema = z.object({
   prices: z.array(ProductPriceSchema),
   // Categories the product belongs to (any status).
   categoryIds: z.array(UuidSchema).optional(),
+  // SDK 0.50: the product's vendor (the label it is made by, shown as "Brand"); null when unset.
+  vendorId: UuidSchema.nullable().optional(),
 });
 
 export type ProductDetailResponse = z.infer<typeof ProductDetailResponseSchema>;

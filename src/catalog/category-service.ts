@@ -5,6 +5,7 @@ import type { CategoryListResponse, CategoryStatus } from "../contracts/manageme
 import type { PublicCategoryListResponse, SizeGuide } from "../contracts/storefront/catalog";
 import { IntegerLikeSchema } from "./public-product-shape";
 import type { CategoryRepository } from "./category-repository";
+import { authorizeCatalogLabelRead } from "./label-read-authorization";
 
 /**
  * Categories are tenant-wide (no brand scope), like collections, so management authorizes the
@@ -42,7 +43,11 @@ export class CategoryService {
   }
 
   async listCategories(context: AuthorizationContext): Promise<CategoryListResponse> {
-    const proof = await this.authorize(context);
+    const proof = await authorizeCatalogLabelRead(
+      this.authorization,
+      context,
+      CategoryPermission.author,
+    );
     return { categories: await this.repository.listCategories(proof, context.tenant.id) };
   }
 

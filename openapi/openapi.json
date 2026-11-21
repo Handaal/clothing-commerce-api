@@ -4538,7 +4538,7 @@
         "operationId": "listCategories",
         "tags": ["catalog-management"],
         "summary": "List categories in the caller's tenant.",
-        "description": "Lists every category (any status) with its parent and direct product count. Requires catalog.author tenant-wide.",
+        "description": "Lists every category (any status) with its parent and direct product count. Requires catalog.author tenant-wide, or catalog.read over any brand (selling channels group by it).",
         "security": [{ "clerkSessionToken": [] }],
         "parameters": [{ "$ref": "#/components/parameters/TenantIdHeader" }],
         "responses": {
@@ -4716,6 +4716,198 @@
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/SetCategorySizeGuideResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "409": { "$ref": "#/components/responses/Error409" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/v1/vendors": {
+      "get": {
+        "operationId": "listVendors",
+        "tags": ["catalog-management"],
+        "summary": "List brands (vendors) in the caller's tenant.",
+        "description": "Lists every vendor (the labels the tenant sells, e.g. Zara; shown as Brand in the apps) of any status with its product count. Requires catalog.author tenant-wide, or catalog.read over any brand (selling channels search by it).",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/TenantIdHeader" }],
+        "responses": {
+          "200": {
+            "description": "All vendors.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/VendorListResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      },
+      "post": {
+        "operationId": "createVendor",
+        "tags": ["catalog-management"],
+        "summary": "Create a brand (vendor).",
+        "description": "Creates an active vendor. Requires catalog.author tenant-wide and an Idempotency-Key header.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          { "$ref": "#/components/parameters/IdempotencyKeyHeader" }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Create a vendor.",
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/CreateVendorRequest" } }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The created vendor id and status.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/VendorWriteResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "409": { "$ref": "#/components/responses/Error409" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/v1/vendors/{vendorId}": {
+      "patch": {
+        "operationId": "updateVendor",
+        "tags": ["catalog-management"],
+        "summary": "Update a brand (vendor).",
+        "description": "Updates name, slug and position. A duplicate slug is rejected (409 SLUG_CONFLICT).",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          { "$ref": "#/components/parameters/IdempotencyKeyHeader" },
+          {
+            "name": "vendorId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Update a vendor.",
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/UpdateVendorRequest" } }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated vendor id.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/VendorUpdatedResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "409": { "$ref": "#/components/responses/Error409" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/v1/vendors/{vendorId}/status": {
+      "post": {
+        "operationId": "setVendorStatus",
+        "tags": ["catalog-management"],
+        "summary": "Archive or restore a brand (vendor).",
+        "description": "An archived vendor is hidden from the Storefront; its products stay listed without a brand.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          { "$ref": "#/components/parameters/IdempotencyKeyHeader" },
+          {
+            "name": "vendorId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Archive or restore a vendor.",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SetVendorStatusRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The vendor id and new status.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/VendorWriteResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "409": { "$ref": "#/components/responses/Error409" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/v1/products/{productId}/vendor": {
+      "put": {
+        "operationId": "setProductVendor",
+        "tags": ["catalog-management"],
+        "summary": "Set or clear a product's brand (vendor).",
+        "description": "Sets the label the product is made by; send vendorId null to clear it.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          { "$ref": "#/components/parameters/IdempotencyKeyHeader" },
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Set a product's vendor.",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SetProductVendorRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The product id and vendor id.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SetProductVendorResponse" }
               }
             }
           },
@@ -5248,6 +5440,35 @@
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/PublicCategoryListResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/v1/storefront/vendors": {
+      "get": {
+        "operationId": "listStorefrontVendors",
+        "tags": ["storefront"],
+        "summary": "List the brands (vendors) the storefront sells.",
+        "description": "Public, unauthenticated. Returns active vendors that hold at least one publicly visible product, in display order, with productCount.",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "query",
+            "required": true,
+            "description": "The tenant the storefront serves.",
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The published vendor list.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PublicVendorListResponse" }
               }
             }
           },
@@ -11518,6 +11739,16 @@
               "format": "uuid",
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
             }
+          },
+          "vendorId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              { "type": "null" }
+            ]
           }
         },
         "required": ["product", "variants", "options", "prices"],
@@ -12565,6 +12796,168 @@
           }
         },
         "required": ["categories"],
+        "additionalProperties": false
+      },
+      "VendorListResponse": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "vendors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "name": { "type": "string" },
+                "slug": { "type": "string" },
+                "position": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+                "status": { "type": "string", "enum": ["active", "archived"] },
+                "productCount": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+              },
+              "required": ["id", "name", "slug", "position", "status", "productCount"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["vendors"],
+        "additionalProperties": false
+      },
+      "CreateVendorRequest": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+          "slug": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "pattern": "^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$"
+          },
+          "position": { "type": "integer", "minimum": 0, "maximum": 1000 }
+        },
+        "required": ["name", "slug"],
+        "additionalProperties": false
+      },
+      "UpdateVendorRequest": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+          "slug": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "pattern": "^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$"
+          },
+          "position": { "type": "integer", "minimum": 0, "maximum": 1000 }
+        },
+        "required": ["name", "slug"],
+        "additionalProperties": false
+      },
+      "SetVendorStatusRequest": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": { "status": { "type": "string", "enum": ["active", "archived"] } },
+        "required": ["status"],
+        "additionalProperties": false
+      },
+      "VendorWriteResponse": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "vendorId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "status": { "type": "string", "enum": ["active", "archived"] }
+        },
+        "required": ["vendorId", "status"],
+        "additionalProperties": false
+      },
+      "VendorUpdatedResponse": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "vendorId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          }
+        },
+        "required": ["vendorId"],
+        "additionalProperties": false
+      },
+      "SetProductVendorRequest": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "vendorId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              { "type": "null" }
+            ]
+          }
+        },
+        "required": ["vendorId"],
+        "additionalProperties": false
+      },
+      "SetProductVendorResponse": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "productId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "vendorId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              { "type": "null" }
+            ]
+          }
+        },
+        "required": ["productId", "vendorId"],
+        "additionalProperties": false
+      },
+      "PublicVendorListResponse": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "vendors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "slug": { "type": "string" },
+                "name": { "type": "string" },
+                "position": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+                "productCount": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+              },
+              "required": ["id", "slug", "name", "position", "productCount"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["vendors"],
         "additionalProperties": false
       },
       "SetCategorySizeGuideRequest": {
@@ -13662,6 +14055,25 @@
                     },
                     { "type": "null" }
                   ]
+                },
+                "vendor": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                        },
+                        "slug": { "type": "string" },
+                        "name": { "type": "string" }
+                      },
+                      "required": ["id", "slug", "name"],
+                      "additionalProperties": false
+                    },
+                    { "type": "null" }
+                  ]
                 }
               },
               "required": [
@@ -13904,6 +14316,25 @@
                   }
                 },
                 "required": ["title", "unit", "columns", "rows", "note"],
+                "additionalProperties": false
+              },
+              { "type": "null" }
+            ]
+          },
+          "vendor": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "slug": { "type": "string" },
+                  "name": { "type": "string" }
+                },
+                "required": ["id", "slug", "name"],
                 "additionalProperties": false
               },
               { "type": "null" }
@@ -14777,6 +15208,25 @@
                     },
                     { "type": "null" }
                   ]
+                },
+                "vendor": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                        },
+                        "slug": { "type": "string" },
+                        "name": { "type": "string" }
+                      },
+                      "required": ["id", "slug", "name"],
+                      "additionalProperties": false
+                    },
+                    { "type": "null" }
+                  ]
                 }
               },
               "required": [
@@ -15130,6 +15580,25 @@
                     },
                     { "type": "null" }
                   ]
+                },
+                "vendor": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                        },
+                        "slug": { "type": "string" },
+                        "name": { "type": "string" }
+                      },
+                      "required": ["id", "slug", "name"],
+                      "additionalProperties": false
+                    },
+                    { "type": "null" }
+                  ]
                 }
               },
               "required": [
@@ -15183,7 +15652,14 @@
             "type": "string",
             "format": "date-time",
             "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
-          }
+          },
+          "fulfillmentStatus": {
+            "type": "string",
+            "enum": ["unfulfilled", "partially_fulfilled", "fulfilled"]
+          },
+          "customerName": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+          "customerPhone": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+          "deliveryCity": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
         },
         "required": [
           "id",
@@ -15241,7 +15717,14 @@
                   "type": "string",
                   "format": "date-time",
                   "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
-                }
+                },
+                "fulfillmentStatus": {
+                  "type": "string",
+                  "enum": ["unfulfilled", "partially_fulfilled", "fulfilled"]
+                },
+                "customerName": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                "customerPhone": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                "deliveryCity": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
               },
               "required": [
                 "id",
@@ -15509,7 +15992,14 @@
                 "type": "string",
                 "format": "date-time",
                 "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
-              }
+              },
+              "fulfillmentStatus": {
+                "type": "string",
+                "enum": ["unfulfilled", "partially_fulfilled", "fulfilled"]
+              },
+              "customerName": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+              "customerPhone": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+              "deliveryCity": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
             },
             "required": [
               "id",
@@ -15539,7 +16029,9 @@
                 "sku": { "type": "string" },
                 "quantity": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
                 "unitPriceMinor": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
-                "lineTotalMinor": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+                "lineTotalMinor": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+                "variantName": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                "optionSummary": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
               },
               "required": [
                 "lineNumber",

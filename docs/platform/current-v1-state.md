@@ -290,6 +290,12 @@ its phase arrives.
 - **Storefront email sign-ups (SDK `0.47.0`, 2026-11-19)** — public drop-alert sign-up (never reveals
   membership) and an `orders.read` list for managers. See
   [storefront sign-ups](../marketing/storefront-subscribers.md).
+- **Order list triage fields (SDK `0.51.0`, 2026-11-21)** — order summaries carry the order-level
+  fulfilment status and the customer name/phone/delivery city, so the POS Online orders queue and Admin
+  Mobile no longer need one detail read per order (the queue broke past the list bound before).
+- **Shop by brand (SDK `0.50.0`, 2026-11-20)** — tenant-wide vendors (the labels a retailer sells, shown as
+  "Brand"; not the tenant's own `brands`), one optional vendor per product, `vendor` on published products
+  and a public vendor list. See [vendors](../catalog/vendors.md).
 - **Public return policy (SDK `0.49.0`, 2026-11-19)** — `GET /storefront/returns-policy` exposes the admin-editable return window so website copy follows Settings → Returns.
 - **After purchase (SDK `0.48.0`, 2026-11-19)** — public order tracking by number + checkout phone
   (throttled), customer return requests that staff approve/decline/complete (no stock or money moves),

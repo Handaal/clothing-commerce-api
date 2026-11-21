@@ -53,6 +53,34 @@ export function orderConfirmationMessage(input: OrderMessageInput): string {
     .join("\n");
 }
 
+/**
+ * Staff -> customer: "your order is on its way", once it has been handed to the courier (SDK 0.51).
+ * The confirmation's "reply Confirm" would be wrong by then; this keeps the cash-on-delivery amount so
+ * the customer has it ready.
+ */
+export function orderShippedMessage(input: OrderMessageInput): string {
+  const name = firstName(input.customerName);
+  const ref = `#${input.orderReference.replace(/^#/u, "")}`;
+  if (input.language === "ar") {
+    return [
+      name ? `أهلاً ${name}،` : "أهلاً،",
+      `طلبك رقم ${ref} من ${input.storeName} اتشحن وفي الطريق ليك${input.deliveryCity ? ` على ${input.deliveryCity}` : ""}.`,
+      input.totalLabel ? `جهّز ${input.totalLabel} للدفع عند الاستلام.` : null,
+      input.trackingUrl ? `تقدر تتابع طلبك من هنا: ${input.trackingUrl}` : null,
+    ]
+      .filter(Boolean)
+      .join("\n");
+  }
+  return [
+    name ? `Hi ${name},` : "Hi,",
+    `Good news: your ${input.storeName} order ${ref} is on its way${input.deliveryCity ? ` to ${input.deliveryCity}` : ""}.`,
+    input.totalLabel ? `Please have ${input.totalLabel} ready to pay on delivery.` : null,
+    input.trackingUrl ? `Track your order any time: ${input.trackingUrl}` : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
 /** Shopper -> store: sent from the order confirmation page to confirm a cash-on-delivery order. */
 export function customerOrderConfirmMessage(input: {
   storeName: string;

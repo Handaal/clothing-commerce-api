@@ -57,6 +57,13 @@ const suites = [
     marker: "ALL_CATALOG_OPTIONS_CATEGORIES_ASSERTIONS_PASSED",
   },
   {
+    // Storefront program: shop by brand (vendors, SDK 0.50).
+    name: "storefront vendors",
+    testFile: "phase_5a_catalog_vendors_persistence.sql",
+    fixtures: ["phase_2h_pos_sale.setup.sql", "phase_2l_online.setup.sql"],
+    marker: "ALL_CATALOG_VENDORS_ASSERTIONS_PASSED",
+  },
+  {
     name: "online-first sync conflicts",
     testFile: "phase_3h_online_first_sync_conflicts_persistence.sql",
     fixtures: [

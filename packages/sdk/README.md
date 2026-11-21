@@ -83,6 +83,20 @@ signature. Omitted ⇒ canonical form unchanged. The server verifies it against 
 acceptance time, records the attribution, and reports `OFFLINE_OPERATOR_UNVERIFIED` /
 `OFFLINE_OPERATOR_CHANGED_BEFORE_SYNC` as `sync_integrity` sync conflicts. Deploy the server before tills send it.
 
+SDK 0.51.0 (additive, no migration): `OrderSummary` (from `listOrders`) gains `fulfillmentStatus`
+(`unfulfilled` | `partially_fulfilled` | `fulfilled`, same rule as order detail) and the queue contact
+`customerName`, `customerPhone`, `deliveryCity` from the order's own snapshots, so fulfilment queues no longer
+read every order's detail. Order detail lines gain readable `variantName` and `optionSummary` ("S · White"),
+so staff see what to pick. All optional: older servers omit them. New message helper
+`orderShippedMessage` (EN/AR) replaces the confirmation once an order has shipped.
+
+SDK 0.50.0 (additive; needs migration `20261120100000_catalog_vendors`): shop by brand. A **vendor** is
+the label a product is made by (Zara, Polo, H&M, a local label), shown as "Brand" in the apps; it is not
+the tenant's own `brands`. Management (`catalog.author`, tenant-wide): `listVendors`, `createVendor`,
+`updateVendor`, `setVendorStatus` (active/archived), `setProductVendor({ productId, vendorId | null })`;
+product detail gains `vendorId`. Public: `listStorefrontVendors({ tenantId })` → active vendors with
+publicly visible products and `productCount`; published products gain `vendor: { id, slug, name } | null`.
+
 SDK 0.49.0 (additive; needs migration `20261119210000_storefront_return_policy`):
 `getStorefrontReturnPolicy({ tenantId })` (public) → `{ acceptingReturns, windowDays }`, the tenant's
 admin-editable return window (Settings → Returns) for website copy; `windowDays: null` = no limit or not

@@ -130,6 +130,12 @@ export {
   PublicProductCategorySchema,
   PublicCategorySchema,
   PublicCategoryListResponseSchema,
+  PublicProductVendorSchema,
+  PublicVendorSchema,
+  PublicVendorListResponseSchema,
+  type PublicProductVendor,
+  type PublicVendor,
+  type PublicVendorListResponse,
   type PublicVariantOptionValue,
   type PublicProductOption,
   type PublicProductCategory,
@@ -177,6 +183,7 @@ export {
   type SetCollectionProductsResponse,
 } from "./management/collections";
 export * from "./management/categories";
+export * from "./management/vendors";
 export {
   InventoryBalanceSchema,
   InventoryListResponseSchema,

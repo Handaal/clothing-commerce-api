@@ -15,6 +15,8 @@ import { StorefrontCollectionService } from "../catalog/storefront-collection-se
 import { createSupabaseStorefrontCollectionRepository } from "../catalog/storefront-collection-repository";
 import { CategoryService } from "../catalog/category-service";
 import { createSupabaseCategoryRepository } from "../catalog/category-repository";
+import { VendorService } from "../catalog/vendor-service";
+import { createSupabaseVendorRepository } from "../catalog/vendor-repository";
 import { SubscriberService, createSupabaseSubscriberRepository } from "../marketing/subscribers";
 import {
   AfterPurchaseService,
@@ -142,6 +144,11 @@ export function createManagementApiBoundary(
     authorizationService,
     createSupabaseCategoryRepository(supabaseConfiguration),
   );
+  // Vendors (SDK 0.50): the labels the tenant sells, shown as "Brand" (catalog.author + public list).
+  const vendorService = new VendorService(
+    authorizationService,
+    createSupabaseVendorRepository(supabaseConfiguration),
+  );
 
   // Storefront email sign-ups: public subscribe + management list (orders.read).
   const subscriberService = new SubscriberService(
@@ -225,6 +232,7 @@ export function createManagementApiBoundary(
     collectionManagementService,
     storefrontCollectionService,
     categoryService,
+    vendorService,
     subscriberService,
     // Phase 4 after purchase: public tracking + return requests, staff decisions.
     afterPurchaseService: new AfterPurchaseService(
