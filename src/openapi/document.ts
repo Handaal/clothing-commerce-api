@@ -266,6 +266,11 @@ import {
   StorefrontHeroImageIntentSchema,
 } from "../contracts/management/storefront-content";
 import { PublicStorefrontContentSchema } from "../contracts/storefront/content";
+import {
+  PublicStorefrontSiteTextSchema,
+  StorefrontSiteTextSchema,
+  UpdateStorefrontSiteTextRequestSchema,
+} from "../contracts/storefront/site-text";
 
 function jsonSchema(schema: z.ZodTypeAny) {
   return z.toJSONSchema(schema, { target: "draft-7" });
@@ -3525,6 +3530,63 @@ export function generateOpenApiDocument() {
           },
         },
       },
+      "/api/v1/storefront-site-text": {
+        get: {
+          operationId: "getStorefrontSiteText",
+          summary: "getStorefrontSiteText",
+          description:
+            "Storefront site text (promo bar, home section titles, brand note, sign-up box, footer, SEO, contact, " +
+            "FAQ / Terms / Shipping & returns pages). Requires a tenant-wide catalog.author grant.",
+          tags: ["storefront-content"],
+          security: clerkSecurity,
+          parameters: [tenantHeaderParameter],
+          responses: {
+            "200": jsonResponse("Site text", "#/components/schemas/StorefrontSiteText"),
+            ...errorResponses(400, 401, 403, 404, 500),
+          },
+        },
+        put: {
+          operationId: "updateStorefrontSiteText",
+          summary: "updateStorefrontSiteText",
+          description:
+            "Replaces the whole site text document; null or missing keys mean the website's built-in text. " +
+            "Requires a tenant-wide catalog.author grant and Idempotency-Key.",
+          tags: ["storefront-content"],
+          security: clerkSecurity,
+          parameters: [tenantHeaderParameter, idempotencyKeyHeaderParameter],
+          requestBody: jsonRequestBody(
+            "Full site text document",
+            "#/components/schemas/UpdateStorefrontSiteTextRequest",
+          ),
+          responses: {
+            "200": jsonResponse("Site text", "#/components/schemas/StorefrontSiteText"),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
+      "/api/v1/storefront/site-text": {
+        get: {
+          operationId: "getPublicStorefrontSiteText",
+          tags: ["storefront"],
+          summary: "Read the storefront's editable site text.",
+          description:
+            "Public, unauthenticated. Missing keys mean the website's built-in text; unknown or inactive " +
+            "tenants read an empty document.",
+          parameters: [
+            {
+              name: "tenantId",
+              in: "query",
+              required: true,
+              description: "The tenant the storefront serves.",
+              schema: { type: "string", format: "uuid" },
+            },
+          ],
+          responses: {
+            "200": jsonResponse("Site text", "#/components/schemas/PublicStorefrontSiteText"),
+            ...errorResponses(400, 500),
+          },
+        },
+      },
       "/api/v1/storefront/content": {
         get: {
           operationId: "getPublicStorefrontContent",
@@ -5066,6 +5128,9 @@ export function generateOpenApiDocument() {
         ),
         StorefrontHeroImageIntent: jsonSchema(StorefrontHeroImageIntentSchema),
         PublicStorefrontContent: jsonSchema(PublicStorefrontContentSchema),
+        StorefrontSiteText: jsonSchema(StorefrontSiteTextSchema),
+        UpdateStorefrontSiteTextRequest: jsonSchema(UpdateStorefrontSiteTextRequestSchema),
+        PublicStorefrontSiteText: jsonSchema(PublicStorefrontSiteTextSchema),
         PublicCollectionListResponse: jsonSchema(PublicCollectionListResponseSchema),
         PublicCollectionDetailResponse: jsonSchema(PublicCollectionDetailResponseSchema),
         OrderSummary: jsonSchema(OrderSummarySchema),

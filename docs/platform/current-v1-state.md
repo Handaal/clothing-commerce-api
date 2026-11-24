@@ -290,6 +290,10 @@ its phase arrives.
 - **Storefront email sign-ups (SDK `0.47.0`, 2026-11-19)** — public drop-alert sign-up (never reveals
   membership) and an `orders.read` list for managers. See
   [storefront sign-ups](../marketing/storefront-subscribers.md).
+- **Editable site text (SDK `0.52.0`, 2026-11-24)** — promo bar, home section copy, brand note, sign-up
+  box, footer, SEO title/description, contact details and the FAQ / Terms / Shipping pages are one
+  tenant document edited from Admin Mobile and the POS; the Storefront falls back to its built-in copy.
+  See [storefront site text](../catalog/storefront-site-text.md).
 - **Order list triage fields (SDK `0.51.0`, 2026-11-21)** — order summaries carry the order-level
   fulfilment status and the customer name/phone/delivery city, so the POS Online orders queue and Admin
   Mobile no longer need one detail read per order (the queue broke past the list bound before).

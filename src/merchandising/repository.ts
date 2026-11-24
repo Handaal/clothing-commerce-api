@@ -12,6 +12,7 @@ import {
   StorefrontContentSchema,
   type UpdateStorefrontContentRequest,
 } from "../contracts/management/storefront-content";
+import { StorefrontSiteTextSchema, type SiteText } from "../contracts/storefront/site-text";
 import { MerchandisingError, merchandisingDatabaseError } from "./errors";
 
 /**
@@ -95,7 +96,14 @@ export class MerchandisingRepository {
       .schema(PRIVATE)
       .rpc("storefront_content_detail", { p_tenant: this.tenant(proof) });
     if (error) throw merchandisingDatabaseError(error, "INVALID_STOREFRONT_CONTENT");
-    return StorefrontContentSchema.parse(data);
+    // A tenant that never saved content has no row: the RPC's left join yields null id arrays. Treat
+    // that as "nothing featured yet" instead of failing the editor's first load with a 500.
+    const row = (data ?? {}) as Record<string, unknown>;
+    return StorefrontContentSchema.parse({
+      ...row,
+      featuredProductIds: row.featuredProductIds ?? [],
+      featuredCollectionIds: row.featuredCollectionIds ?? [],
+    });
   }
 
   async updateStorefrontContent(
@@ -107,6 +115,32 @@ export class MerchandisingRepository {
       .rpc("upsert_storefront_content", { p_tenant: this.tenant(proof), p_payload: payload });
     if (error) throw merchandisingDatabaseError(error, "INVALID_STOREFRONT_CONTENT");
     return StorefrontContentSchema.parse(data);
+  }
+
+  // ---- Storefront site text (SDK 0.52) ----
+  async getStorefrontSiteText(proof: AuthorizedOperationContext) {
+    const { data, error } = await this.client
+      .schema(PRIVATE)
+      .rpc("storefront_site_text_detail", { p_tenant: this.tenant(proof) });
+    if (error) throw merchandisingDatabaseError(error, "INVALID_STOREFRONT_CONTENT");
+    return StorefrontSiteTextSchema.parse(data);
+  }
+
+  async updateStorefrontSiteText(proof: AuthorizedOperationContext, document: SiteText) {
+    const { data, error } = await this.client
+      .schema(PRIVATE)
+      .rpc("upsert_storefront_site_text", { p_tenant: this.tenant(proof), p_document: document });
+    if (error) throw merchandisingDatabaseError(error, "INVALID_STOREFRONT_CONTENT");
+    return StorefrontSiteTextSchema.parse(data);
+  }
+
+  /** PUBLIC read: no proof — the DB function only answers for an active tenant. */
+  async getPublicStorefrontSiteText(tenantId: string): Promise<unknown> {
+    const { data, error } = await this.client
+      .schema(PRIVATE)
+      .rpc("public_storefront_site_text", { p_tenant: tenantId });
+    if (error) throw new Error("An unexpected public storefront site text read error occurred.");
+    return data;
   }
 
   /** PUBLIC read: no proof — the DB function itself is the published-only boundary. */

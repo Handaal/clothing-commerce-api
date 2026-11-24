@@ -26,6 +26,12 @@ import {
   PublicStorefrontHeroSchema,
   type PublicStorefrontContent,
 } from "../contracts/storefront/content";
+import {
+  PublicStorefrontSiteTextSchema,
+  UpdateStorefrontSiteTextRequestSchema,
+  type PublicStorefrontSiteText,
+  type StorefrontSiteText,
+} from "../contracts/storefront/site-text";
 import { MerchandisingError } from "./errors";
 import type { MerchandisingRepository } from "./repository";
 
@@ -171,6 +177,33 @@ export class MerchandisingService {
       uploadUrl: signed?.url ?? null,
       expiresAt: signed?.expiresAt ?? null,
     };
+  }
+
+  /** Site text (SDK 0.52): all website copy outside the catalog and hero. catalog.author, like content. */
+  async getStorefrontSiteText(context: AuthorizationContext): Promise<StorefrontSiteText> {
+    const proof = await this.authorize(context, MerchandisingPermission.content);
+    return this.repository.getStorefrontSiteText(proof);
+  }
+
+  async updateStorefrontSiteText(
+    context: AuthorizationContext,
+    input: unknown,
+  ): Promise<StorefrontSiteText> {
+    const proof = await this.authorize(context, MerchandisingPermission.content);
+    const body = parse(UpdateStorefrontSiteTextRequestSchema, input, "INVALID_STOREFRONT_CONTENT");
+    // Store only meaningful values: null/absent both mean "built-in text", so drop nulls.
+    const document = Object.fromEntries(
+      Object.entries(body.siteText).filter(([, value]) => value !== null && value !== undefined),
+    );
+    return this.repository.updateStorefrontSiteText(proof, document);
+  }
+
+  /** PUBLIC: no session; unknown or inactive tenants read an empty document (built-in text). */
+  async getPublicStorefrontSiteText(tenantId: string): Promise<PublicStorefrontSiteText> {
+    const raw = await this.repository.getPublicStorefrontSiteText(tenantId);
+    const parsed = PublicStorefrontSiteTextSchema.safeParse(raw);
+    // A document written before a contract tightening must never break the website: fall back.
+    return parsed.success ? parsed.data : { siteText: {} };
   }
 
   /** PUBLIC: no session; the tenant is explicit and the DB projection is published-only. */

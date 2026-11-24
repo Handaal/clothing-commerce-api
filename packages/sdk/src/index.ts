@@ -357,6 +357,11 @@ import {
   StorefrontContentSchema,
   StorefrontHeroImageIntentSchema,
   PublicStorefrontContentSchema,
+  StorefrontSiteTextSchema,
+  PublicStorefrontSiteTextSchema,
+  type StorefrontSiteText,
+  type PublicStorefrontSiteText,
+  type SiteText,
   type Sale,
   type SaleListResponse,
   type DeleteSaleResponse,
@@ -385,6 +390,12 @@ export type {
   StorefrontHeroImageIntent,
   PublicStorefrontContent,
   PublicStorefrontHero,
+  StorefrontSiteText,
+  PublicStorefrontSiteText,
+  SiteText,
+  SiteTextFaqItem,
+  SiteTextSection,
+  UpdateStorefrontSiteTextRequest,
   PublicProductOffer,
   PublicProductPrice,
 } from "../../../src/contracts";
@@ -398,6 +409,11 @@ export interface SetSaleStatusInput {
 export type UpdateStorefrontContentInput = UpdateStorefrontContentRequest & {
   idempotencyKey: string;
 };
+/** SDK 0.52: replace the whole site text document (null/missing keys = the website's built-in text). */
+export interface UpdateStorefrontSiteTextInput {
+  siteText: SiteText;
+  idempotencyKey: string;
+}
 export interface PublicStorefrontContentQuery {
   tenantId: string;
   brandId?: string;
@@ -1556,6 +1572,9 @@ export interface TenantCommerceClient {
   createStorefrontHeroImageIntent(
     input: CreateStorefrontHeroImageIntentRequest,
   ): Promise<StorefrontHeroImageIntent>;
+  /** SDK 0.52: all other website copy (promo bar, section titles, footer, SEO, contact, pages). */
+  getStorefrontSiteText(): Promise<StorefrontSiteText>;
+  updateStorefrontSiteText(input: UpdateStorefrontSiteTextInput): Promise<StorefrontSiteText>;
   /** Operational reporting (read-only, tenant-wide, requires reports.read). */
   getReportSummary(query: ReportPeriodQuery): Promise<ReportSummaryResponse>;
   getSalesReport(query: SalesReportQuery): Promise<SalesReportResponse>;
@@ -1674,6 +1693,8 @@ export interface CommerceClient {
   ): Promise<StorefrontReturnRequestResponse>;
   /** Public Storefront home-page content (hero + featured picks). Unauthenticated. */
   getPublicStorefrontContent(query: PublicStorefrontContentQuery): Promise<PublicStorefrontContent>;
+  /** SDK 0.52: public editable site text. Missing keys = the website's built-in text. */
+  getPublicStorefrontSiteText(query: { tenantId: string }): Promise<PublicStorefrontSiteText>;
   /** Public delivery areas, fees and free-delivery threshold for a Storefront brand. */
   getStorefrontDeliveryOptions(query: PublicDeliveryOptionsQuery): Promise<PublicDeliveryOptions>;
 }
@@ -2762,6 +2783,15 @@ export function createCommerceClient({
           body,
           idempotencyKey,
         }),
+      getStorefrontSiteText: () =>
+        request("/api/v1/storefront-site-text", StorefrontSiteTextSchema, { tenantId }),
+      updateStorefrontSiteText: ({ idempotencyKey, siteText }: UpdateStorefrontSiteTextInput) =>
+        request("/api/v1/storefront-site-text", StorefrontSiteTextSchema, {
+          tenantId,
+          method: "PUT",
+          body: { siteText },
+          idempotencyKey,
+        }),
       createStorefrontHeroImageIntent: (body: CreateStorefrontHeroImageIntentRequest) =>
         request("/api/v1/storefront-content/hero-image-intent", StorefrontHeroImageIntentSchema, {
           tenantId,
@@ -3252,6 +3282,11 @@ export function createCommerceClient({
         })}`,
         PublicStorefrontContentSchema,
       ),
+    getPublicStorefrontSiteText: (query: { tenantId: string }) =>
+      request(
+        `/api/v1/storefront/site-text${buildQuery({ tenantId: query.tenantId })}`,
+        PublicStorefrontSiteTextSchema,
+      ),
   };
 }
 
@@ -3365,4 +3400,5 @@ export type FulfillOrderInput = FulfillOrderRequest & { orderId: string; idempot
 export type CancelOrderInput = CancelOrderRequest & { orderId: string; idempotencyKey: string };
 export type SettleRefundInput = SettleRefundRequest & { returnId: string; idempotencyKey: string };
 export * from "./forms";
+export * from "./site-text";
 export * from "./messages";

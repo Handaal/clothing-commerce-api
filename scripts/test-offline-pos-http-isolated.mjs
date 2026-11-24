@@ -248,6 +248,18 @@ try {
     );
   }
 
+  // Website management suite: the online-commerce fixture plus catalog.author/catalog.read/catalog.publish and
+  // settings.manage/settings.read for the seeded POS Full role (an owner-like website editor), on THIS run's DB only.
+  if (process.argv.includes("tests/website-management-http")) {
+    sql(readFileSync(join(root, "supabase/tests/phase_2l_online.setup.sql"), "utf8"));
+    sql(
+      "insert into public.role_permissions(tenant_id,role_id,permission_id) " +
+        "select '2a000001-0000-4000-8000-000000000001'::uuid,'2a000013-0000-4000-8000-000000000001'::uuid,id " +
+        "from public.permissions where key in ('catalog.author','catalog.read','catalog.publish','settings.manage','settings.read') " +
+        "on conflict do nothing;",
+    );
+  }
+
   // Offline PIN v2 suite: enrollment requires a server-verified step-up with the caller's OWN online POS
   // credential, so pos.full (test-only online PIN "4821") and pos.nopay (test-only "6390", a DIFFERENT account
   // used to prove a foreign credential is refused) get pos_pin accounts on THIS run's disposable DB only.
@@ -554,19 +566,29 @@ try {
   const testDir =
     dirFlagIndex >= 0 ? process.argv[dirFlagIndex + 1] : "tests/offline-pos-http-integration";
   try {
+    const suiteEnv = sanitizedChildEnv({
+      POS_TEST_API_BASE_URL: baseUrl,
+      POS_TEST_CLERK_TOKEN: issueToken("pos-full"),
+      // A branch/location-scoped operator with no brand-wide order authority (negative cases).
+      POS_TEST_CLERK_TOKEN_RESTRICTED: issueToken("pos-wrong-location"),
+      POS_TEST_SUPABASE_URL: status.API_URL,
+      POS_TEST_SUPABASE_SERVICE_ROLE_KEY: status.SERVICE_ROLE_KEY,
+      POS_TEST_SUPABASE_ANON_KEY: status.ANON_KEY,
+    });
     run(process.execPath, [vitest, "run", testDir, "--testTimeout=60000", "--hookTimeout=60000"], {
       cwd: root,
       stdio: "inherit",
-      env: sanitizedChildEnv({
-        POS_TEST_API_BASE_URL: baseUrl,
-        POS_TEST_CLERK_TOKEN: issueToken("pos-full"),
-        // A branch/location-scoped operator with no brand-wide order authority (negative cases).
-        POS_TEST_CLERK_TOKEN_RESTRICTED: issueToken("pos-wrong-location"),
-        POS_TEST_SUPABASE_URL: status.API_URL,
-        POS_TEST_SUPABASE_SERVICE_ROLE_KEY: status.SERVICE_ROLE_KEY,
-        POS_TEST_SUPABASE_ANON_KEY: status.ANON_KEY,
-      }),
+      env: suiteEnv,
     });
+    // `--exec "<node script>"`: after the suite, run a client-side acceptance script (e.g. the cross-repo
+    // website acceptance that drives Admin Mobile, the POS and the Storefront) against THIS isolated
+    // server, with the same loopback URL and test tokens. Never points at a shared or production API.
+    const execFlagIndex = process.argv.indexOf("--exec");
+    if (execFlagIndex >= 0) {
+      const script = process.argv[execFlagIndex + 1];
+      if (!script) throw new Error("--exec needs a node script path.");
+      run(process.execPath, [script], { cwd: root, stdio: "inherit", env: suiteEnv });
+    }
   } catch (error) {
     // The vitest run above is a BLOCKING spawnSync, so the server's stdout/stderr 'data' events cannot
     // fire during it. Yield briefly so the queued pipe output (including the route's console.error with

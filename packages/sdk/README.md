@@ -83,6 +83,13 @@ signature. Omitted ⇒ canonical form unchanged. The server verifies it against 
 acceptance time, records the attribution, and reports `OFFLINE_OPERATOR_UNVERIFIED` /
 `OFFLINE_OPERATOR_CHANGED_BEFORE_SYNC` as `sync_integrity` sync conflicts. Deploy the server before tills send it.
 
+SDK 0.52.0 (additive, migration `20261124120000`): editable **site text** — every piece of website copy
+outside the catalog and the hero. Tenant client `getStorefrontSiteText` / `updateStorefrontSiteText`
+(`catalog.author`); public `getPublicStorefrontSiteText({ tenantId })`. The module `site-text` exports the
+shared editor definition (`SITE_TEXT_GROUPS`, `SITE_TEXT_FIELDS` with EN/AR labels), the built-in copy,
+`resolveSiteText`, `parseSiteTextBody` and the form helpers used by Admin Mobile and the POS. See
+[storefront site text](../../docs/catalog/storefront-site-text.md).
+
 SDK 0.51.0 (additive, no migration): `OrderSummary` (from `listOrders`) gains `fulfillmentStatus`
 (`unfulfilled` | `partially_fulfilled` | `fulfilled`, same rule as order detail) and the queue contact
 `customerName`, `customerPhone`, `deliveryCity` from the order's own snapshots, so fulfilment queues no longer

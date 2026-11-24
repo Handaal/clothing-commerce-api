@@ -151,6 +151,8 @@ describe("OpenAPI management surface", () => {
         "/api/v1/storefront/content",
         "/api/v1/storefront-content",
         "/api/v1/storefront-content/hero-image-intent",
+        "/api/v1/storefront-site-text",
+        "/api/v1/storefront/site-text",
         "/api/v1/sales",
         "/api/v1/sales/{saleId}",
         "/api/v1/sales/{saleId}/status",

@@ -440,6 +440,7 @@ export * from "./management/sales";
 export * from "./management/storefront-content";
 
 export * from "./storefront/content";
+export * from "./storefront/site-text";
 export * from "./storefront/subscribers";
 export * from "./management/subscribers";
 export * from "./storefront/after-purchase";

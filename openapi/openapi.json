@@ -5347,6 +5347,97 @@
         }
       }
     },
+    "/api/v1/storefront-site-text": {
+      "get": {
+        "operationId": "getStorefrontSiteText",
+        "summary": "getStorefrontSiteText",
+        "description": "Storefront site text (promo bar, home section titles, brand note, sign-up box, footer, SEO, contact, FAQ / Terms / Shipping & returns pages). Requires a tenant-wide catalog.author grant.",
+        "tags": ["storefront-content"],
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/TenantIdHeader" }],
+        "responses": {
+          "200": {
+            "description": "Site text",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StorefrontSiteText" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      },
+      "put": {
+        "operationId": "updateStorefrontSiteText",
+        "summary": "updateStorefrontSiteText",
+        "description": "Replaces the whole site text document; null or missing keys mean the website's built-in text. Requires a tenant-wide catalog.author grant and Idempotency-Key.",
+        "tags": ["storefront-content"],
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          { "$ref": "#/components/parameters/IdempotencyKeyHeader" }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Full site text document",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateStorefrontSiteTextRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Site text",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StorefrontSiteText" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "409": { "$ref": "#/components/responses/Error409" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/v1/storefront/site-text": {
+      "get": {
+        "operationId": "getPublicStorefrontSiteText",
+        "tags": ["storefront"],
+        "summary": "Read the storefront's editable site text.",
+        "description": "Public, unauthenticated. Missing keys mean the website's built-in text; unknown or inactive tenants read an empty document.",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "query",
+            "required": true,
+            "description": "The tenant the storefront serves.",
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Site text",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PublicStorefrontSiteText" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
     "/api/v1/storefront/content": {
       "get": {
         "operationId": "getPublicStorefrontContent",
@@ -15278,6 +15369,841 @@
           }
         },
         "required": ["hero", "featuredHeading", "featuredProducts", "featuredCollections"],
+        "additionalProperties": false
+      },
+      "StorefrontSiteText": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "siteText": {
+            "type": "object",
+            "properties": {
+              "storeName": {
+                "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 80 }, { "type": "null" }]
+              },
+              "seoTitle": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 120 },
+                  { "type": "null" }
+                ]
+              },
+              "seoDescription": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 300 },
+                  { "type": "null" }
+                ]
+              },
+              "announcements": {
+                "anyOf": [
+                  {
+                    "maxItems": 10,
+                    "type": "array",
+                    "items": { "type": "string", "minLength": 1, "maxLength": 120 }
+                  },
+                  { "type": "null" }
+                ]
+              },
+              "newArrivalsEyebrow": {
+                "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 60 }, { "type": "null" }]
+              },
+              "newArrivalsTitle": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 120 },
+                  { "type": "null" }
+                ]
+              },
+              "newArrivalsLink": {
+                "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 40 }, { "type": "null" }]
+              },
+              "bestSellersEyebrow": {
+                "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 60 }, { "type": "null" }]
+              },
+              "bestSellersTitle": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 120 },
+                  { "type": "null" }
+                ]
+              },
+              "bestSellersLink": {
+                "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 40 }, { "type": "null" }]
+              },
+              "featuredEyebrow": {
+                "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 60 }, { "type": "null" }]
+              },
+              "featuredLink": {
+                "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 40 }, { "type": "null" }]
+              },
+              "collectionsEyebrow": {
+                "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 60 }, { "type": "null" }]
+              },
+              "collectionsTitle": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 120 },
+                  { "type": "null" }
+                ]
+              },
+              "collectionsLink": {
+                "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 40 }, { "type": "null" }]
+              },
+              "brandNoteEyebrow": {
+                "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 60 }, { "type": "null" }]
+              },
+              "brandNoteTitle": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 160 },
+                  { "type": "null" }
+                ]
+              },
+              "brandNoteBody": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 600 },
+                  { "type": "null" }
+                ]
+              },
+              "brandNoteCtaLabel": {
+                "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 40 }, { "type": "null" }]
+              },
+              "brandNoteCtaHref": {
+                "anyOf": [{ "type": "string", "maxLength": 300 }, { "type": "null" }]
+              },
+              "newsletterEyebrow": {
+                "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 60 }, { "type": "null" }]
+              },
+              "newsletterTitle": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 120 },
+                  { "type": "null" }
+                ]
+              },
+              "newsletterBody": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 400 },
+                  { "type": "null" }
+                ]
+              },
+              "emptyStoreEyebrow": {
+                "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 60 }, { "type": "null" }]
+              },
+              "emptyStoreTitle": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 120 },
+                  { "type": "null" }
+                ]
+              },
+              "emptyStoreBody": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 400 },
+                  { "type": "null" }
+                ]
+              },
+              "footerTagline": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 200 },
+                  { "type": "null" }
+                ]
+              },
+              "contactEmail": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 254,
+                    "format": "email",
+                    "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                  },
+                  { "type": "null" }
+                ]
+              },
+              "contactWhatsapp": {
+                "anyOf": [{ "type": "string", "pattern": "^\\d{8,15}$" }, { "type": "null" }]
+              },
+              "contactHours": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 120 },
+                  { "type": "null" }
+                ]
+              },
+              "contactEyebrow": {
+                "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 60 }, { "type": "null" }]
+              },
+              "contactTitle": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 120 },
+                  { "type": "null" }
+                ]
+              },
+              "contactIntro": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 600 },
+                  { "type": "null" }
+                ]
+              },
+              "contactOrderHelp": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 1500 },
+                  { "type": "null" }
+                ]
+              },
+              "faqEyebrow": {
+                "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 60 }, { "type": "null" }]
+              },
+              "faqTitle": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 120 },
+                  { "type": "null" }
+                ]
+              },
+              "faqIntro": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 600 },
+                  { "type": "null" }
+                ]
+              },
+              "faqItems": {
+                "anyOf": [
+                  {
+                    "maxItems": 40,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "question": { "type": "string", "minLength": 1, "maxLength": 200 },
+                        "answer": { "type": "string", "minLength": 1, "maxLength": 2000 }
+                      },
+                      "required": ["question", "answer"],
+                      "additionalProperties": false
+                    }
+                  },
+                  { "type": "null" }
+                ]
+              },
+              "termsEyebrow": {
+                "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 60 }, { "type": "null" }]
+              },
+              "termsTitle": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 120 },
+                  { "type": "null" }
+                ]
+              },
+              "termsIntro": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 600 },
+                  { "type": "null" }
+                ]
+              },
+              "termsSections": {
+                "anyOf": [
+                  {
+                    "maxItems": 30,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "heading": { "type": "string", "minLength": 1, "maxLength": 120 },
+                        "body": { "type": "string", "minLength": 1, "maxLength": 4000 }
+                      },
+                      "required": ["heading", "body"],
+                      "additionalProperties": false
+                    }
+                  },
+                  { "type": "null" }
+                ]
+              },
+              "shippingEyebrow": {
+                "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 60 }, { "type": "null" }]
+              },
+              "shippingTitle": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 120 },
+                  { "type": "null" }
+                ]
+              },
+              "shippingIntro": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 600 },
+                  { "type": "null" }
+                ]
+              },
+              "shippingSections": {
+                "anyOf": [
+                  {
+                    "maxItems": 30,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "heading": { "type": "string", "minLength": 1, "maxLength": 120 },
+                        "body": { "type": "string", "minLength": 1, "maxLength": 4000 }
+                      },
+                      "required": ["heading", "body"],
+                      "additionalProperties": false
+                    }
+                  },
+                  { "type": "null" }
+                ]
+              }
+            },
+            "additionalProperties": false
+          },
+          "updatedAt": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
+        },
+        "required": ["siteText", "updatedAt"],
+        "additionalProperties": false
+      },
+      "UpdateStorefrontSiteTextRequest": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "siteText": {
+            "type": "object",
+            "properties": {
+              "storeName": {
+                "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 80 }, { "type": "null" }]
+              },
+              "seoTitle": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 120 },
+                  { "type": "null" }
+                ]
+              },
+              "seoDescription": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 300 },
+                  { "type": "null" }
+                ]
+              },
+              "announcements": {
+                "anyOf": [
+                  {
+                    "maxItems": 10,
+                    "type": "array",
+                    "items": { "type": "string", "minLength": 1, "maxLength": 120 }
+                  },
+                  { "type": "null" }
+                ]
+              },
+              "newArrivalsEyebrow": {
+                "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 60 }, { "type": "null" }]
+              },
+              "newArrivalsTitle": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 120 },
+                  { "type": "null" }
+                ]
+              },
+              "newArrivalsLink": {
+                "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 40 }, { "type": "null" }]
+              },
+              "bestSellersEyebrow": {
+                "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 60 }, { "type": "null" }]
+              },
+              "bestSellersTitle": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 120 },
+                  { "type": "null" }
+                ]
+              },
+              "bestSellersLink": {
+                "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 40 }, { "type": "null" }]
+              },
+              "featuredEyebrow": {
+                "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 60 }, { "type": "null" }]
+              },
+              "featuredLink": {
+                "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 40 }, { "type": "null" }]
+              },
+              "collectionsEyebrow": {
+                "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 60 }, { "type": "null" }]
+              },
+              "collectionsTitle": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 120 },
+                  { "type": "null" }
+                ]
+              },
+              "collectionsLink": {
+                "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 40 }, { "type": "null" }]
+              },
+              "brandNoteEyebrow": {
+                "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 60 }, { "type": "null" }]
+              },
+              "brandNoteTitle": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 160 },
+                  { "type": "null" }
+                ]
+              },
+              "brandNoteBody": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 600 },
+                  { "type": "null" }
+                ]
+              },
+              "brandNoteCtaLabel": {
+                "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 40 }, { "type": "null" }]
+              },
+              "brandNoteCtaHref": {
+                "anyOf": [{ "type": "string", "maxLength": 300 }, { "type": "null" }]
+              },
+              "newsletterEyebrow": {
+                "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 60 }, { "type": "null" }]
+              },
+              "newsletterTitle": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 120 },
+                  { "type": "null" }
+                ]
+              },
+              "newsletterBody": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 400 },
+                  { "type": "null" }
+                ]
+              },
+              "emptyStoreEyebrow": {
+                "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 60 }, { "type": "null" }]
+              },
+              "emptyStoreTitle": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 120 },
+                  { "type": "null" }
+                ]
+              },
+              "emptyStoreBody": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 400 },
+                  { "type": "null" }
+                ]
+              },
+              "footerTagline": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 200 },
+                  { "type": "null" }
+                ]
+              },
+              "contactEmail": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 254,
+                    "format": "email",
+                    "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                  },
+                  { "type": "null" }
+                ]
+              },
+              "contactWhatsapp": {
+                "anyOf": [{ "type": "string", "pattern": "^\\d{8,15}$" }, { "type": "null" }]
+              },
+              "contactHours": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 120 },
+                  { "type": "null" }
+                ]
+              },
+              "contactEyebrow": {
+                "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 60 }, { "type": "null" }]
+              },
+              "contactTitle": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 120 },
+                  { "type": "null" }
+                ]
+              },
+              "contactIntro": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 600 },
+                  { "type": "null" }
+                ]
+              },
+              "contactOrderHelp": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 1500 },
+                  { "type": "null" }
+                ]
+              },
+              "faqEyebrow": {
+                "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 60 }, { "type": "null" }]
+              },
+              "faqTitle": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 120 },
+                  { "type": "null" }
+                ]
+              },
+              "faqIntro": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 600 },
+                  { "type": "null" }
+                ]
+              },
+              "faqItems": {
+                "anyOf": [
+                  {
+                    "maxItems": 40,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "question": { "type": "string", "minLength": 1, "maxLength": 200 },
+                        "answer": { "type": "string", "minLength": 1, "maxLength": 2000 }
+                      },
+                      "required": ["question", "answer"],
+                      "additionalProperties": false
+                    }
+                  },
+                  { "type": "null" }
+                ]
+              },
+              "termsEyebrow": {
+                "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 60 }, { "type": "null" }]
+              },
+              "termsTitle": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 120 },
+                  { "type": "null" }
+                ]
+              },
+              "termsIntro": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 600 },
+                  { "type": "null" }
+                ]
+              },
+              "termsSections": {
+                "anyOf": [
+                  {
+                    "maxItems": 30,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "heading": { "type": "string", "minLength": 1, "maxLength": 120 },
+                        "body": { "type": "string", "minLength": 1, "maxLength": 4000 }
+                      },
+                      "required": ["heading", "body"],
+                      "additionalProperties": false
+                    }
+                  },
+                  { "type": "null" }
+                ]
+              },
+              "shippingEyebrow": {
+                "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 60 }, { "type": "null" }]
+              },
+              "shippingTitle": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 120 },
+                  { "type": "null" }
+                ]
+              },
+              "shippingIntro": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 600 },
+                  { "type": "null" }
+                ]
+              },
+              "shippingSections": {
+                "anyOf": [
+                  {
+                    "maxItems": 30,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "heading": { "type": "string", "minLength": 1, "maxLength": 120 },
+                        "body": { "type": "string", "minLength": 1, "maxLength": 4000 }
+                      },
+                      "required": ["heading", "body"],
+                      "additionalProperties": false
+                    }
+                  },
+                  { "type": "null" }
+                ]
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "required": ["siteText"],
+        "additionalProperties": false
+      },
+      "PublicStorefrontSiteText": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "siteText": {
+            "type": "object",
+            "properties": {
+              "storeName": {
+                "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 80 }, { "type": "null" }]
+              },
+              "seoTitle": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 120 },
+                  { "type": "null" }
+                ]
+              },
+              "seoDescription": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 300 },
+                  { "type": "null" }
+                ]
+              },
+              "announcements": {
+                "anyOf": [
+                  {
+                    "maxItems": 10,
+                    "type": "array",
+                    "items": { "type": "string", "minLength": 1, "maxLength": 120 }
+                  },
+                  { "type": "null" }
+                ]
+              },
+              "newArrivalsEyebrow": {
+                "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 60 }, { "type": "null" }]
+              },
+              "newArrivalsTitle": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 120 },
+                  { "type": "null" }
+                ]
+              },
+              "newArrivalsLink": {
+                "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 40 }, { "type": "null" }]
+              },
+              "bestSellersEyebrow": {
+                "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 60 }, { "type": "null" }]
+              },
+              "bestSellersTitle": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 120 },
+                  { "type": "null" }
+                ]
+              },
+              "bestSellersLink": {
+                "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 40 }, { "type": "null" }]
+              },
+              "featuredEyebrow": {
+                "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 60 }, { "type": "null" }]
+              },
+              "featuredLink": {
+                "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 40 }, { "type": "null" }]
+              },
+              "collectionsEyebrow": {
+                "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 60 }, { "type": "null" }]
+              },
+              "collectionsTitle": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 120 },
+                  { "type": "null" }
+                ]
+              },
+              "collectionsLink": {
+                "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 40 }, { "type": "null" }]
+              },
+              "brandNoteEyebrow": {
+                "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 60 }, { "type": "null" }]
+              },
+              "brandNoteTitle": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 160 },
+                  { "type": "null" }
+                ]
+              },
+              "brandNoteBody": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 600 },
+                  { "type": "null" }
+                ]
+              },
+              "brandNoteCtaLabel": {
+                "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 40 }, { "type": "null" }]
+              },
+              "brandNoteCtaHref": {
+                "anyOf": [{ "type": "string", "maxLength": 300 }, { "type": "null" }]
+              },
+              "newsletterEyebrow": {
+                "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 60 }, { "type": "null" }]
+              },
+              "newsletterTitle": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 120 },
+                  { "type": "null" }
+                ]
+              },
+              "newsletterBody": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 400 },
+                  { "type": "null" }
+                ]
+              },
+              "emptyStoreEyebrow": {
+                "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 60 }, { "type": "null" }]
+              },
+              "emptyStoreTitle": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 120 },
+                  { "type": "null" }
+                ]
+              },
+              "emptyStoreBody": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 400 },
+                  { "type": "null" }
+                ]
+              },
+              "footerTagline": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 200 },
+                  { "type": "null" }
+                ]
+              },
+              "contactEmail": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 254,
+                    "format": "email",
+                    "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                  },
+                  { "type": "null" }
+                ]
+              },
+              "contactWhatsapp": {
+                "anyOf": [{ "type": "string", "pattern": "^\\d{8,15}$" }, { "type": "null" }]
+              },
+              "contactHours": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 120 },
+                  { "type": "null" }
+                ]
+              },
+              "contactEyebrow": {
+                "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 60 }, { "type": "null" }]
+              },
+              "contactTitle": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 120 },
+                  { "type": "null" }
+                ]
+              },
+              "contactIntro": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 600 },
+                  { "type": "null" }
+                ]
+              },
+              "contactOrderHelp": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 1500 },
+                  { "type": "null" }
+                ]
+              },
+              "faqEyebrow": {
+                "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 60 }, { "type": "null" }]
+              },
+              "faqTitle": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 120 },
+                  { "type": "null" }
+                ]
+              },
+              "faqIntro": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 600 },
+                  { "type": "null" }
+                ]
+              },
+              "faqItems": {
+                "anyOf": [
+                  {
+                    "maxItems": 40,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "question": { "type": "string", "minLength": 1, "maxLength": 200 },
+                        "answer": { "type": "string", "minLength": 1, "maxLength": 2000 }
+                      },
+                      "required": ["question", "answer"],
+                      "additionalProperties": false
+                    }
+                  },
+                  { "type": "null" }
+                ]
+              },
+              "termsEyebrow": {
+                "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 60 }, { "type": "null" }]
+              },
+              "termsTitle": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 120 },
+                  { "type": "null" }
+                ]
+              },
+              "termsIntro": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 600 },
+                  { "type": "null" }
+                ]
+              },
+              "termsSections": {
+                "anyOf": [
+                  {
+                    "maxItems": 30,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "heading": { "type": "string", "minLength": 1, "maxLength": 120 },
+                        "body": { "type": "string", "minLength": 1, "maxLength": 4000 }
+                      },
+                      "required": ["heading", "body"],
+                      "additionalProperties": false
+                    }
+                  },
+                  { "type": "null" }
+                ]
+              },
+              "shippingEyebrow": {
+                "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 60 }, { "type": "null" }]
+              },
+              "shippingTitle": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 120 },
+                  { "type": "null" }
+                ]
+              },
+              "shippingIntro": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 600 },
+                  { "type": "null" }
+                ]
+              },
+              "shippingSections": {
+                "anyOf": [
+                  {
+                    "maxItems": 30,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "heading": { "type": "string", "minLength": 1, "maxLength": 120 },
+                        "body": { "type": "string", "minLength": 1, "maxLength": 4000 }
+                      },
+                      "required": ["heading", "body"],
+                      "additionalProperties": false
+                    }
+                  },
+                  { "type": "null" }
+                ]
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "required": ["siteText"],
         "additionalProperties": false
       },
       "PublicCollectionListResponse": {
