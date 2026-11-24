@@ -1,3 +1,4 @@
+import type { ProductMediaItem } from "../contracts/management/catalog-images";
 import type { AuthorizedOperationContext } from "../authorization";
 
 /**
@@ -173,4 +174,24 @@ export interface CatalogWriteRepository {
     proof: AuthorizedOperationContext,
     command: ArchiveProductMediaCommand,
   ): Promise<{ mediaId: string }>;
+  /** SDK 0.53: a product's active photos in display order (main photo first). */
+  listProductMedia(
+    proof: AuthorizedOperationContext,
+    tenantId: string,
+    productId: string,
+  ): Promise<ProductMediaItem[]>;
+  updateProductMedia(
+    proof: AuthorizedOperationContext,
+    command: {
+      tenantId: string;
+      mediaId: string;
+      setAlt: boolean;
+      altText: string | null;
+      makePrimary: boolean;
+    },
+  ): Promise<{ mediaId: string; isPrimary: boolean; altText: string | null }>;
+  reorderProductMedia(
+    proof: AuthorizedOperationContext,
+    command: { tenantId: string; productId: string; mediaIds: string[] },
+  ): Promise<{ productId: string; mediaCount: number }>;
 }

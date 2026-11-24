@@ -4161,6 +4161,37 @@
       }
     },
     "/api/v1/products/{productId}/media": {
+      "get": {
+        "operationId": "listProductMedia",
+        "summary": "listProductMedia",
+        "description": "SDK 0.53: the product's active photos in display order (main photo first). catalog.author on its brand.",
+        "tags": ["catalog"],
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ProductMediaListResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      },
       "post": {
         "operationId": "registerProductMedia",
         "tags": ["catalog-management"],
@@ -4206,6 +4237,54 @@
       }
     },
     "/api/v1/products/{productId}/media/{mediaId}": {
+      "patch": {
+        "operationId": "updateProductMedia",
+        "summary": "updateProductMedia",
+        "description": "SDK 0.53: change the photo's description and/or make it the main photo.",
+        "tags": ["catalog"],
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          { "$ref": "#/components/parameters/IdempotencyKeyHeader" },
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          },
+          {
+            "name": "mediaId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Request",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateProductMediaRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/UpdateProductMediaResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "409": { "$ref": "#/components/responses/Error409" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      },
       "delete": {
         "operationId": "archiveProductMedia",
         "tags": ["catalog-management"],
@@ -5343,6 +5422,173 @@
           "403": { "$ref": "#/components/responses/Error403" },
           "404": { "$ref": "#/components/responses/Error404" },
           "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/v1/catalog-images/upload-intent": {
+      "post": {
+        "operationId": "createCatalogImageIntent",
+        "summary": "createCatalogImageIntent",
+        "description": "SDK 0.53: server-chosen destination for a collection cover or category image. catalog.author tenant-wide.",
+        "tags": ["catalog"],
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/TenantIdHeader" }],
+        "requestBody": {
+          "required": true,
+          "description": "Request",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateCatalogImageIntentRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/CatalogImageIntent" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/v1/collections/{collectionId}/image": {
+      "put": {
+        "operationId": "setCollectionImage",
+        "summary": "setCollectionImage",
+        "description": "SDK 0.53: set or clear (null) the collection's custom cover. catalog.author tenant-wide.",
+        "tags": ["catalog"],
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          { "$ref": "#/components/parameters/IdempotencyKeyHeader" },
+          {
+            "name": "collectionId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Request",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SetCatalogImageRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SetCollectionImageResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "409": { "$ref": "#/components/responses/Error409" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/v1/categories/{categoryId}/image": {
+      "put": {
+        "operationId": "setCategoryImage",
+        "summary": "setCategoryImage",
+        "description": "SDK 0.53: set or clear (null) the category's website image. catalog.author tenant-wide.",
+        "tags": ["catalog"],
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          { "$ref": "#/components/parameters/IdempotencyKeyHeader" },
+          {
+            "name": "categoryId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Request",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SetCatalogImageRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SetCategoryImageResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "409": { "$ref": "#/components/responses/Error409" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
+    "/api/v1/products/{productId}/media/order": {
+      "put": {
+        "operationId": "reorderProductMedia",
+        "summary": "reorderProductMedia",
+        "description": "SDK 0.53: the complete order of the product's active photos; the first becomes the main photo.",
+        "tags": ["catalog"],
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          { "$ref": "#/components/parameters/IdempotencyKeyHeader" },
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Request",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ReorderProductMediaRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ReorderProductMediaResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "409": { "$ref": "#/components/responses/Error409" },
           "500": { "$ref": "#/components/responses/Error500" }
         }
       }
@@ -12702,6 +12948,21 @@
                     },
                     { "type": "null" }
                   ]
+                },
+                "image": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "bucket": { "type": "string" },
+                        "path": { "type": "string" },
+                        "altText": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
+                      },
+                      "required": ["bucket", "path", "altText"],
+                      "additionalProperties": false
+                    },
+                    { "type": "null" }
+                  ]
                 }
               },
               "required": [
@@ -12871,7 +13132,22 @@
                 "name": { "type": "string" },
                 "description": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
                 "position": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
-                "productCount": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+                "productCount": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+                "image": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "bucket": { "type": "string" },
+                        "path": { "type": "string" },
+                        "altText": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
+                      },
+                      "required": ["bucket", "path", "altText"],
+                      "additionalProperties": false
+                    },
+                    { "type": "null" }
+                  ]
+                }
               },
               "required": [
                 "id",
@@ -14462,7 +14738,22 @@
                 "slug": { "type": "string" },
                 "description": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
                 "status": { "type": "string", "enum": ["draft", "active", "archived"] },
-                "productCount": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+                "productCount": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+                "image": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "bucket": { "type": "string" },
+                        "path": { "type": "string" },
+                        "altText": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
+                      },
+                      "required": ["bucket", "path", "altText"],
+                      "additionalProperties": false
+                    },
+                    { "type": "null" }
+                  ]
+                }
               },
               "required": ["id", "name", "slug", "description", "status", "productCount"],
               "additionalProperties": false
@@ -14488,7 +14779,22 @@
               "slug": { "type": "string" },
               "description": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
               "status": { "type": "string", "enum": ["draft", "active", "archived"] },
-              "productCount": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+              "productCount": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+              "image": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "bucket": { "type": "string" },
+                      "path": { "type": "string" },
+                      "altText": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
+                    },
+                    "required": ["bucket", "path", "altText"],
+                    "additionalProperties": false
+                  },
+                  { "type": "null" }
+                ]
+              }
             },
             "required": ["id", "name", "slug", "description", "status", "productCount"],
             "additionalProperties": false
@@ -15650,6 +15956,179 @@
         "required": ["siteText", "updatedAt"],
         "additionalProperties": false
       },
+      "CreateCatalogImageIntentRequest": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "contentType": {
+            "type": "string",
+            "enum": ["image/jpeg", "image/png", "image/webp", "image/avif"]
+          },
+          "fileName": { "type": "string", "minLength": 1, "maxLength": 200 }
+        },
+        "required": ["contentType"],
+        "additionalProperties": false
+      },
+      "CatalogImageIntent": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "bucket": { "type": "string" },
+          "path": { "type": "string" },
+          "contentType": { "type": "string" },
+          "uploadUrl": { "anyOf": [{ "type": "string", "format": "uri" }, { "type": "null" }] },
+          "expiresAt": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
+        },
+        "required": ["bucket", "path", "contentType", "uploadUrl", "expiresAt"],
+        "additionalProperties": false
+      },
+      "SetCatalogImageRequest": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "image": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "bucket": { "type": "string", "minLength": 1, "maxLength": 100 },
+                  "path": { "type": "string", "minLength": 1, "maxLength": 500 },
+                  "altText": {
+                    "anyOf": [{ "type": "string", "maxLength": 300 }, { "type": "null" }]
+                  }
+                },
+                "required": ["bucket", "path"],
+                "additionalProperties": false
+              },
+              { "type": "null" }
+            ]
+          }
+        },
+        "required": ["image"],
+        "additionalProperties": false
+      },
+      "SetCollectionImageResponse": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "collectionId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "hasImage": { "type": "boolean" }
+        },
+        "required": ["collectionId", "hasImage"],
+        "additionalProperties": false
+      },
+      "SetCategoryImageResponse": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "categoryId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "hasImage": { "type": "boolean" }
+        },
+        "required": ["categoryId", "hasImage"],
+        "additionalProperties": false
+      },
+      "ProductMediaListResponse": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "media": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "variantId": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "bucket": { "type": "string" },
+                "path": { "type": "string" },
+                "altText": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                "position": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+                "isPrimary": { "type": "boolean" }
+              },
+              "required": ["id", "variantId", "bucket", "path", "altText", "position", "isPrimary"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["media"],
+        "additionalProperties": false
+      },
+      "UpdateProductMediaRequest": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "altText": { "anyOf": [{ "type": "string", "maxLength": 300 }, { "type": "null" }] },
+          "isPrimary": { "type": "boolean", "const": true }
+        },
+        "additionalProperties": false
+      },
+      "UpdateProductMediaResponse": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "mediaId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "isPrimary": { "type": "boolean" },
+          "altText": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
+        },
+        "required": ["mediaId", "isPrimary", "altText"],
+        "additionalProperties": false
+      },
+      "ReorderProductMediaRequest": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "mediaIds": {
+            "minItems": 1,
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            }
+          }
+        },
+        "required": ["mediaIds"],
+        "additionalProperties": false
+      },
+      "ReorderProductMediaResponse": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "productId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "mediaCount": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+        },
+        "required": ["productId", "mediaCount"],
+        "additionalProperties": false
+      },
       "UpdateStorefrontSiteTextRequest": {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "type": "object",
@@ -16260,6 +16739,21 @@
           "slug": { "type": "string" },
           "name": { "type": "string" },
           "description": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+          "cover": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "bucket": { "type": "string" },
+                  "path": { "type": "string" },
+                  "altText": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
+                },
+                "required": ["bucket", "path", "altText"],
+                "additionalProperties": false
+              },
+              { "type": "null" }
+            ]
+          },
           "products": {
             "type": "array",
             "items": {

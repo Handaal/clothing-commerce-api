@@ -290,6 +290,10 @@ its phase arrives.
 - **Storefront email sign-ups (SDK `0.47.0`, 2026-11-19)** — public drop-alert sign-up (never reveals
   membership) and an `orders.read` list for managers. See
   [storefront sign-ups](../marketing/storefront-subscribers.md).
+- **Website images and photo editing (SDK `0.53.0`, 2026-11-24)** — custom collection covers and category
+  images, product photos listable/describable/reorderable after upload, hero label/subtitle can be hidden;
+  the POS Website desk gained Catalog, Product photos, Delivery fees, Return requests and Sign-ups tabs.
+  See [website images and photos](../catalog/website-images-and-photos.md).
 - **Editable site text (SDK `0.52.0`, 2026-11-24)** — promo bar, home section copy, brand note, sign-up
   box, footer, SEO title/description, contact details and the FAQ / Terms / Shipping pages are one
   tenant document edited from Admin Mobile and the POS; the Storefront falls back to its built-in copy.

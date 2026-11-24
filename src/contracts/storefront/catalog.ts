@@ -168,6 +168,11 @@ export const PublicCategorySchema = z.object({
   description: z.string().nullable(),
   position: NonNegativeIntegerSchema,
   productCount: NonNegativeIntegerSchema,
+  // SDK 0.53: the admin-chosen tile image; null/absent = use a product photo.
+  image: z
+    .object({ bucket: z.string(), path: z.string(), altText: z.string().nullable() })
+    .nullable()
+    .optional(),
 });
 export type PublicCategory = z.infer<typeof PublicCategorySchema>;
 

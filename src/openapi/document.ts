@@ -265,6 +265,18 @@ import {
   CreateStorefrontHeroImageIntentRequestSchema,
   StorefrontHeroImageIntentSchema,
 } from "../contracts/management/storefront-content";
+import {
+  CatalogImageIntentSchema,
+  CreateCatalogImageIntentRequestSchema,
+  ProductMediaListResponseSchema,
+  ReorderProductMediaRequestSchema,
+  ReorderProductMediaResponseSchema,
+  SetCatalogImageRequestSchema,
+  SetCategoryImageResponseSchema,
+  SetCollectionImageResponseSchema,
+  UpdateProductMediaRequestSchema,
+  UpdateProductMediaResponseSchema,
+} from "../contracts/management/catalog-images";
 import { PublicStorefrontContentSchema } from "../contracts/storefront/content";
 import {
   PublicStorefrontSiteTextSchema,
@@ -2735,6 +2747,28 @@ export function generateOpenApiDocument() {
         },
       },
       "/api/v1/products/{productId}/media": {
+        get: {
+          operationId: "listProductMedia",
+          summary: "listProductMedia",
+          description:
+            "SDK 0.53: the product's active photos in display order (main photo first). catalog.author on its brand.",
+          tags: ["catalog"],
+          security: clerkSecurity,
+          parameters: [
+            tenantHeaderParameter,
+            {
+              name: "productId",
+              in: "path",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+          ],
+
+          responses: {
+            "200": jsonResponse("Result", "#/components/schemas/ProductMediaListResponse"),
+            ...errorResponses(400, 401, 403, 404, 500),
+          },
+        },
         post: {
           operationId: "registerProductMedia",
           tags: ["catalog-management"],
@@ -2768,6 +2802,34 @@ export function generateOpenApiDocument() {
         },
       },
       "/api/v1/products/{productId}/media/{mediaId}": {
+        patch: {
+          operationId: "updateProductMedia",
+          summary: "updateProductMedia",
+          description: "SDK 0.53: change the photo's description and/or make it the main photo.",
+          tags: ["catalog"],
+          security: clerkSecurity,
+          parameters: [
+            tenantHeaderParameter,
+            idempotencyKeyHeaderParameter,
+            {
+              name: "productId",
+              in: "path",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+            {
+              name: "mediaId",
+              in: "path",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+          ],
+          requestBody: jsonRequestBody("Request", "#/components/schemas/UpdateProductMediaRequest"),
+          responses: {
+            "200": jsonResponse("Result", "#/components/schemas/UpdateProductMediaResponse"),
+            ...errorResponses(400, 401, 403, 404, 409, 500),
+          },
+        },
         delete: {
           operationId: "archiveProductMedia",
           tags: ["catalog-management"],
@@ -3527,6 +3589,103 @@ export function generateOpenApiDocument() {
           responses: {
             "200": jsonResponse("Upload intent", "#/components/schemas/StorefrontHeroImageIntent"),
             ...errorResponses(400, 401, 403, 404, 422, 500),
+          },
+        },
+      },
+      "/api/v1/catalog-images/upload-intent": {
+        post: {
+          operationId: "createCatalogImageIntent",
+          summary: "createCatalogImageIntent",
+          description:
+            "SDK 0.53: server-chosen destination for a collection cover or category image. catalog.author tenant-wide.",
+          tags: ["catalog"],
+          security: clerkSecurity,
+          parameters: [tenantHeaderParameter],
+          requestBody: jsonRequestBody(
+            "Request",
+            "#/components/schemas/CreateCatalogImageIntentRequest",
+          ),
+          responses: {
+            "200": jsonResponse("Result", "#/components/schemas/CatalogImageIntent"),
+            ...errorResponses(400, 401, 403, 404, 422, 500),
+          },
+        },
+      },
+      "/api/v1/collections/{collectionId}/image": {
+        put: {
+          operationId: "setCollectionImage",
+          summary: "setCollectionImage",
+          description:
+            "SDK 0.53: set or clear (null) the collection's custom cover. catalog.author tenant-wide.",
+          tags: ["catalog"],
+          security: clerkSecurity,
+          parameters: [
+            tenantHeaderParameter,
+            idempotencyKeyHeaderParameter,
+            {
+              name: "collectionId",
+              in: "path",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+          ],
+          requestBody: jsonRequestBody("Request", "#/components/schemas/SetCatalogImageRequest"),
+          responses: {
+            "200": jsonResponse("Result", "#/components/schemas/SetCollectionImageResponse"),
+            ...errorResponses(400, 401, 403, 404, 409, 500),
+          },
+        },
+      },
+      "/api/v1/categories/{categoryId}/image": {
+        put: {
+          operationId: "setCategoryImage",
+          summary: "setCategoryImage",
+          description:
+            "SDK 0.53: set or clear (null) the category's website image. catalog.author tenant-wide.",
+          tags: ["catalog"],
+          security: clerkSecurity,
+          parameters: [
+            tenantHeaderParameter,
+            idempotencyKeyHeaderParameter,
+            {
+              name: "categoryId",
+              in: "path",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+          ],
+          requestBody: jsonRequestBody("Request", "#/components/schemas/SetCatalogImageRequest"),
+          responses: {
+            "200": jsonResponse("Result", "#/components/schemas/SetCategoryImageResponse"),
+            ...errorResponses(400, 401, 403, 404, 409, 500),
+          },
+        },
+      },
+      "/api/v1/products/{productId}/media/order": {
+        put: {
+          operationId: "reorderProductMedia",
+          summary: "reorderProductMedia",
+          description:
+            "SDK 0.53: the complete order of the product's active photos; the first becomes the main photo.",
+          tags: ["catalog"],
+          security: clerkSecurity,
+          parameters: [
+            tenantHeaderParameter,
+            idempotencyKeyHeaderParameter,
+            {
+              name: "productId",
+              in: "path",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+          ],
+          requestBody: jsonRequestBody(
+            "Request",
+            "#/components/schemas/ReorderProductMediaRequest",
+          ),
+          responses: {
+            "200": jsonResponse("Result", "#/components/schemas/ReorderProductMediaResponse"),
+            ...errorResponses(400, 401, 403, 404, 409, 500),
           },
         },
       },
@@ -5129,6 +5288,16 @@ export function generateOpenApiDocument() {
         StorefrontHeroImageIntent: jsonSchema(StorefrontHeroImageIntentSchema),
         PublicStorefrontContent: jsonSchema(PublicStorefrontContentSchema),
         StorefrontSiteText: jsonSchema(StorefrontSiteTextSchema),
+        CreateCatalogImageIntentRequest: jsonSchema(CreateCatalogImageIntentRequestSchema),
+        CatalogImageIntent: jsonSchema(CatalogImageIntentSchema),
+        SetCatalogImageRequest: jsonSchema(SetCatalogImageRequestSchema),
+        SetCollectionImageResponse: jsonSchema(SetCollectionImageResponseSchema),
+        SetCategoryImageResponse: jsonSchema(SetCategoryImageResponseSchema),
+        ProductMediaListResponse: jsonSchema(ProductMediaListResponseSchema),
+        UpdateProductMediaRequest: jsonSchema(UpdateProductMediaRequestSchema),
+        UpdateProductMediaResponse: jsonSchema(UpdateProductMediaResponseSchema),
+        ReorderProductMediaRequest: jsonSchema(ReorderProductMediaRequestSchema),
+        ReorderProductMediaResponse: jsonSchema(ReorderProductMediaResponseSchema),
         UpdateStorefrontSiteTextRequest: jsonSchema(UpdateStorefrontSiteTextRequestSchema),
         PublicStorefrontSiteText: jsonSchema(PublicStorefrontSiteTextSchema),
         PublicCollectionListResponse: jsonSchema(PublicCollectionListResponseSchema),

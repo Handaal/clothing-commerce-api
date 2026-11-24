@@ -1,6 +1,9 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 
+import type { CatalogImageInput } from "../contracts/management/catalog-images";
+import { imageFromColumns } from "./catalog-image";
+
 import { assertAuthorizedOperationProof, type AuthorizedOperationContext } from "../authorization";
 import type { CategoryStatus, CategorySummary } from "../contracts/management/categories";
 import type { SizeGuide } from "../contracts/storefront/catalog";
@@ -67,6 +70,11 @@ export interface CategoryRepository {
   ): Promise<{ categoryId: string; hasSizeGuide: boolean }>;
   /** Public, published-only category list (DB-enforced projection). */
   listStorefrontCategories(tenantId: string): Promise<unknown[]>;
+  /** SDK 0.53: set or clear (null) the category's website image. */
+  setCategoryImage(
+    proof: AuthorizedOperationContext,
+    command: { tenantId: string; categoryId: string; image: CatalogImageInput | null },
+  ): Promise<{ categoryId: string; hasImage: boolean }>;
 }
 
 interface DatabaseErrorLike {
@@ -104,6 +112,9 @@ const CategoryRowSchema = z.object({
   position: z.number().int(),
   status: z.enum(["active", "archived"]),
   size_guide: z.unknown().optional(),
+  image_bucket: z.string().nullable().optional(),
+  image_path: z.string().nullable().optional(),
+  image_alt: z.string().nullable().optional(),
   product_categories: z.array(z.object({ count: z.number() })).optional(),
 });
 const SizeGuideRowSchema = z.object({
@@ -137,7 +148,7 @@ export class SupabaseCategoryRepository implements CategoryRepository {
     const { data, error } = await this.client
       .from("categories")
       .select(
-        "id, parent_category_id, name, slug, description, position, status, size_guide, product_categories(count)",
+        "id, parent_category_id, name, slug, description, position, status, size_guide, image_bucket, image_path, image_alt, product_categories(count)",
       )
       .eq("tenant_id", tenantId)
       .order("position", { ascending: true })
@@ -157,6 +168,7 @@ export class SupabaseCategoryRepository implements CategoryRepository {
         status: row.status,
         productCount: row.product_categories?.[0]?.count ?? 0,
         sizeGuide: shapeSizeGuide(row.size_guide),
+        image: imageFromColumns(row.image_bucket, row.image_path, row.image_alt),
       };
     });
   }
@@ -238,6 +250,23 @@ export class SupabaseCategoryRepository implements CategoryRepository {
       }),
     );
     return { categoryId: row.category_id, hasSizeGuide: row.has_size_guide };
+  }
+
+  async setCategoryImage(
+    proof: AuthorizedOperationContext,
+    command: { tenantId: string; categoryId: string; image: CatalogImageInput | null },
+  ) {
+    assertAuthorizedOperationProof(proof);
+    const row = z.object({ category_id: z.string().uuid(), has_image: z.boolean() }).parse(
+      await this.callFunction("set_category_image", {
+        p_tenant_id: command.tenantId,
+        p_category_id: command.categoryId,
+        p_bucket: command.image?.bucket ?? null,
+        p_path: command.image?.path ?? null,
+        p_alt: command.image?.altText ?? null,
+      }),
+    );
+    return { categoryId: row.category_id, hasImage: row.has_image };
   }
 
   async listStorefrontCategories(tenantId: string): Promise<unknown[]> {

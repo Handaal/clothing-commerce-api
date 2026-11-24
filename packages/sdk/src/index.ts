@@ -359,6 +359,20 @@ import {
   PublicStorefrontContentSchema,
   StorefrontSiteTextSchema,
   PublicStorefrontSiteTextSchema,
+  CatalogImageIntentSchema,
+  SetCollectionImageResponseSchema,
+  SetCategoryImageResponseSchema,
+  ProductMediaListResponseSchema,
+  UpdateProductMediaResponseSchema,
+  ReorderProductMediaResponseSchema,
+  type CatalogImageIntent,
+  type CatalogImageInput,
+  type CreateCatalogImageIntentRequest,
+  type SetCollectionImageResponse,
+  type SetCategoryImageResponse,
+  type ProductMediaListResponse,
+  type UpdateProductMediaResponse,
+  type ReorderProductMediaResponse,
   type StorefrontSiteText,
   type PublicStorefrontSiteText,
   type SiteText,
@@ -396,6 +410,16 @@ export type {
   SiteTextFaqItem,
   SiteTextSection,
   UpdateStorefrontSiteTextRequest,
+  CatalogImage,
+  CatalogImageInput,
+  CatalogImageIntent,
+  CreateCatalogImageIntentRequest,
+  ProductMediaItem,
+  ProductMediaListResponse,
+  UpdateProductMediaResponse,
+  ReorderProductMediaResponse,
+  SetCollectionImageResponse,
+  SetCategoryImageResponse,
   PublicProductOffer,
   PublicProductPrice,
 } from "../../../src/contracts";
@@ -409,6 +433,30 @@ export interface SetSaleStatusInput {
 export type UpdateStorefrontContentInput = UpdateStorefrontContentRequest & {
   idempotencyKey: string;
 };
+/** SDK 0.53: website images and photo editing. */
+export interface SetCollectionImageInput {
+  collectionId: string;
+  image: CatalogImageInput | null;
+  idempotencyKey: string;
+}
+export interface SetCategoryImageInput {
+  categoryId: string;
+  image: CatalogImageInput | null;
+  idempotencyKey: string;
+}
+export interface UpdateProductMediaInput {
+  productId: string;
+  mediaId: string;
+  /** null or "" clears the description. */
+  altText?: string | null;
+  isPrimary?: true;
+  idempotencyKey: string;
+}
+export interface ReorderProductMediaInput {
+  productId: string;
+  mediaIds: string[];
+  idempotencyKey: string;
+}
 /** SDK 0.52: replace the whole site text document (null/missing keys = the website's built-in text). */
 export interface UpdateStorefrontSiteTextInput {
   siteText: SiteText;
@@ -1572,6 +1620,13 @@ export interface TenantCommerceClient {
   createStorefrontHeroImageIntent(
     input: CreateStorefrontHeroImageIntentRequest,
   ): Promise<StorefrontHeroImageIntent>;
+  /** SDK 0.53: collection covers, category images and product photo editing (catalog.author). */
+  createCatalogImageIntent(input: CreateCatalogImageIntentRequest): Promise<CatalogImageIntent>;
+  setCollectionImage(input: SetCollectionImageInput): Promise<SetCollectionImageResponse>;
+  setCategoryImage(input: SetCategoryImageInput): Promise<SetCategoryImageResponse>;
+  listProductMedia(productId: string): Promise<ProductMediaListResponse>;
+  updateProductMedia(input: UpdateProductMediaInput): Promise<UpdateProductMediaResponse>;
+  reorderProductMedia(input: ReorderProductMediaInput): Promise<ReorderProductMediaResponse>;
   /** SDK 0.52: all other website copy (promo bar, section titles, footer, SEO, contact, pages). */
   getStorefrontSiteText(): Promise<StorefrontSiteText>;
   updateStorefrontSiteText(input: UpdateStorefrontSiteTextInput): Promise<StorefrontSiteText>;
@@ -2783,6 +2838,47 @@ export function createCommerceClient({
           body,
           idempotencyKey,
         }),
+      createCatalogImageIntent: (body: CreateCatalogImageIntentRequest) =>
+        request("/api/v1/catalog-images/upload-intent", CatalogImageIntentSchema, {
+          tenantId,
+          method: "POST",
+          body,
+        }),
+      setCollectionImage: ({ collectionId, image, idempotencyKey }: SetCollectionImageInput) =>
+        request(
+          `/api/v1/collections/${encodeURIComponent(collectionId)}/image`,
+          SetCollectionImageResponseSchema,
+          { tenantId, method: "PUT", body: { image }, idempotencyKey },
+        ),
+      setCategoryImage: ({ categoryId, image, idempotencyKey }: SetCategoryImageInput) =>
+        request(
+          `/api/v1/categories/${encodeURIComponent(categoryId)}/image`,
+          SetCategoryImageResponseSchema,
+          { tenantId, method: "PUT", body: { image }, idempotencyKey },
+        ),
+      listProductMedia: (productId: string) =>
+        request(
+          `/api/v1/products/${encodeURIComponent(productId)}/media`,
+          ProductMediaListResponseSchema,
+          { tenantId },
+        ),
+      updateProductMedia: ({
+        productId,
+        mediaId,
+        idempotencyKey,
+        ...body
+      }: UpdateProductMediaInput) =>
+        request(
+          `/api/v1/products/${encodeURIComponent(productId)}/media/${encodeURIComponent(mediaId)}`,
+          UpdateProductMediaResponseSchema,
+          { tenantId, method: "PATCH", body, idempotencyKey },
+        ),
+      reorderProductMedia: ({ productId, mediaIds, idempotencyKey }: ReorderProductMediaInput) =>
+        request(
+          `/api/v1/products/${encodeURIComponent(productId)}/media/order`,
+          ReorderProductMediaResponseSchema,
+          { tenantId, method: "PUT", body: { mediaIds }, idempotencyKey },
+        ),
       getStorefrontSiteText: () =>
         request("/api/v1/storefront-site-text", StorefrontSiteTextSchema, { tenantId }),
       updateStorefrontSiteText: ({ idempotencyKey, siteText }: UpdateStorefrontSiteTextInput) =>

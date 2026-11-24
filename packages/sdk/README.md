@@ -83,6 +83,12 @@ signature. Omitted ⇒ canonical form unchanged. The server verifies it against 
 acceptance time, records the attribution, and reports `OFFLINE_OPERATOR_UNVERIFIED` /
 `OFFLINE_OPERATOR_CHANGED_BEFORE_SYNC` as `sync_integrity` sync conflicts. Deploy the server before tills send it.
 
+SDK 0.53.0 (additive, migration `20261124130000`): collection covers and category images
+(`createCatalogImageIntent`, `setCollectionImage`, `setCategoryImage`; `image` on management summaries,
+`PublicCategory.image`, `PublicCollectionDetail.cover`) and product photo editing (`listProductMedia`,
+`updateProductMedia`, `reorderProductMedia`). Photo registration now requires the path its upload intent
+issued. See [website images and photos](../../docs/catalog/website-images-and-photos.md).
+
 SDK 0.52.0 (additive, migration `20261124120000`): editable **site text** — every piece of website copy
 outside the catalog and the hero. Tenant client `getStorefrontSiteText` / `updateStorefrontSiteText`
 (`catalog.author`); public `getPublicStorefrontSiteText({ tenantId })`. The module `site-text` exports the

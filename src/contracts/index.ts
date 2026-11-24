@@ -438,6 +438,7 @@ export * from "./management/settings";
 export * from "./management/sales";
 
 export * from "./management/storefront-content";
+export * from "./management/catalog-images";
 
 export * from "./storefront/content";
 export * from "./storefront/site-text";

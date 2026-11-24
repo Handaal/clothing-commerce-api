@@ -5,6 +5,8 @@ import type { CategoryListResponse, CategoryStatus } from "../contracts/manageme
 import type { PublicCategoryListResponse, SizeGuide } from "../contracts/storefront/catalog";
 import { IntegerLikeSchema } from "./public-product-shape";
 import type { CategoryRepository } from "./category-repository";
+import type { CatalogImageInput } from "../contracts/management/catalog-images";
+import { assertCatalogImage } from "./catalog-image";
 import { authorizeCatalogLabelRead } from "./label-read-authorization";
 
 /**
@@ -23,6 +25,10 @@ export interface CategoryInput {
 }
 
 const DbPublicCategorySchema = z.object({
+  image: z
+    .object({ bucket: z.string(), path: z.string(), altText: z.string().nullable() })
+    .nullable()
+    .optional(),
   id: z.string(),
   parentId: z.string().nullable(),
   slug: z.string(),
@@ -133,6 +139,21 @@ export class CategoryService {
     });
   }
 
+  /** SDK 0.53: the category's own website image (null clears it; tiles then use a product photo). */
+  async setCategoryImage(
+    context: AuthorizationContext,
+    categoryId: string,
+    image: CatalogImageInput | null,
+  ) {
+    const proof = await this.authorize(context);
+    assertCatalogImage(context.tenant.id, image);
+    return this.repository.setCategoryImage(proof, {
+      tenantId: context.tenant.id,
+      categoryId,
+      image,
+    });
+  }
+
   /** PUBLIC: published-only category tree for Storefront navigation. */
   async listStorefrontCategories(tenantId: string): Promise<PublicCategoryListResponse> {
     const rows = await this.repository.listStorefrontCategories(tenantId);
@@ -147,6 +168,7 @@ export class CategoryService {
           description: row.description,
           position: row.position,
           productCount: row.productCount,
+          image: row.image ?? null,
         };
       }),
     };

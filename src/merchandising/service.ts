@@ -32,6 +32,10 @@ import {
   type PublicStorefrontSiteText,
   type StorefrontSiteText,
 } from "../contracts/storefront/site-text";
+import {
+  CreateCatalogImageIntentRequestSchema,
+  type CatalogImageIntent,
+} from "../contracts/management/catalog-images";
 import { MerchandisingError } from "./errors";
 import type { MerchandisingRepository } from "./repository";
 
@@ -204,6 +208,24 @@ export class MerchandisingService {
     const parsed = PublicStorefrontSiteTextSchema.safeParse(raw);
     // A document written before a contract tightening must never break the website: fall back.
     return parsed.success ? parsed.data : { siteText: {} };
+  }
+
+  /** SDK 0.53: destination for a collection cover / category image ("<tenant>/catalog/<id>.<ext>"). */
+  async createCatalogImageIntent(
+    context: AuthorizationContext,
+    input: unknown,
+  ): Promise<CatalogImageIntent> {
+    await this.authorize(context, MerchandisingPermission.content);
+    const body = parse(CreateCatalogImageIntentRequestSchema, input, "INVALID_STOREFRONT_CONTENT");
+    const path = `${context.tenant.id}/catalog/${this.generateId()}.${EXTENSION[body.contentType] ?? "bin"}`;
+    const signed = await this.mediaSigner.sign(CATALOG_MEDIA_BUCKET, path, body.contentType);
+    return {
+      bucket: CATALOG_MEDIA_BUCKET,
+      path,
+      contentType: body.contentType,
+      uploadUrl: signed?.url ?? null,
+      expiresAt: signed?.expiresAt ?? null,
+    };
   }
 
   /** PUBLIC: no session; the tenant is explicit and the DB projection is published-only. */

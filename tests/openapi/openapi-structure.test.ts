@@ -152,6 +152,10 @@ describe("OpenAPI management surface", () => {
         "/api/v1/storefront-content",
         "/api/v1/storefront-content/hero-image-intent",
         "/api/v1/storefront-site-text",
+        "/api/v1/catalog-images/upload-intent",
+        "/api/v1/collections/{collectionId}/image",
+        "/api/v1/categories/{categoryId}/image",
+        "/api/v1/products/{productId}/media/order",
         "/api/v1/storefront/site-text",
         "/api/v1/sales",
         "/api/v1/sales/{saleId}",
@@ -226,7 +230,8 @@ describe("OpenAPI management surface", () => {
       "/api/v1/products/{productId}/status",
       "/api/v1/products/{productId}/publication",
       "/api/v1/products/{productId}/variants",
-      "/api/v1/products/{productId}/media",
+      // /media now resolves to its GET (photo list, SDK 0.53); the photo-order write is checked instead.
+      "/api/v1/products/{productId}/media/order",
       "/api/v1/variants/{variantId}/price",
     ]) {
       expect(hasIdempotencyHeader(writePath)).toBe(true);

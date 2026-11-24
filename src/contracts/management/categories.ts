@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { CatalogImageSchema } from "./catalog-images";
+
 import { SizeGuideSchema } from "../storefront/catalog";
 
 /**
@@ -34,6 +36,8 @@ export const CategorySummarySchema = z.object({
   productCount: z.number().int().nonnegative(),
   // SDK 0.46: the size chart products in this category (or its descendants) show; null when none.
   sizeGuide: SizeGuideSchema.nullable().optional(),
+  // SDK 0.53: the category's own image for website tiles (null = a product photo is used).
+  image: CatalogImageSchema.nullable().optional(),
 });
 export type CategorySummary = z.infer<typeof CategorySummarySchema>;
 

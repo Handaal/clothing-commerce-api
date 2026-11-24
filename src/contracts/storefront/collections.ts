@@ -40,6 +40,8 @@ export const PublicCollectionDetailSchema = z.object({
   slug: z.string(),
   name: z.string(),
   description: z.string().nullable(),
+  // SDK 0.53: the admin-chosen banner/cover; null/absent when none was set.
+  cover: PublicCollectionCoverSchema.nullable().optional(),
   products: z.array(PublicProductSchema),
 });
 export type PublicCollectionDetail = z.infer<typeof PublicCollectionDetailSchema>;

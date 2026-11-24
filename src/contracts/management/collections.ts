@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { CatalogImageSchema } from "./catalog-images";
+
 /**
  * Collections management DTOs. A collection is a tenant-owned, manually curated grouping of products.
  * These are task-oriented projections, never raw rows. Slugs are normalized (lower/trim) by the
@@ -27,6 +29,8 @@ export const CollectionSummarySchema = z.object({
   description: z.string().nullable(),
   status: CollectionStatusSchema,
   productCount: z.number().int().nonnegative(),
+  // SDK 0.53: the custom cover image (null = the website uses the first product photo).
+  image: CatalogImageSchema.nullable().optional(),
 });
 export type CollectionSummary = z.infer<typeof CollectionSummarySchema>;
 

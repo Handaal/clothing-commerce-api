@@ -1,3 +1,4 @@
+import type { ProductMediaItem } from "../contracts/management/catalog-images";
 import {
   executeAuthorizedOperation,
   type AuthorizationContext,
@@ -382,6 +383,14 @@ export class CatalogManagementService {
     input: RegisterMediaInput,
   ): Promise<{ mediaId: string; isPrimary: boolean }> {
     const brandId = await this.requireProductBrand(context.tenant.id, productId);
+    // The photo must be the object this product's upload intent pointed at (bucket + tenant/product path).
+    if (
+      input.bucket !== CATALOG_MEDIA_BUCKET ||
+      !input.path.startsWith(`${context.tenant.id}/${productId}/`) ||
+      input.path.includes("..")
+    ) {
+      throw new CatalogError("INVALID_INPUT");
+    }
     return executeAuthorizedOperation({
       authorizationService: this.authorizationService,
       context,
@@ -397,6 +406,59 @@ export class CatalogManagementService {
           position: input.position ?? null,
           isPrimary: input.isPrimary ?? false,
           idempotencyKey,
+        }),
+    });
+  }
+
+  /** SDK 0.53: a product's active photos in display order (main photo first). */
+  async listMedia(context: AuthorizationContext, productId: string): Promise<ProductMediaItem[]> {
+    const brandId = await this.requireProductBrand(context.tenant.id, productId);
+    return executeAuthorizedOperation({
+      authorizationService: this.authorizationService,
+      context,
+      request: { permissionKey: CatalogPermission.author, resources: [brandResource(brandId)] },
+      operation: (proof) => this.repository.listProductMedia(proof, context.tenant.id, productId),
+    });
+  }
+
+  /** SDK 0.53: change a photo's description and/or make it the main photo. */
+  async updateMedia(
+    context: AuthorizationContext,
+    mediaId: string,
+    input: { altText?: string | null; isPrimary?: true },
+  ): Promise<{ mediaId: string; isPrimary: boolean; altText: string | null }> {
+    const brandId = await this.requireMediaBrand(context.tenant.id, mediaId);
+    return executeAuthorizedOperation({
+      authorizationService: this.authorizationService,
+      context,
+      request: { permissionKey: CatalogPermission.author, resources: [brandResource(brandId)] },
+      operation: (proof) =>
+        this.repository.updateProductMedia(proof, {
+          tenantId: context.tenant.id,
+          mediaId,
+          setAlt: input.altText !== undefined,
+          altText: input.altText ?? null,
+          makePrimary: input.isPrimary === true,
+        }),
+    });
+  }
+
+  /** SDK 0.53: the complete photo order (every active photo once); the first becomes the main photo. */
+  async reorderMedia(
+    context: AuthorizationContext,
+    productId: string,
+    mediaIds: readonly string[],
+  ): Promise<{ productId: string; mediaCount: number }> {
+    const brandId = await this.requireProductBrand(context.tenant.id, productId);
+    return executeAuthorizedOperation({
+      authorizationService: this.authorizationService,
+      context,
+      request: { permissionKey: CatalogPermission.author, resources: [brandResource(brandId)] },
+      operation: (proof) =>
+        this.repository.reorderProductMedia(proof, {
+          tenantId: context.tenant.id,
+          productId,
+          mediaIds: [...mediaIds],
         }),
     });
   }

@@ -16,6 +16,10 @@
 //   M12 site text: a fresh store reads an empty document (website keeps its built-in text)
 //   M13 site text: every kind of field (text, promo list, FAQ, page sections, contact) round-trips to the
 //       public read; blank/null values are not stored; an empty list is kept as a deliberate choice
+//   M15 collection cover + category image: set → public list/detail/categories carry them; clear → fallback;
+//       images outside "<tenant>/catalog/" are refused
+//   M16 product photos: list in order, describe, choose the main photo, reorder (first = main); a photo
+//       registered outside its product's upload path is refused; a partial order is refused
 //   M14 site text: invalid values (unsafe link, bad email/phone, unknown key, too long) are refused, and an
 //       operator without catalog.author cannot read or write it
 //
@@ -181,7 +185,7 @@ describe("website management reaches the public storefront", () => {
       idempotencyKey: key("media"),
       productId: P,
       bucket: "product-media",
-      path: `${T}/products/${P}/front.webp`,
+      path: `${T}/${P}/front.webp`,
       altText: "Front view",
       isPrimary: true,
     });
@@ -353,6 +357,110 @@ describe("website management reaches the public storefront", () => {
     );
     expect((await pub.getPublicStorefrontSiteText({ tenantId: T })).siteText.storeName).toBe(
       "Nile Wear",
+    );
+  });
+
+  it("M15: collection covers and category images reach the website, and can be cleared", async () => {
+    const intent = await staff
+      .createCatalogImageIntent({ contentType: "image/webp" })
+      .catch((e: unknown) => e);
+    if (!(intent instanceof Error))
+      expect((intent as { path: string }).path.startsWith(`${T}/catalog/`)).toBe(true);
+    const cover = {
+      bucket: "product-media",
+      path: `${T}/catalog/cover.webp`,
+      altText: "Linen rail",
+    };
+
+    await staff.setCollectionImage({ idempotencyKey: key("ci"), collectionId, image: cover });
+    const list = await pub.listPublishedCollections({ tenantId: T });
+    const summary = list.collections.find((c) => c.id === collectionId);
+    expect(summary?.cover).toEqual(cover);
+    const detail = await pub.getPublishedCollection({ tenantId: T, slug: collectionSlug });
+    expect(detail.cover).toEqual(cover);
+    const managed = await staff.getCollection(collectionId);
+    expect(managed.collection.image).toEqual(cover);
+    const content = await pub.getPublicStorefrontContent({ tenantId: T, brandId: B });
+    expect(content.featuredCollections[0]?.cover).toEqual(cover);
+
+    await expectApiError(
+      staff.setCollectionImage({
+        idempotencyKey: key("ci-bad"),
+        collectionId,
+        image: { bucket: "product-media", path: `${T}/storefront/x.webp` },
+      }),
+      400,
+    );
+    await staff.setCollectionImage({ idempotencyKey: key("ci-clear"), collectionId, image: null });
+    const cleared = await pub.getPublishedCollection({ tenantId: T, slug: collectionSlug });
+    expect(cleared.cover ?? null).toBeNull();
+
+    const categories = await staff.listCategories();
+    const category = categories.categories.find((c) => c.name === "Shirts & Overshirts");
+    expect(category).toBeDefined();
+    const tile = { bucket: "product-media", path: `${T}/catalog/shirts.webp`, altText: null };
+    await staff.setCategoryImage({
+      idempotencyKey: key("cat-img"),
+      categoryId: category!.id,
+      image: tile,
+    });
+    const publicCats = await pub.listStorefrontCategories({ tenantId: T });
+    expect(publicCats.categories.find((c) => c.id === category!.id)?.image).toEqual(tile);
+    const again = await staff.listCategories();
+    expect(again.categories.find((c) => c.id === category!.id)?.image).toEqual(tile);
+  });
+
+  it("M16: product photos can be listed, described, made main and reordered", async () => {
+    const second = await staff.registerProductMedia({
+      idempotencyKey: key("m2"),
+      productId: P,
+      bucket: "product-media",
+      path: `${T}/${P}/back.webp`,
+    });
+    await expectApiError(
+      staff.registerProductMedia({
+        idempotencyKey: key("m-bad"),
+        productId: P,
+        bucket: "product-media",
+        path: `${T}/someone-else/x.webp`,
+      }),
+      400,
+    );
+    let { media } = await staff.listProductMedia(P);
+    expect(media.map((m) => m.altText)).toEqual(["Front view", null]);
+    expect(media[0]!.isPrimary).toBe(true);
+
+    await staff.updateProductMedia({
+      idempotencyKey: key("alt"),
+      productId: P,
+      mediaId: second.mediaId,
+      altText: "Back view",
+      isPrimary: true,
+    });
+    ({ media } = await staff.listProductMedia(P));
+    expect(media[0]).toMatchObject({ id: second.mediaId, isPrimary: true, altText: "Back view" });
+    expect(media.filter((m) => m.isPrimary)).toHaveLength(1);
+
+    const reversed = [...media].reverse().map((m) => m.id);
+    await staff.reorderProductMedia({
+      idempotencyKey: key("ord"),
+      productId: P,
+      mediaIds: reversed,
+    });
+    ({ media } = await staff.listProductMedia(P));
+    expect(media.map((m) => m.id)).toEqual(reversed);
+    expect(media[0]!.isPrimary).toBe(true);
+    const product = await pub.getPublishedProduct({ tenantId: T, slug: "linen-camp-shirt" });
+    const pubMedia = (product as { media: { path: string; isPrimary?: boolean }[] }).media;
+    expect(JSON.stringify(pubMedia)).toContain("front.webp");
+
+    await expectApiError(
+      staff.reorderProductMedia({
+        idempotencyKey: key("ord-bad"),
+        productId: P,
+        mediaIds: [reversed[0]!],
+      }),
+      400,
     );
   });
 

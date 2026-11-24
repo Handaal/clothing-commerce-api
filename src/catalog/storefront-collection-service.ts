@@ -34,6 +34,7 @@ const DbCollectionDetailSchema = z.object({
   slug: z.string(),
   name: z.string(),
   description: z.string().nullable(),
+  cover: DbCoverSchema.optional(),
   products: z.array(z.unknown()),
 });
 
@@ -56,6 +57,7 @@ function shapeDetail(raw: unknown): PublicCollectionDetail {
     slug: parsed.slug,
     name: parsed.name,
     description: parsed.description,
+    cover: parsed.cover ?? null,
     products: parsed.products.map(shapeProduct),
   };
 }

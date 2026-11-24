@@ -1,3 +1,5 @@
+import type { CatalogImageInput } from "../contracts/management/catalog-images";
+import { assertCatalogImage } from "./catalog-image";
 import { type AuthorizationContext, type AuthorizationService } from "../authorization";
 import type {
   CollectionDetailResponse,
@@ -115,6 +117,21 @@ export class CollectionManagementService {
       collectionId,
       productIds: [...productIds],
       idempotencyKey,
+    });
+  }
+
+  /** SDK 0.53: the collection's custom cover (null clears it; the website uses a product photo). */
+  async setCollectionImage(
+    context: AuthorizationContext,
+    collectionId: string,
+    image: CatalogImageInput | null,
+  ) {
+    const proof = await this.authorize(context);
+    assertCatalogImage(context.tenant.id, image);
+    return this.repository.setCollectionImage(proof, {
+      tenantId: context.tenant.id,
+      collectionId,
+      image,
     });
   }
 }

@@ -1,3 +1,4 @@
+import type { ProductMediaItem } from "../contracts/management/catalog-images";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 
@@ -418,6 +419,91 @@ export class SupabaseCatalogWriteRepository implements CatalogWriteRepository {
       }),
     );
     return { mediaId: row.media_id };
+  }
+
+  async listProductMedia(
+    proof: AuthorizedOperationContext,
+    tenantId: string,
+    productId: string,
+  ): Promise<ProductMediaItem[]> {
+    assertAuthorizedOperationProof(proof);
+    const { data, error } = await this.client
+      .from("product_media")
+      .select("id, variant_id, storage_bucket, storage_path, alt_text, position, is_primary")
+      .eq("tenant_id", tenantId)
+      .eq("product_id", productId)
+      .eq("status", "active")
+      .order("is_primary", { ascending: false })
+      .order("position", { ascending: true })
+      .order("created_at", { ascending: true });
+    if (error) {
+      throw mapDatabaseError(error);
+    }
+    const Row = z.object({
+      id: z.string().uuid(),
+      variant_id: z.string().uuid().nullable(),
+      storage_bucket: z.string(),
+      storage_path: z.string(),
+      alt_text: z.string().nullable(),
+      position: z.number().int(),
+      is_primary: z.boolean(),
+    });
+    return (data ?? []).map((raw) => {
+      const row = Row.parse(raw);
+      return {
+        id: row.id,
+        variantId: row.variant_id,
+        bucket: row.storage_bucket,
+        path: row.storage_path,
+        altText: row.alt_text,
+        position: Math.max(0, row.position),
+        isPrimary: row.is_primary,
+      };
+    });
+  }
+
+  async updateProductMedia(
+    proof: AuthorizedOperationContext,
+    command: {
+      tenantId: string;
+      mediaId: string;
+      setAlt: boolean;
+      altText: string | null;
+      makePrimary: boolean;
+    },
+  ) {
+    assertAuthorizedOperationProof(proof);
+    const row = z
+      .object({
+        media_id: z.string().uuid(),
+        is_primary: z.boolean(),
+        alt_text: z.string().nullable(),
+      })
+      .parse(
+        await this.callFunction("update_product_media", {
+          p_tenant_id: command.tenantId,
+          p_media_id: command.mediaId,
+          p_set_alt: command.setAlt,
+          p_alt_text: command.altText,
+          p_make_primary: command.makePrimary,
+        }),
+      );
+    return { mediaId: row.media_id, isPrimary: row.is_primary, altText: row.alt_text };
+  }
+
+  async reorderProductMedia(
+    proof: AuthorizedOperationContext,
+    command: { tenantId: string; productId: string; mediaIds: string[] },
+  ) {
+    assertAuthorizedOperationProof(proof);
+    const row = z.object({ product_id: z.string().uuid(), media_count: z.number().int() }).parse(
+      await this.callFunction("reorder_product_media", {
+        p_tenant_id: command.tenantId,
+        p_product_id: command.productId,
+        p_media_ids: command.mediaIds,
+      }),
+    );
+    return { productId: row.product_id, mediaCount: row.media_count };
   }
 
   private async callFunction(
