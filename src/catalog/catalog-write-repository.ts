@@ -1,3 +1,4 @@
+import type { ProductMediaItem } from "../contracts/management/catalog-images";
 import type { AuthorizedOperationContext } from "../authorization";
 
 /**
@@ -35,11 +36,37 @@ export interface SetProductStatusCommand {
   readonly idempotencyKey: string;
 }
 
+export interface VariantOptionSelectionCommand {
+  readonly name: string;
+  readonly value: string;
+}
+
 export interface CreateVariantCommand {
   readonly tenantId: string;
   readonly productId: string;
   readonly sku: string;
   readonly displayName: string | null;
+  // When present the variant is created with these option values atomically.
+  readonly options?: readonly VariantOptionSelectionCommand[];
+  readonly idempotencyKey: string;
+}
+
+export interface SetVariantOptionsCommand {
+  readonly tenantId: string;
+  readonly productId: string;
+  readonly variantId: string;
+  readonly options: readonly VariantOptionSelectionCommand[];
+  readonly idempotencyKey: string;
+}
+
+export interface UpdateOptionValuesCommand {
+  readonly tenantId: string;
+  readonly productId: string;
+  readonly values: readonly {
+    readonly valueId: string;
+    readonly swatchHex: string | null;
+    readonly position?: number;
+  }[];
   readonly idempotencyKey: string;
 }
 
@@ -115,6 +142,14 @@ export interface CatalogWriteRepository {
     proof: AuthorizedOperationContext,
     command: CreateVariantCommand,
   ): Promise<{ variantId: string; status: "draft" | "active" | "archived" }>;
+  setVariantOptions(
+    proof: AuthorizedOperationContext,
+    command: SetVariantOptionsCommand,
+  ): Promise<{ variantId: string; optionSignature: string }>;
+  updateOptionValues(
+    proof: AuthorizedOperationContext,
+    command: UpdateOptionValuesCommand,
+  ): Promise<{ productId: string; updatedCount: number }>;
   setVariantPrice(
     proof: AuthorizedOperationContext,
     command: SetVariantPriceCommand,
@@ -139,4 +174,24 @@ export interface CatalogWriteRepository {
     proof: AuthorizedOperationContext,
     command: ArchiveProductMediaCommand,
   ): Promise<{ mediaId: string }>;
+  /** SDK 0.53: a product's active photos in display order (main photo first). */
+  listProductMedia(
+    proof: AuthorizedOperationContext,
+    tenantId: string,
+    productId: string,
+  ): Promise<ProductMediaItem[]>;
+  updateProductMedia(
+    proof: AuthorizedOperationContext,
+    command: {
+      tenantId: string;
+      mediaId: string;
+      setAlt: boolean;
+      altText: string | null;
+      makePrimary: boolean;
+    },
+  ): Promise<{ mediaId: string; isPrimary: boolean; altText: string | null }>;
+  reorderProductMedia(
+    proof: AuthorizedOperationContext,
+    command: { tenantId: string; productId: string; mediaIds: string[] },
+  ): Promise<{ productId: string; mediaCount: number }>;
 }

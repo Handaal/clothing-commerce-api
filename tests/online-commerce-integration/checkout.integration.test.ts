@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { describe, expect, it } from "vitest";
 import { CheckoutResultSchema, OrderDetailResponseSchema } from "../../src/contracts";
 import { createCommerceClient, ApiHttpError } from "../../packages/sdk/src";
+import { assertIsolatedDbContainer } from "../../scripts/supabase-isolation-guard.mjs";
 
 const url = process.env.ONLINE_TEST_URL;
 const dbUrl = process.env.SUPABASE_URL;
@@ -42,13 +43,19 @@ const intent = {
   expectedCurrency: "USD",
   paymentMethod: "cash_on_delivery" as const,
 };
+// Direct SQL goes to the disposable database of THIS run only. There is deliberately no default: the shared
+// dev stack (supabase_db_clothing-commerce-api) must never receive test writes.
+const DB_CONTAINER = assertIsolatedDbContainer(
+  process.env.ONLINE_TEST_DB_CONTAINER,
+  "ONLINE_TEST_DB_CONTAINER",
+);
 function sql(source: string): string {
   const r = spawnSync(
     "docker",
     [
       "exec",
       "-i",
-      "supabase_db_clothing-commerce-api",
+      DB_CONTAINER,
       "psql",
       "-X",
       "-A",

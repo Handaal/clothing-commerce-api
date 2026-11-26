@@ -272,7 +272,7 @@ describe("Commerce SDK", () => {
   });
 
   it("exposes semantic SDK version metadata", () => {
-    expect(SDK_VERSION).toBe("0.27.0");
+    expect(SDK_VERSION).toBe("0.54.0");
   });
 
   it("posPinLogin POSTs username+PIN publicly (no tenant header, no bearer) and returns the session", async () => {
@@ -940,6 +940,7 @@ describe("Commerce SDK Offline POS surface", () => {
               capturedAt: now,
               createdAt: now,
               updatedAt: now,
+              confirmation: "cashier_recorded",
             },
             fulfillment: null,
             reconciliation: {

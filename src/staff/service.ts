@@ -3,14 +3,18 @@ import { type AuthorizationContext, type AuthorizationService } from "../authori
 import {
   AssignStaffRoleRequestSchema,
   CreateStaffRequestSchema,
+  CreateStaffWithoutLoginRequestSchema,
   CreateStaffLoginRequestSchema,
   UnassignStaffRoleRequestSchema,
   UpdateStaffStatusRequestSchema,
+  UpdateStaffProfileRequestSchema,
   type AssignStaffRoleRequest,
   type CreateStaffRequest,
+  type CreateStaffWithoutLoginRequest,
   type CreateStaffLoginRequest,
   type UnassignStaffRoleRequest,
   type UpdateStaffStatusRequest,
+  type UpdateStaffProfileRequest,
 } from "../contracts/management/staff";
 import type { StaffLoginProvisioner } from "../authentication/staff-login-provisioner";
 import { StaffError } from "./errors";
@@ -109,6 +113,18 @@ export class StaffService {
     );
   }
 
+  async createWithoutLogin(
+    context: AuthorizationContext,
+    key: string,
+    input: CreateStaffWithoutLoginRequest,
+  ) {
+    return this.repository.createWithoutLogin(
+      await this.authorize(context, StaffPermission.manage),
+      key,
+      parse(CreateStaffWithoutLoginRequestSchema, input),
+    );
+  }
+
   /**
    * Provision an email-less staff LOGIN (external account + identity + binding + membership + initial
    * assignment) in one step. The order is deliberate and fail-closed:
@@ -152,6 +168,20 @@ export class StaffService {
       parse(z.uuid(), membershipId),
       key,
       parse(UpdateStaffStatusRequestSchema, input),
+    );
+  }
+
+  async updateProfile(
+    context: AuthorizationContext,
+    membershipId: string,
+    key: string,
+    input: UpdateStaffProfileRequest,
+  ) {
+    return this.repository.updateProfile(
+      await this.authorize(context, StaffPermission.manage),
+      parse(z.uuid(), membershipId),
+      key,
+      parse(UpdateStaffProfileRequestSchema, input),
     );
   }
 

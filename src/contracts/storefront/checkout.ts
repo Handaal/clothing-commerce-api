@@ -5,6 +5,7 @@ import {
   PositiveIntegerSchema,
 } from "../common/serialization";
 import { AppliedPromotionSchema, PromotionCodeInputSchema } from "../common/promotion-pricing";
+import { DeliveryZoneCodeSchema, DeliveryZoneRefSchema } from "./delivery";
 
 export const CustomerContactSchema = z.strictObject({
   name: z.string().trim().min(1).max(200),
@@ -26,6 +27,8 @@ export const DeliveryAddressSchema = z.strictObject({
   postalCode: z.string().trim().max(30).nullable(),
   countryCode: z.string().regex(/^[A-Z]{2}$/),
   notes: z.string().trim().max(500).nullable(),
+  // Delivery area (e.g. "EG-C"). Required when the brand has delivery zones; drives the delivery fee.
+  zoneCode: DeliveryZoneCodeSchema.optional(),
 });
 export const CheckoutRequestSchema = z.strictObject({
   tenantId: z.uuid(),
@@ -59,6 +62,8 @@ export const PaymentSummarySchema = z.object({
   status: PaymentStatusSchema,
   amountMinor: NonNegativeIntegerSchema,
   currency: CurrencySchema,
+  // When the payment was captured (online cash on delivery: when staff marked it collected).
+  capturedAt: z.string().nullable().optional(),
 });
 export const CheckoutResultSchema = z.object({
   orderReference: z.string().min(1),
@@ -69,12 +74,17 @@ export const CheckoutResultSchema = z.object({
   // Promotion breakdown (additive; existing non-strict consumers ignore these). totalMinor is the net.
   grossSubtotalMinor: NonNegativeIntegerSchema,
   discountTotalMinor: NonNegativeIntegerSchema,
+  // Delivery fee included in totalMinor (absent on results placed before delivery fees existed).
+  deliveryFeeMinor: NonNegativeIntegerSchema.optional(),
+  deliveryZone: DeliveryZoneRefSchema.nullable().optional(),
   promotion: AppliedPromotionSchema.nullable(),
   payment: PaymentSummarySchema,
   fulfillmentStatus: z.literal("unfulfilled"),
 });
 export type CheckoutResult = z.infer<typeof CheckoutResultSchema>;
 export const OrderCommerceDetailsSchema = z.object({
+  // Delivery fee included in the order total (0 when free or not charged).
+  deliveryFeeMinor: NonNegativeIntegerSchema.optional(),
   customerId: z.uuid().nullable(),
   customer: CustomerContactSchema.nullable(),
   delivery: DeliveryAddressSchema.nullable(),

@@ -1,5 +1,10 @@
 # Clothing Commerce API
 
+The local 0.30.0 branch adds register stock availability, staff without login, automatic offline
+team attendance application, payroll cycles, variant barcode allocation, and customer name updates
+on POS sales. See [register workforce and stock](docs/pos/register-workforce-and-stock.md) for the
+contract, persistence, authorization, and sync behavior.
+
 Central HTTP API, transport-contract, SDK, persistence, and staff-authorization foundation for the
 Clothing Commerce Platform. Through Phase 2E it exposed only `GET /api/v1/health`; Phase 2A adds the shared catalog
 domain and persistence, Phase 2B adds the inventory ledger/balance engine foundation, Phase 2C adds the

@@ -30,13 +30,19 @@ export type ProductListResponse = z.infer<typeof ProductListResponseSchema>;
 export const ProductVariantSummarySchema = z.object({
   id: UuidSchema,
   sku: z.string(),
+  barcode: z.string().nullable().optional(),
   displayName: z.string().nullable(),
   status: ProductStatusSchema,
+  // The variant's selected value per option dimension (ids into `options`).
+  optionValues: z.array(z.object({ optionId: UuidSchema, valueId: UuidSchema })).optional(),
 });
 
 export const ProductOptionValueSchema = z.object({
   id: UuidSchema,
   value: z.string(),
+  // Optional lowercase #rrggbb swatch colour shown on the Storefront.
+  swatchHex: z.string().nullable().optional(),
+  position: z.number().int().nonnegative().optional(),
 });
 
 export const ProductOptionSchema = z.object({
@@ -56,6 +62,10 @@ export const ProductDetailResponseSchema = z.object({
   variants: z.array(ProductVariantSummarySchema),
   options: z.array(ProductOptionSchema),
   prices: z.array(ProductPriceSchema),
+  // Categories the product belongs to (any status).
+  categoryIds: z.array(UuidSchema).optional(),
+  // SDK 0.50: the product's vendor (the label it is made by, shown as "Brand"); null when unset.
+  vendorId: UuidSchema.nullable().optional(),
 });
 
 export type ProductDetailResponse = z.infer<typeof ProductDetailResponseSchema>;

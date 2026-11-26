@@ -65,6 +65,9 @@ export const CancelOrderInputSchema = z
   })
   .strict();
 
+export const CollectCashOnDeliveryInputSchema = z.object({ orderId: UuidSchema }).strict();
+export type CollectCashOnDeliveryInput = z.infer<typeof CollectCashOnDeliveryInputSchema>;
+
 export const GetOrderInputSchema = z.object({ orderId: UuidSchema }).strict();
 export const GetOrderByNumberInputSchema = z
   .object({ orderNumber: z.string().trim().min(1).max(200) })
@@ -80,6 +83,8 @@ export const OrderPermission = {
   read: "orders.read",
   create: "orders.create",
   cancel: "orders.cancel",
+  // Delivered + cash collected on an online order: the same grant that ships it.
+  fulfill: "orders.fulfill",
 } as const;
 
 export type OrderChannel = "pos" | "online";

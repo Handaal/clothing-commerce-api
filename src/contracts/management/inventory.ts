@@ -20,6 +20,7 @@ export const InventoryBalanceSchema = z.object({
   brandId: UuidSchema,
   productName: z.string(),
   sku: z.string(),
+  barcode: z.string().nullable().optional(),
   onHand: NonNegativeIntegerSchema,
   // Current cost basis and active selling price in minor units; null when unset for the variant.
   // Together with onHand these drive the inventory valuation (total stock value / total selling value).

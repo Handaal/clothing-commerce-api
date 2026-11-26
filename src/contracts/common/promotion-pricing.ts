@@ -13,7 +13,9 @@ export const PromotionCodeInputSchema = z
   );
 
 export const PromotionActivationSchema = z.enum(["automatic", "code"]);
-export const PromotionBenefitTypeSchema = z.enum(["percentage", "fixed_amount"]);
+// "buy_x_get_y" (online-only): for every complete group of buy+get qualifying units the cheapest `get`
+// units are free.
+export const PromotionBenefitTypeSchema = z.enum(["percentage", "fixed_amount", "buy_x_get_y"]);
 
 // The immutable summary of the single applied promotion, sufficient for UI acknowledgement.
 export const AppliedPromotionSchema = z.object({

@@ -20,6 +20,37 @@ const detail = {
 };
 
 describe("Staff SDK", () => {
+  it("updates a tenant staff profile with an idempotency key", async () => {
+    const response = {
+      ...detail,
+      displayName: "Dana",
+      position: "Cashier",
+      phone: "+201001112222",
+    };
+    const fetcher = vi.fn<typeof fetch>(async () => new Response(JSON.stringify(response)));
+    const client = createCommerceClient({
+      baseUrl: "https://example.test",
+      fetch: fetcher,
+    }).withTenant(id);
+    expect(
+      await client.updateStaffProfile({
+        membershipId: id,
+        idempotencyKey: "profile-1",
+        displayName: "Dana",
+        position: "Cashier",
+        phone: "+201001112222",
+      }),
+    ).toEqual(response);
+    const [path, init] = fetcher.mock.calls[0];
+    expect(path).toBe(`https://example.test/api/v1/staff/${id}/profile`);
+    expect(init?.method).toBe("PUT");
+    expect(new Headers(init?.headers).get("Idempotency-Key")).toBe("profile-1");
+    expect(JSON.parse(init?.body as string)).toEqual({
+      displayName: "Dana",
+      position: "Cashier",
+      phone: "+201001112222",
+    });
+  });
   it("links an identity and transitions lifecycle with idempotent, tenant-scoped writes", async () => {
     const fetcher = vi.fn<typeof fetch>(async () => new Response(JSON.stringify(detail)));
     const client = createCommerceClient({

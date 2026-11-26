@@ -28,6 +28,7 @@ import {
   assertLoopbackDbHost,
   assertNotSharedProject,
   sanitizedChildEnv,
+  assertIsolatedDbContainer,
 } from "./supabase-isolation-guard.mjs";
 
 export const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -81,7 +82,7 @@ export async function createIsolatedStack(options = {}) {
   const projectId = resources.projectId;
   // Fail closed before any CLI/Docker call if the minted id is not a disposable rt-<hex> project.
   assertNotSharedProject(projectId);
-  const dbContainer = "supabase_db_" + projectId;
+  const dbContainer = assertIsolatedDbContainer("supabase_db_" + projectId);
   const excluded = options.excluded ?? EXCLUDE_KEEP_API;
 
   const [apiPort, dbPort, ...extra] = await allocatePorts(2 + (options.extraPorts ?? 0));

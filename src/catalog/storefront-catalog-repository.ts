@@ -16,6 +16,12 @@ export interface StorefrontCatalogRepository {
     limit: number,
   ): Promise<unknown[]>;
   getPublishedProduct(tenantId: string, slug: string): Promise<unknown | null>;
+  listBestSellingProductIds(
+    tenantId: string,
+    brandId: string | null,
+    days: number,
+    limit: number,
+  ): Promise<unknown>;
 }
 
 export class SupabaseStorefrontCatalogRepository implements StorefrontCatalogRepository {
@@ -52,6 +58,26 @@ export class SupabaseStorefrontCatalogRepository implements StorefrontCatalogRep
     }
     const rows = (Array.isArray(data) ? data : []) as ReadonlyArray<{ product?: unknown }>;
     return rows.length === 0 ? null : (rows[0]?.product ?? null);
+  }
+
+  async listBestSellingProductIds(
+    tenantId: string,
+    brandId: string | null,
+    days: number,
+    limit: number,
+  ): Promise<unknown> {
+    const { data, error } = await this.client
+      .schema(CATALOG_PUBLIC_SCHEMA)
+      .rpc("list_best_selling_products", {
+        p_tenant_id: tenantId,
+        p_brand_id: brandId,
+        p_days: days,
+        p_limit: limit,
+      });
+    if (error) {
+      throw new Error("An unexpected public best-seller read error occurred.");
+    }
+    return data;
   }
 }
 

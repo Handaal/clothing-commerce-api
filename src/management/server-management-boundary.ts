@@ -13,9 +13,19 @@ import { CollectionManagementService } from "../catalog/collection-management-se
 import { createSupabaseCollectionRepository } from "../catalog/collection-repository";
 import { StorefrontCollectionService } from "../catalog/storefront-collection-service";
 import { createSupabaseStorefrontCollectionRepository } from "../catalog/storefront-collection-repository";
+import { CategoryService } from "../catalog/category-service";
+import { createSupabaseCategoryRepository } from "../catalog/category-repository";
+import { VendorService } from "../catalog/vendor-service";
+import { createSupabaseVendorRepository } from "../catalog/vendor-repository";
+import { SubscriberService, createSupabaseSubscriberRepository } from "../marketing/subscribers";
+import {
+  AfterPurchaseService,
+  createSupabaseAfterPurchaseRepository,
+} from "../orders/after-purchase";
 import {
   readClerkVerifierConfiguration,
-  readOfflinePinConfiguration,
+  readOfflinePinV2Enabled,
+  readOfflineCachedVouchersEnabled,
   readPosAuthSigningConfiguration,
   readSupabasePrivilegedConfiguration,
 } from "../config/auth-environment";
@@ -25,9 +35,12 @@ import { InventoryReadService } from "../inventory/inventory-read-service";
 import { createSupabaseInventoryReadRepository } from "../inventory/supabase-inventory-read-repository";
 import { InventoryService } from "../inventory/inventory-service";
 import { createSupabaseInventoryRepository } from "../inventory/supabase-inventory-repository";
+import { InventoryChannelService } from "../inventory/channel-service";
+import { createSupabaseInventoryChannelRepository } from "../inventory/supabase-inventory-channel-repository";
 import { OrderService } from "../orders";
 import { createSupabaseOrdersRepository } from "../orders";
 import { OrdersReadService } from "../orders/orders-read-service";
+import { OnlineOrderOperationsService } from "../orders/online-order-operations-service";
 import { CustomersReadService, CustomersArService } from "../customers";
 import {
   createSupabaseCustomersReadRepository,
@@ -40,6 +53,9 @@ import { createStaffRepository } from "../staff/repository";
 import { AttendanceService } from "../attendance/service";
 import { createAttendanceRepository } from "../attendance/repository";
 import { PromotionsService } from "../promotions/service";
+import { MerchandisingService } from "../merchandising/service";
+import { createMerchandisingRepository } from "../merchandising/repository";
+import { createSupabaseMediaUploadSigner } from "../merchandising/storage-signer";
 import { createPromotionsRepository } from "../promotions/repository";
 import { ReportingService } from "../reporting/service";
 import { createReportingRepository } from "../reporting/repository";
@@ -71,7 +87,6 @@ export function createManagementApiBoundary(
 ) {
   const clerkConfiguration = readClerkVerifierConfiguration(environment);
   const supabaseConfiguration = readSupabasePrivilegedConfiguration(environment);
-  const offlinePinConfiguration = readOfflinePinConfiguration(environment);
   const posAuthSigningConfiguration = readPosAuthSigningConfiguration(environment);
 
   const { contextResolver, authorizationService } = createServerAuthorizationBoundary(environment);
@@ -101,9 +116,13 @@ export function createManagementApiBoundary(
 
   // The Phase 2J catalog WRITE surface. It authorizes catalog.author / catalog.publish against the
   // target product's brand before any privileged database access.
+  // One Storage signer for every server-chosen media destination (product media + storefront hero).
+  // It returns null when Storage is unreachable, which the contract models as uploadUrl: null.
+  const mediaUploadSigner = createSupabaseMediaUploadSigner(supabaseConfiguration);
   const catalogManagementService = new CatalogManagementService(
     authorizationService,
     createSupabaseCatalogWriteRepository(supabaseConfiguration),
+    mediaUploadSigner,
   );
 
   // The public Storefront read surface over the DB-enforced published-only boundary.
@@ -119,6 +138,21 @@ export function createManagementApiBoundary(
   );
   const storefrontCollectionService = new StorefrontCollectionService(
     createSupabaseStorefrontCollectionRepository(supabaseConfiguration),
+  );
+  // Categories: tenant-wide taxonomy (catalog.author) plus the published-only public list.
+  const categoryService = new CategoryService(
+    authorizationService,
+    createSupabaseCategoryRepository(supabaseConfiguration),
+  );
+  // Vendors (SDK 0.50): the labels the tenant sells, shown as "Brand" (catalog.author + public list).
+  const vendorService = new VendorService(
+    authorizationService,
+    createSupabaseVendorRepository(supabaseConfiguration),
+  );
+
+  // Storefront email sign-ups: public subscribe + management list (orders.read).
+  const subscriberService = new SubscriberService(
+    createSupabaseSubscriberRepository(supabaseConfiguration),
   );
 
   const inventoryReadService = new InventoryReadService(
@@ -144,11 +178,19 @@ export function createManagementApiBoundary(
     authorizationService,
     createReturnsRepository(supabaseConfiguration),
   );
+  const ordersReadRepository = createSupabaseOrdersReadRepository(supabaseConfiguration);
   const ordersReadService = new OrdersReadService(
-    createSupabaseOrdersReadRepository(supabaseConfiguration),
+    ordersReadRepository,
     orderService,
     fulfillmentService,
     returnsService,
+  );
+  // Staff fulfil/cancel of ONLINE orders over the canonical Order + Fulfillment services.
+  const onlineOrderOperationsService = new OnlineOrderOperationsService(
+    orderService,
+    fulfillmentService,
+    ordersReadService,
+    ordersReadRepository,
   );
   const customersReadService = new CustomersReadService(
     createSupabaseCustomersReadRepository(supabaseConfiguration),
@@ -162,12 +204,6 @@ export function createManagementApiBoundary(
     createSupabasePosSaleRepository(supabaseConfiguration),
     createSupabaseOrdersRepository(supabaseConfiguration),
   );
-  const offlinePosService = new OfflinePosService(
-    authorizationService,
-    createSupabasePosSaleRepository(supabaseConfiguration),
-    createSupabaseOfflinePosRepository(supabaseConfiguration),
-    offlinePinConfiguration,
-  );
 
   // POS-native (pos_pin) authentication: public connected sign-in + admin account management. Dormant
   // (login rejects with a clear config error) when POS_AUTH_SIGNING_KEY is unset.
@@ -175,6 +211,15 @@ export function createManagementApiBoundary(
     authorizationService,
     createPosAuthRepository(supabaseConfiguration),
     posAuthSigningConfiguration,
+  );
+  const offlinePosService = new OfflinePosService(
+    authorizationService,
+    createSupabasePosSaleRepository(supabaseConfiguration),
+    createSupabaseOfflinePosRepository(supabaseConfiguration),
+    null, // retired OFFLINE_PIN_KEK slot (ignored)
+    (username, pin) => posAuthService.reauthenticate(username, pin),
+    readOfflineCachedVouchersEnabled(environment),
+    readOfflinePinV2Enabled(environment),
   );
 
   return {
@@ -186,9 +231,23 @@ export function createManagementApiBoundary(
     storefrontCatalogService,
     collectionManagementService,
     storefrontCollectionService,
+    categoryService,
+    vendorService,
+    subscriberService,
+    // Phase 4 after purchase: public tracking + return requests, staff decisions.
+    afterPurchaseService: new AfterPurchaseService(
+      authorizationService,
+      createSupabaseAfterPurchaseRepository(supabaseConfiguration),
+    ),
     inventoryReadService,
     inventoryService,
+    // ADR-042 Website/POS channel stock (read + initialize + admin split). Enforcement is not reachable here.
+    inventoryChannelService: new InventoryChannelService(
+      authorizationService,
+      createSupabaseInventoryChannelRepository(supabaseConfiguration),
+    ),
     ordersReadService,
+    onlineOrderOperationsService,
     customersReadService,
     customersArService,
     returnsService,
@@ -207,6 +266,13 @@ export function createManagementApiBoundary(
     attendanceService: new AttendanceService(
       authorizationService,
       createAttendanceRepository(supabaseConfiguration),
+    ),
+    // Storefront merchandising: catalog sales (promotions.* permissions) and home-page content
+    // (catalog.author), plus the public content read.
+    merchandisingService: new MerchandisingService(
+      authorizationService,
+      createMerchandisingRepository(supabaseConfiguration),
+      mediaUploadSigner,
     ),
     promotionsService: new PromotionsService(
       authorizationService,

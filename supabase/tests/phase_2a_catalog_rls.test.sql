@@ -116,27 +116,37 @@ select is(
   'catalog exposes no authenticated mutation policy'
 );
 
--- catalog_private holds the 3 Phase 2A integrity helpers (expected_variant_option_signature,
--- enforce_variant_option_signature, prevent_category_cycle), the 12 Phase 2J sanctioned write
--- functions (claim_write, complete_write, raise_catalog_unique_conflict, create_product, update_product,
--- set_product_status, create_variant, set_variant_price, publish_product, unpublish_product,
--- add_product_media, archive_product_media), the variant unit-cost writer (set_variant_cost), and the
--- 4 collection management writers (create_collection, update_collection, set_collection_status,
--- set_collection_products). All 20 are SECURITY INVOKER with a fixed empty search_path: the writers
--- deliberately run as the BYPASSRLS service_role that already holds catalog DML, so they never escalate
--- through SECURITY DEFINER. Because catalog_private contains exactly 20 functions, a match count of 20
--- also proves none of them is SECURITY DEFINER or missing the fixed empty search_path.
+-- catalog_private function hardening. Every function pins a fixed empty search_path. The catalog
+-- writers (Phase 2A helpers, Phase 2J sanctioned writes, collections, categories, vendors, options)
+-- are SECURITY INVOKER: they run as the BYPASSRLS service_role that already holds catalog DML, so they
+-- never escalate. The only SECURITY DEFINER functions are this explicit, reviewed allowlist — the sale
+-- engine (SDK 0.30+), storefront content / site text (0.52), catalog images and product-media editing
+-- (0.53). None of them is executable by PUBLIC/anon/authenticated (asserted below by the schema-usage
+-- and function-privilege checks). A count of 0 therefore proves no function lacks the fixed
+-- search_path and no unreviewed SECURITY DEFINER function was added.
 select is(
   (
     select count(*)
     from pg_catalog.pg_proc as procedure
     join pg_catalog.pg_namespace as namespace on namespace.oid = procedure.pronamespace
     where namespace.nspname = 'catalog_private'
-      and not procedure.prosecdef
-      and procedure.proconfig @> array['search_path=""']
+      and (
+        not coalesce(procedure.proconfig @> array['search_path=""'], false)
+        or (
+          procedure.prosecdef
+          and procedure.proname not in (
+            'assert_sale_shape', 'create_sale', 'delete_sale', 'effective_unit_price', 'list_sales',
+            'product_offers', 'public_storefront_site_text', 'reorder_product_media', 'sale_applies',
+            'sale_detail', 'set_category_image', 'set_collection_image', 'set_sale_status',
+            'storefront_content_detail', 'storefront_site_text_detail', 'update_product_media',
+            'update_sale', 'upsert_storefront_content', 'upsert_storefront_site_text',
+            'write_sale_products'
+          )
+        )
+      )
   ),
-  20::bigint,
-  'all 20 catalog_private functions are SECURITY INVOKER with an empty fixed search_path'
+  0::bigint,
+  'every catalog_private function has a fixed empty search_path; SECURITY DEFINER only on the reviewed allowlist'
 );
 
 select ok(
@@ -277,8 +287,9 @@ set constraints all deferred;
 
 insert into public.variant_barcodes (id, tenant_id, variant_id, value, is_primary)
 values
-  ('61000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000001', '60000000-0000-4000-8000-000000000001', 'BARCODE-A', true),
-  ('61000000-0000-4000-8000-000000000002', '10000000-0000-4000-8000-000000000002', '60000000-0000-4000-8000-000000000002', 'BARCODE-B', true);
+  -- Secondary: each variant already owns its canonical auto-generated primary (20261113122000).
+  ('61000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000001', '60000000-0000-4000-8000-000000000001', 'BARCODE-A', false),
+  ('61000000-0000-4000-8000-000000000002', '10000000-0000-4000-8000-000000000002', '60000000-0000-4000-8000-000000000002', 'BARCODE-B', false);
 
 insert into public.categories (id, tenant_id, name, slug)
 values
@@ -326,7 +337,7 @@ set local "request.jwt.claims" = '{"user_identity_id":"70000000-0000-4000-8000-0
 -- Each query has two physical fixture rows, so count=1 proves same-tenant visibility and foreign-row hiding.
 select is((select count(*) from public.products), 1::bigint, 'active member reads only own products');
 select is((select count(*) from public.product_variants), 1::bigint, 'active member reads only own variants');
-select is((select count(*) from public.variant_barcodes), 1::bigint, 'active member reads only own barcodes');
+select is((select count(*) from public.variant_barcodes), 2::bigint, 'active member reads only own barcodes (canonical primary + one secondary)');
 select is((select count(*) from public.product_options), 1::bigint, 'active member reads only own product options');
 select is((select count(*) from public.product_option_values), 1::bigint, 'active member reads only own option values');
 select is((select count(*) from public.variant_option_values), 1::bigint, 'active member reads only own variant selections');
@@ -413,7 +424,7 @@ reset role;
 set local role service_role;
 select is((select count(*) from public.products), 2::bigint, 'service_role reads all products');
 select is((select count(*) from public.product_variants), 2::bigint, 'service_role reads all variants');
-select is((select count(*) from public.variant_barcodes), 2::bigint, 'service_role reads all barcodes');
+select is((select count(*) from public.variant_barcodes), 4::bigint, 'service_role reads all barcodes');
 select is((select count(*) from public.product_options), 2::bigint, 'service_role reads all product options');
 select is((select count(*) from public.product_option_values), 2::bigint, 'service_role reads all option values');
 select is((select count(*) from public.variant_option_values), 2::bigint, 'service_role reads all variant selections');

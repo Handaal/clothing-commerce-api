@@ -1,4 +1,4 @@
-import { generateKeyPairSync, scryptSync, sign } from "node:crypto";
+import { generateKeyPairSync, sign } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { beforeAll, describe, expect, it } from "vitest";
 
@@ -88,6 +88,10 @@ beforeAll(async () => {
     createSupabasePosSaleRepository(config),
     createSupabaseOfflinePosRepository(config),
     { kek, keyVersion: 1 },
+    null,
+    false,
+    // Offline PIN v2 on: this suite proves enrollment and the bootstrap's unlock authorizations.
+    true,
   );
   void createSupabaseOrdersRepository;
 });
@@ -219,32 +223,6 @@ async function provisionPin(membershipId: string, pin: string) {
   if (error) throw error;
 }
 
-function posVerifies(
-  verifier: {
-    saltBase64: string;
-    hashBase64: string;
-    n: number;
-    r: number;
-    p: number;
-    keyLength: number;
-  },
-  pin: string,
-  deviceId: string,
-): boolean {
-  const material = Buffer.concat([
-    Buffer.from(verifier.saltBase64, "base64"),
-    Buffer.from(deviceId, "utf8"),
-  ]);
-  return (
-    scryptSync(pin, material, verifier.keyLength, {
-      N: verifier.n,
-      r: verifier.r,
-      p: verifier.p,
-      maxmem: 256 * 1024 * 1024,
-    }).toString("base64") === verifier.hashBase64
-  );
-}
-
 async function ingest(payload: ReturnType<typeof signed>) {
   return runTenantDeviceWriteRoute({
     request: request(null, TENANT, payload.command.syncCommandId, payload),
@@ -368,40 +346,42 @@ describe.sequential("Phase 2I offline POS real HTTP/domain boundary", () => {
     );
     expect((await bootstrap(String((await body(third)).deviceId), REGISTER3)).status).toBe(403);
   });
-  it("emits a device-bound offline staff roster of exactly the register's authorized sellers", async () => {
-    // Give all three POS staff a PIN. Only pos-full is an authorized seller on REGISTER's branch AND
-    // location; the other two fail scope coverage (no payments.capture / wrong inventory location).
-    await provisionPin(POS_FULL_MEMBERSHIP, "4821");
-    await provisionPin(POS_NO_PAYMENT_MEMBERSHIP, "1111");
-    await provisionPin(POS_WRONG_LOCATION_MEMBERSHIP, "2222");
+  it("offline PIN v2: sealed PINs are refused; bootstrap authorises only enrolled sellers of this register (no PIN material)", async () => {
+    // The retired KEK-sealed writer is not callable by the API transport any more.
+    await expect(provisionPin(POS_FULL_MEMBERSHIP, "4821")).rejects.toBeTruthy();
+    const enrolV2 = (membershipId: string, key: string) =>
+      admin.schema("offline_pos_private").rpc("enroll_offline_pin", {
+        p_tenant: TENANT,
+        p_membership: membershipId,
+        p_device: deviceId,
+        p_register: REGISTER,
+        p_idempotency_key: key,
+      });
+    const full = await enrolV2(POS_FULL_MEMBERSHIP, "pin-v2-full");
+    expect(full.error).toBeNull();
+    // Not authorised sellers here (no payments.capture / wrong location): refused, nothing recorded.
+    expect((await enrolV2(POS_NO_PAYMENT_MEMBERSHIP, "pin-v2-nopay")).error?.code).toBe("ST403");
+    expect((await enrolV2(POS_WRONG_LOCATION_MEMBERSHIP, "pin-v2-wrongloc")).error?.code).toBe(
+      "ST403",
+    );
 
-    // Replaying the original grant (same idempotency key) returns the stored grant, but the roster is
-    // recomputed per bootstrap and is now populated and device-bound to THIS device.
-    // Replaying the original grant (same idempotency key) returns the stored grant over the real HTTP
-    // boundary, which also validates that the response contract accepts the new staffRoster field.
     const rosterResponse = await bootstrap(deviceId);
     const rosterText = await rosterResponse.text();
     if (rosterResponse.status !== 200)
       throw new Error(`roster bootstrap failed ${rosterResponse.status}: ${rosterText}`);
     const rostered = OfflineBootstrapResponseSchema.parse(JSON.parse(rosterText));
     expect(rostered.grantId).toBe(grant.grantId);
-    expect(rostered.staffRoster).toBeDefined();
-    const roster = rostered.staffRoster!;
-    expect(roster.map((entry) => entry.membershipId)).toEqual([POS_FULL_MEMBERSHIP]);
-    const entry = roster[0]!;
-    expect(entry).toMatchObject({
-      membershipId: POS_FULL_MEMBERSHIP,
-      username: "pos.full",
-      pinVerifier: { algorithm: "scrypt", n: 16384, r: 8, p: 1, keyLength: 32 },
-    });
-    expect(Buffer.from(entry.pinVerifier.saltBase64, "base64").length).toBeGreaterThanOrEqual(16);
-    // The POS KDF validates the correct PIN for THIS device, and rejects a wrong PIN or another device.
-    expect(posVerifies(entry.pinVerifier, "4821", deviceId)).toBe(true);
-    expect(posVerifies(entry.pinVerifier, "0000", deviceId)).toBe(false);
-    expect(posVerifies(entry.pinVerifier, "4821", "a-different-device")).toBe(false);
-    // The excluded sellers never leak into the roster even though they now have PINs.
-    expect(roster.map((e) => e.membershipId)).not.toContain(POS_NO_PAYMENT_MEMBERSHIP);
-    expect(roster.map((e) => e.membershipId)).not.toContain(POS_WRONG_LOCATION_MEMBERSHIP);
+    expect(rostered.staffRoster).toBeUndefined();
+    expect(rostered.offlinePinAuthorizations).toEqual([
+      {
+        membershipId: POS_FULL_MEMBERSHIP,
+        username: "pos.full",
+        displayName: "POS Full",
+        enrollmentId: (full.data as Array<{ enrollment_id: string }>)[0]!.enrollment_id,
+        verifierVersion: 1,
+      },
+    ]);
+    expect(rosterText).not.toMatch(/saltBase64|hashBase64|ciphertext/);
   });
   it("rejects tampering, wrong device, expired acceptance, and policy limits", async () => {
     const base = command(grant, "2a000030-0000-4000-8000-000000000001", 2, 1);
@@ -546,8 +526,9 @@ describe.sequential("Phase 2I offline POS real HTTP/domain boundary", () => {
   });
   it("verifies and rejects an offline paydown that exceeds the customer's outstanding", async () => {
     // Phase D2: a signed paydown for the seeded customer (who has no debt) must verify end-to-end —
-    // signature, grant binding, credential, customer lookup — then be rejected as an overpayment (422),
-    // proving the record_offline_customer_payment path and its CA409 -> blocking mapping on a live DB.
+    // signature, grant binding, credential, customer lookup — then be refused as an overpayment (CA409).
+    // ADR-042 §13.5: that refusal is preserved as a sync conflict for staff (200, conflict_recorded),
+    // never applied and never re-applied on replay.
     const customer = "2a000030-0000-4000-8000-000000000001";
     const rejected = await ingestPayment(
       signedPayment(
@@ -555,7 +536,8 @@ describe.sequential("Phase 2I offline POS real HTTP/domain boundary", () => {
         credentialId,
       ),
     );
-    expect(rejected.status).toBe(422);
+    expect(rejected.status).toBe(200);
+    expect(await rejected.json()).toMatchObject({ syncStatus: "conflict_recorded" });
     // A tampered signature is rejected before any A/R work.
     const tampered = signedPayment(
       paymentCommand(grant, "2a000030-0000-4000-8000-000000000052", customer, 500),

@@ -11,6 +11,7 @@ import {
   ISOLATED_PROJECT_PATTERN,
   SHARED_PROJECT_ID,
   SHARED_DB_CONTAINER,
+  assertIsolatedDbContainer,
   assertIsolatedSupabaseArgs,
   assertLoopbackDbHost,
   assertNotSharedProject,
@@ -158,6 +159,53 @@ describe("sanitizedChildEnv", () => {
     expect(env.SUPABASE_URL).toBe("http://127.0.0.1:55001"); // isolated value survives
     expect(env.KEEP).toBe("1");
     expect(env.REMOVE).toBeUndefined();
+  });
+});
+
+describe("assertIsolatedDbContainer — direct SQL fails closed without a disposable target", () => {
+  it("throws before any SQL when the isolated container env is missing or empty", () => {
+    expect(() => assertIsolatedDbContainer(undefined, "RETURNS_TEST_CONTAINER")).toThrow(
+      /no isolated RETURNS_TEST_CONTAINER/,
+    );
+    expect(() => assertIsolatedDbContainer("")).toThrow(/Refusing direct SQL/);
+    expect(() => assertIsolatedDbContainer(null)).toThrow(/Refusing direct SQL/);
+  });
+  it("refuses the shared dev container and any non-rt name", () => {
+    expect(() => assertIsolatedDbContainer(SHARED_DB_CONTAINER)).toThrow(/shared dev container/);
+    for (const name of [
+      "supabase_db_rt-123",
+      "supabase_db_rt-" + "A".repeat(32),
+      "postgres",
+      "supabase_db_rt-" + "a".repeat(32) + "-x",
+      " supabase_db_rt-" + "a".repeat(32),
+    ])
+      expect(() => assertIsolatedDbContainer(name)).toThrow(/non-disposable container/);
+  });
+  it("accepts exactly the container a minted disposable project owns", () => {
+    const minted = createResources({ dockerExec: emptyDocker });
+    try {
+      const name = "supabase_db_" + minted.projectId;
+      expect(assertIsolatedDbContainer(name)).toBe(name);
+    } finally {
+      minted.cleanup(emptyDocker);
+    }
+  });
+  it("every direct-SQL suite and runner routes its container through the guard (no default fallback)", () => {
+    const root = join(__dirname, "..", "..");
+    for (const file of [
+      "tests/returns-integration/returns.integration.test.ts",
+      "tests/suppliers-integration/suppliers.integration.test.ts",
+      "tests/online-commerce-integration/checkout.integration.test.ts",
+      "scripts/test-offline-pos-http-isolated.mjs",
+      "scripts/test-offline-pos-isolated.mjs",
+      "scripts/test-returns.mjs",
+      "scripts/test-staff.mjs",
+      "scripts/isolated-supabase-suite.mjs",
+    ]) {
+      const source = readFileSync(join(root, file), "utf8");
+      expect(source, file).toMatch(/assertIsolatedDbContainer\(/);
+      expect(source, file).not.toMatch(/CONTAINER\s*(\?\?|\|\|)\s*["'`]/);
+    }
   });
 });
 

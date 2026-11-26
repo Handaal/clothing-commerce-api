@@ -8,3 +8,26 @@ acceptance.
 See [docs/development/authentication-local.md](../../docs/development/authentication-local.md#development-identity-provisioning)
 for the full workflow, safety guards, and troubleshooting. Never run this against a shared or production
 database; the runner script has no way to target a non-local host.
+
+## Rich catalog extras (Storefront visualisation)
+
+Applied by hand to the local stack, after `seed-rich-catalog.sql`, to make the Storefront look realistic.
+All are idempotent and local-only:
+
+```bash
+docker exec -i supabase_db_clothing-commerce-api psql -U postgres < supabase/dev/seed-rich-options-categories.sql
+node scripts/seed-rich-product-photos.mjs
+docker exec -i supabase_db_clothing-commerce-api psql -U postgres < supabase/dev/seed-size-guides.sql
+docker exec -i supabase_db_clothing-commerce-api psql -U postgres < supabase/dev/seed-vendors.sql
+```
+
+- `seed-rich-options-categories.sql`: a Colour (with swatch) per product next to its Size, and a Men /
+  Accessories category tree over the type categories, via the sanctioned Phase 1A functions. Zee Store
+  is menswear only, so the women's fixture pieces (two dresses, leggings) are unpublished and the Dresses /
+  Women categories archived.
+- `seed-size-guides.sql`: test size guides (tops on Men, denim on Denim) via the Phase 2 write function.
+- `scripts/seed-rich-product-photos.mjs`: real Unsplash photos at the seeded media paths.
+- `seed-vendors.sql`: brands to shop by (Zara, Polo Ralph Lauren, H&M, Armani Exchange, two made-up local
+  labels) assigned to the rich catalog pieces via the SDK 0.50 vendor functions.
+- `seed-storefront-delivery.sql`: COD checkout + Egypt's 27 governorates (test fees, free over 2,000 EGP) for
+  every dev brand with published products. Checkout needs `STOREFRONT_BRAND_ID` in the Storefront `.env`.

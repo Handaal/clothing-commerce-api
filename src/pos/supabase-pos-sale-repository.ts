@@ -284,6 +284,25 @@ export class SupabasePosSaleRepository implements PosSaleRepository {
     return (await this.hydrateRegisters(tenantId, registers))[0] ?? null;
   }
 
+  async listAvailability(tenantId: string, inventoryLocationId: string) {
+    const items: { variantId: string; onHand: number }[] = [];
+    for (let offset = 0; ; offset += 1000) {
+      const { data, error } = await this.client
+        .from("inventory_balances")
+        .select("variant_id,on_hand_quantity")
+        .eq("tenant_id", tenantId)
+        .eq("inventory_location_id", inventoryLocationId)
+        .order("variant_id")
+        .range(offset, offset + 999);
+      if (error) throw mapError(error);
+      for (const row of data ?? []) {
+        items.push({ variantId: String(row.variant_id), onHand: Number(row.on_hand_quantity) });
+      }
+      if ((data ?? []).length < 1000) break;
+    }
+    return items;
+  }
+
   async recordSale(proof: PosSaleExecutionProof, command: RecordPosSaleCommand): Promise<string> {
     assertPosSaleExecutionProof(proof);
     const { data, error } = await this.client.schema(PRIVATE_SCHEMA).rpc("record_sale", {

@@ -123,6 +123,7 @@ select is(
     'order_lines|reporting_reader_read|PERMISSIVE|reporting_reader|SELECT|true|',
     'order_lines|returns_writer_read|PERMISSIVE|returns_writer|SELECT|true|',
     'orders|fulfillments_writer_order_read|PERMISSIVE|fulfillments_writer|SELECT|true|',
+    'orders|inventory_writer_order_read|PERMISSIVE|inventory_writer|SELECT|true|',
     'orders|online_writer_read|PERMISSIVE|online_writer|SELECT|true|',
     'orders|payments_writer_order_read|PERMISSIVE|payments_writer|SELECT|true|',
     'orders|pos_sales_writer_order_read|PERMISSIVE|pos_sales_writer|SELECT|true|',

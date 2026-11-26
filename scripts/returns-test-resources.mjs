@@ -16,7 +16,12 @@ import { join, dirname, basename } from "node:path";
 // Only Phase 2M test infrastructure uses this boundary. No Supabase stop/reset, prune,
 // wildcard deletion, or fallback cleanup is permitted here.
 export function docker(args) {
-  const result = spawnSync("docker", args, { encoding: "utf8", windowsHide: true });
+  const result = spawnSync("docker", args, {
+    encoding: "utf8",
+    windowsHide: true,
+    // pg_dump snapshots of a seeded dev database exceed the 1 MB default.
+    maxBuffer: 256 * 1024 * 1024,
+  });
   if (result.status !== 0) throw new Error(`Docker command failed: ${args.slice(0, 2).join(" ")}`);
   return result.stdout.trim();
 }

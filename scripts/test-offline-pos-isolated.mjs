@@ -28,6 +28,7 @@ import {
   assertLoopbackDbHost,
   assertNotSharedProject,
   sanitizedChildEnv,
+  assertIsolatedDbContainer,
 } from "./supabase-isolation-guard.mjs";
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -38,7 +39,7 @@ const isolated = resources.workdir;
 const projectId = resources.projectId;
 // Fail closed before any CLI/Docker call if the minted id is not a disposable rt-<hex> project.
 assertNotSharedProject(projectId);
-const dbContainer = "supabase_db_" + projectId;
+const dbContainer = assertIsolatedDbContainer("supabase_db_" + projectId);
 
 // Keep the exposed-service set identical to the stock integration runner so Kong + PostgREST + GoTrue
 // are available (the integration test talks to `${API_URL}/rest/v1/...`).

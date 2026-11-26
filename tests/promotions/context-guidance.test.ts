@@ -105,7 +105,15 @@ describe("Promotion /me/context capability guidance", () => {
         locations: [],
         write: { canReceive: false, canAdjust: false, canTransfer: false, locations: [] },
       },
-      orders: { canRead: false, tenantWide: false, brands: [], branches: [] },
+      orders: {
+        canRead: false,
+        tenantWide: false,
+        brands: [],
+        branches: [],
+        canFulfill: false,
+        canCancel: false,
+        canCollect: false,
+      },
     });
     expect(repository.tenantIds).toEqual([ids.otherTenant]);
   });

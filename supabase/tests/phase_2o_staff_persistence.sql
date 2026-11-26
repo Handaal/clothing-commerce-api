@@ -221,38 +221,99 @@ begin
  begin perform staff_private.create_staff_login(t,mem2,'login-badname','clerk_pin_bad','BAD NAME',' Bad',reader,sc); raise exception 'expected invalid username';
  exception when sqlstate '22023' then null; end;
 
- -- Phase 2O-C: offline-PIN credential store. set_offline_pin seals a PIN (the ciphertext/iv/tag are
- -- produced by the API; this layer only persists them) under the SAME anti-escalation rule as assign_role.
- -- Actor mem2 (holds staff.manage + staff.read) may credential the login m (holds only staff.read).
- d:=staff_private.set_offline_pin(t,mem2,'setpin-1',m,1,'aes-256-gcm','Y2lwaGVydGV4dA==','aXZieXRlcw==','dGFnYnl0ZXM=',16384,8,1,32,16);
- assert d->>'membershipId'=m::text,'offline PIN set returns the target membership';
- assert (d->>'keyVersion')::int=1,'offline PIN set returns the sealing key version';
- assert (select cipher_algorithm='aes-256-gcm' and kdf_algorithm='scrypt'
-     and scrypt_n=16384 and scrypt_r=8 and scrypt_p=1 and key_length=32 and salt_length=16
-     and ciphertext_base64='Y2lwaGVydGV4dA==' and set_by_membership_id=mem2
-   from public.staff_offline_pin_credentials where tenant_id=t and membership_id=m),'sealed credential row persisted with its KDF params and setter';
- -- Idempotency: exact replay (normalized key) returns the same response WITHOUT a second write.
- assert staff_private.set_offline_pin(t,mem2,'SETPIN-1',m,1,'aes-256-gcm','ZGlmZmVyZW50','ZGlmZml2','ZGlmZnRhZw==',16384,8,1,32,16)=d,'offline PIN set exact replay (new IV does not re-write under the same key)';
- assert (select ciphertext_base64='Y2lwaGVydGV4dA==' from public.staff_offline_pin_credentials where tenant_id=t and membership_id=m),'replay left the original sealed material untouched';
- -- Rotation under a new key overwrites in place (one live credential per membership).
- d:=staff_private.set_offline_pin(t,mem2,'setpin-2',m,2,'aes-256-gcm','cm90YXRlZA==','cm90aXY=','cm90dGFn',16384,8,1,32,16);
- assert (d->>'keyVersion')::int=2,'rotation returns the new key version';
- assert (select key_version=2 and ciphertext_base64='cm90YXRlZA=='
-     and (select count(*)=1 from public.staff_offline_pin_credentials where tenant_id=t and membership_id=m)
-   from public.staff_offline_pin_credentials where tenant_id=t and membership_id=m),'rotation overwrites in place (single live credential)';
- -- Anti-escalation: actor m (staff.read only) cannot credential mem2 (holds staff.manage it lacks).
- begin perform staff_private.set_offline_pin(t,m,'esc-pin',mem2,1,'aes-256-gcm','eA==','eA==','eA==',16384,8,1,32,16); raise exception 'expected escalation block';
- exception when sqlstate 'ST403' then null; end;
- -- An inactive target is refused (a is deactivated after the handover above).
- begin perform staff_private.set_offline_pin(t,mem2,'inactive-pin',a,1,'aes-256-gcm','eA==','eA==','eA==',16384,8,1,32,16); raise exception 'expected inactive target';
- exception when sqlstate 'ST409' then null; end;
- -- A missing target is a not-found.
- begin perform staff_private.set_offline_pin(t,mem2,'missing-pin','2a000012-0000-4000-8000-0000000000ff',1,'aes-256-gcm','eA==','eA==','eA==',16384,8,1,32,16); raise exception 'expected missing target';
- exception when sqlstate 'ST404' then null; end;
- -- The roster RPC rejects an unknown/inactive register (branch/location cannot be resolved).
- begin perform staff_private.offline_sell_roster(t,'2a000040-0000-4000-8000-0000000000ff'); raise exception 'expected register not found';
- exception when sqlstate 'ST404' then null; end;
+ -- Phase 2O-C (RETIRED by 20261115170000): the KEK-sealed offline-PIN store refuses every write and read.
+ begin perform staff_private.set_offline_pin(t,mem2,'setpin-1',m,1,'aes-256-gcm','Y2lwaGVydGV4dA==','aXZieXRlcw==','dGFnYnl0ZXM=',16384,8,1,32,16); raise exception 'expected retired offline PIN writer';
+ exception when sqlstate 'ST410' or sqlstate '42501' then null; end;
+ begin perform staff_private.offline_sell_roster(t,'2a000040-0000-4000-8000-0000000000ff'); raise exception 'expected retired offline PIN roster';
+ exception when sqlstate 'ST410' or sqlstate '42501' then null; end;
+ assert not exists (select 1 from public.staff_offline_pin_credentials where ciphertext_base64 is not null or retired_at is null),
+   'no live KEK-sealed PIN material exists';
 end $b$;
+do $new_team_member$
+declare
+  v_tenant uuid := '2a000001-0000-4000-8000-000000000001';
+  v_actor uuid := '2a000012-0000-4000-8000-000000000002';
+  v_created jsonb;
+begin
+  v_created := staff_private.create_staff_without_login(v_tenant,v_actor,'no-login-1','Team Member');
+  assert v_created->>'status' = 'active', 'non-login staff is active';
+  assert v_created->>'displayName' = 'Team Member', 'non-login staff name';
+  assert jsonb_array_length(v_created->'assignments') = 0, 'non-login staff has no permissions';
+  assert not exists (
+    select 1 from public.user_identity_provider_bindings
+    where user_identity_id = (v_created->>'identityId')::uuid
+  ), 'non-login staff has no provider account';
+  assert staff_private.create_staff_without_login(v_tenant,v_actor,'NO-LOGIN-1','Team Member') = v_created,
+    'non-login creation replays exactly';
+  v_created := staff_private.set_staff_profile(
+    v_tenant,v_actor,'team-profile-1',(v_created->>'membershipId')::uuid,
+    'New Team Name','Cashier','+201001112222'
+  );
+  assert v_created->>'displayName' = 'New Team Name', 'tenant profile name updated';
+  assert v_created->>'position' = 'Cashier' and v_created->>'phone' = '+201001112222',
+    'tenant profile position and phone updated';
+  assert staff_private.set_staff_profile(
+    v_tenant,v_actor,'TEAM-PROFILE-1',(v_created->>'membershipId')::uuid,
+    'New Team Name','Cashier','+201001112222'
+  ) = v_created, 'tenant profile update replays exactly';
+  assert staff_private.staff_profiles(v_tenant,array[(v_created->>'membershipId')::uuid])->0->>'displayName'
+    = 'New Team Name', 'staff list profile reflects override';
+  assert staff_private.staff_profiles('2a000001-0000-4000-8000-000000000002',
+    array[(v_created->>'membershipId')::uuid]) = '[]'::jsonb,
+    'staff profile read stays tenant scoped';
+end;
+$new_team_member$;
+reset role;
+do $customer_name_check$
+declare
+  v_tenant uuid := '2a000001-0000-4000-8000-000000000001';
+  v_id uuid;
+begin
+  v_id := orders_private.upsert_pos_customer(v_tenant,'Original Name','+201001234567');
+  assert orders_private.upsert_pos_customer(v_tenant,'Corrected Name','+201001234567') = v_id,
+    'matched phone keeps the global customer identity';
+  assert (select name='Corrected Name' and normalized_phone='+201001234567'
+    from public.customers where tenant_id=v_tenant and id=v_id),
+    'POS customer name is updated globally while phone stays fixed';
+end;
+$customer_name_check$;
+do $barcode_check$
+declare
+  v_tenant uuid;
+  v_product uuid;
+  v_variant uuid;
+  v_previous bigint;
+  v_barcode text;
+begin
+  select tenant_id,id into v_tenant,v_product from public.products order by id limit 1;
+  select coalesce(max(value::bigint),999) into v_previous from public.variant_barcodes
+    where tenant_id = v_tenant and value ~ '^[0-9]{1,15}$';
+  insert into public.product_variants(tenant_id,product_id,sku,option_signature,status)
+    values(v_tenant,v_product,'BARCODE-ACCEPTANCE-TEST','barcode-acceptance','draft') returning id into v_variant;
+  select value into v_barcode from public.variant_barcodes
+    where tenant_id = v_tenant and variant_id = v_variant and is_primary;
+  assert v_barcode = (v_previous + 1)::text, 'new variant gets next barcode';
+  assert v_barcode::bigint >= 1000, 'barcode sequence starts at 1000';
+end;
+$barcode_check$;
+set role service_role;
+do $payroll_cycle_check$
+declare
+  v_tenant uuid := '2a000001-0000-4000-8000-000000000001';
+  v_actor uuid := '2a000012-0000-4000-8000-000000000001';
+  v_payment jsonb;
+begin
+  assert attendance_private.get_payroll_cycle_settings(v_tenant)->>'anchorDay' = '1',
+    'payroll cycle defaults to day one';
+  assert attendance_private.set_payroll_cycle_settings(v_tenant,true,15)->>'anchorDay' = '15',
+    'payroll cycle settings persist';
+  v_payment := attendance_private.mark_payroll_cycle_paid(v_tenant,'2026-10-15','2026-11-14',
+    12345,'EGP',v_actor,null);
+  assert v_payment->>'totalMinor' = '12345', 'payroll payment persists';
+  assert attendance_private.mark_payroll_cycle_paid(v_tenant,'2026-10-15','2026-11-14',
+    12345,'EGP',v_actor,null) = v_payment, 'payroll payment replays by period';
+end;
+$payroll_cycle_check$;
 reset role;
 select 'ALL_STAFF_PERSISTENCE_ASSERTIONS_PASSED';
 rollback;

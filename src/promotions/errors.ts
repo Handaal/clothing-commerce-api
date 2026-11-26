@@ -6,6 +6,7 @@ const errors = {
   ],
   PROMOTION_CODE_CONFLICT: [409, "That promotion code is already in use."],
   INVALID_PROMOTION: [422, "The promotion request is not valid."],
+  PROMOTION_LIMIT_BELOW_USE: [409, "The limit is below uses already redeemed or reserved."],
 } as const;
 
 export class PromotionError extends Error {
@@ -21,6 +22,8 @@ export function promotionDatabaseError(error: { code?: string }) {
   switch (error.code) {
     case "PR404":
       return new PromotionError("PROMOTION_NOT_FOUND");
+    case "PR422":
+      return new PromotionError("PROMOTION_LIMIT_BELOW_USE");
     case "PR423":
       return new PromotionError("PROMOTION_ECONOMICS_LOCKED");
     case "23505":

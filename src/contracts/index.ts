@@ -70,6 +70,16 @@ export {
   UnpublishProductResponseSchema,
   CreateVariantRequestSchema,
   CreateVariantResponseSchema,
+  VariantOptionSelectionSchema,
+  SetVariantOptionsRequestSchema,
+  SetVariantOptionsResponseSchema,
+  UpdateOptionValuesRequestSchema,
+  UpdateOptionValuesResponseSchema,
+  type VariantOptionSelection,
+  type SetVariantOptionsRequest,
+  type SetVariantOptionsResponse,
+  type UpdateOptionValuesRequest,
+  type UpdateOptionValuesResponse,
   SetVariantPriceRequestSchema,
   SetVariantPriceResponseSchema,
   SetVariantCostRequestSchema,
@@ -103,16 +113,38 @@ export {
 export {
   PublicProductMediaSchema,
   PublicProductPriceSchema,
+  PublicProductOfferSchema,
   PublicProductVariantSchema,
   PublicProductSchema,
   PublicProductListResponseSchema,
   PublicProductDetailResponseSchema,
   type PublicProductMedia,
   type PublicProductPrice,
+  type PublicProductOffer,
   type PublicProductVariant,
   type PublicProduct,
   type PublicProductListResponse,
   type PublicProductDetailResponse,
+  PublicVariantOptionValueSchema,
+  PublicProductOptionSchema,
+  PublicProductCategorySchema,
+  PublicCategorySchema,
+  PublicCategoryListResponseSchema,
+  PublicProductVendorSchema,
+  PublicVendorSchema,
+  PublicVendorListResponseSchema,
+  type PublicProductVendor,
+  type PublicVendor,
+  type PublicVendorListResponse,
+  type PublicVariantOptionValue,
+  type PublicProductOption,
+  type PublicProductCategory,
+  type PublicCategory,
+  type PublicCategoryListResponse,
+  SizeGuideSchema,
+  PublicBestSellersResponseSchema,
+  type SizeGuide,
+  type PublicBestSellersResponse,
 } from "./storefront/catalog";
 export {
   PublicCollectionCoverSchema,
@@ -150,6 +182,8 @@ export {
   type CollectionUpdatedResponse,
   type SetCollectionProductsResponse,
 } from "./management/collections";
+export * from "./management/categories";
+export * from "./management/vendors";
 export {
   InventoryBalanceSchema,
   InventoryListResponseSchema,
@@ -179,6 +213,12 @@ export {
   FulfillmentProgressLineSchema,
   FulfillmentProgressSchema,
   OrderDetailResponseSchema,
+  FulfillOrderRequestSchema,
+  CancelOrderRequestSchema,
+  CollectOrderPaymentRequestSchema,
+  type CollectOrderPaymentRequest,
+  type FulfillOrderRequest,
+  type CancelOrderRequest,
   type OrderChannel,
   type OrderStatus,
   type OrderSummary,
@@ -188,6 +228,7 @@ export {
 export {
   PosContextRegisterSchema,
   PosContextResponseSchema,
+  PosAvailabilityResponseSchema,
   CreatePosSaleRequestSchema,
   CashPaymentSchema,
   CreatePosSaleResponseSchema,
@@ -199,6 +240,31 @@ export {
   OfflineCustomerSnapshotSchema,
   OfflineBootstrapRequestSchema,
   OfflineBootstrapResponseSchema,
+  OfflineStockGrantSchema,
+  OfflineVoucherGrantSchema,
+  OfflineVoucherTermsSchema,
+  OfflineOverrideRosterEntrySchema,
+  OfflineAdminAssertionSchema,
+  OfflineSaleVoucherSchema,
+  OfflineSaleCachedVoucherSchema,
+  OfflineSaleReservedVoucherSchema,
+  OfflineVoucherPolicySchema,
+  OfflinePinAuthorizationSchema,
+  EnrollOfflinePinRequestSchema,
+  EnrollOfflinePinResponseSchema,
+  RevokeOfflinePinEnrollmentsRequestSchema,
+  RevokeOfflinePinEnrollmentsResponseSchema,
+  OfflineCustomerCommandSchema,
+  IngestOfflineCustomerRequestSchema,
+  IngestOfflineCustomerResponseSchema,
+  OfflineSaleHoldReasonSchema,
+  OfflinePosPaymentSchema,
+  OfflineTenderConfirmationSchema,
+  OfflineSaleHoldCommandSchema,
+  IngestOfflineSaleHoldRequestSchema,
+  IngestOfflineSaleHoldResponseSchema,
+  SetPosOverridePasswordRequestSchema,
+  PosOverridePasswordResponseSchema,
   OfflineSaleCommandSchema,
   IngestOfflineSaleRequestSchema,
   OfflineReconciliationSchema,
@@ -210,6 +276,24 @@ export {
   OfflineAttendanceCommandSchema,
   IngestOfflineAttendanceRequestSchema,
   IngestOfflineAttendanceResponseSchema,
+  PosSyncConflictSchema,
+  PosSyncConflictKindSchema,
+  ListPosSyncConflictsQuerySchema,
+  ListPosSyncConflictsResponseSchema,
+  OfflineConflictRecordedResponseSchema,
+  OfflineIntentOperationSchema,
+  OfflineIntentCommandSchema,
+  IngestOfflineIntentRequestSchema,
+  IngestOfflineIntentResponseSchema,
+  OfflineIntentDispositionSchema,
+  OfflineIntentDispositionDetailSchema,
+  OfflineReturnGrantLineSchema,
+  IssueOfflineReturnGrantRequestSchema,
+  OfflineReturnGrantResponseSchema,
+  OfflineReturnCommandSchema,
+  IngestOfflineReturnRequestSchema,
+  OfflineReturnReconciliationSchema,
+  IngestOfflineReturnResponseSchema,
   StaffPinVerifierSchema,
   OfflineStaffRosterEntrySchema,
   SetStaffOfflinePinRequestSchema,
@@ -225,6 +309,7 @@ export {
   PosLoginSummarySchema,
   PosLoginListResponseSchema,
   type PosContextResponse,
+  type PosAvailabilityResponse,
   type CreatePosSaleRequest,
   type CreatePosSaleResponse,
   type EnrollPosDeviceRequest,
@@ -235,6 +320,29 @@ export {
   type OfflineCustomerSnapshot,
   type OfflineBootstrapRequest,
   type OfflineBootstrapResponse,
+  type OfflineStockGrant,
+  type OfflineVoucherGrant,
+  type OfflineVoucherTerms,
+  type OfflineOverrideRosterEntry,
+  type OfflineAdminAssertion,
+  type OfflineSaleVoucher,
+  type OfflineSaleCachedVoucher,
+  type OfflineVoucherPolicy,
+  type OfflinePinAuthorization,
+  type EnrollOfflinePinRequest,
+  type EnrollOfflinePinResponse,
+  type RevokeOfflinePinEnrollmentsRequest,
+  type RevokeOfflinePinEnrollmentsResponse,
+  type OfflineCustomerCommand,
+  type IngestOfflineCustomerRequest,
+  type IngestOfflineCustomerResponse,
+  type OfflineSaleHoldCommand,
+  type OfflinePosPayment,
+  type OfflineTenderConfirmation,
+  type IngestOfflineSaleHoldRequest,
+  type IngestOfflineSaleHoldResponse,
+  type SetPosOverridePasswordRequest,
+  type PosOverridePasswordResponse,
   type OfflineSaleCommand,
   type IngestOfflineSaleRequest,
   type IngestOfflineSaleResponse,
@@ -245,6 +353,22 @@ export {
   type OfflineAttendanceCommand,
   type IngestOfflineAttendanceRequest,
   type IngestOfflineAttendanceResponse,
+  type PosSyncConflict,
+  type PosSyncConflictKind,
+  type ListPosSyncConflictsQuery,
+  type ListPosSyncConflictsResponse,
+  type OfflineIntentOperation,
+  type OfflineIntentCommand,
+  type IngestOfflineIntentRequest,
+  type IngestOfflineIntentResponse,
+  type OfflineIntentDisposition,
+  type OfflineReturnGrantLine,
+  type IssueOfflineReturnGrantRequest,
+  type OfflineReturnGrantResponse,
+  type OfflineReturnCommand,
+  type IngestOfflineReturnRequest,
+  type OfflineReturnReconciliation,
+  type IngestOfflineReturnResponse,
   type StaffPinVerifier,
   type OfflineStaffRosterEntry,
   type SetStaffOfflinePinRequest,
@@ -269,6 +393,10 @@ export {
   canonicalizeOfflineSaleCommand,
   canonicalizeOfflineCustomerPaymentCommand,
   canonicalizeOfflineAttendanceCommand,
+  canonicalizeOfflineIntentCommand,
+  canonicalizeOfflineReturnCommand,
+  canonicalizeOfflineCustomerCommand,
+  canonicalizeOfflineSaleHoldCommand,
 } from "./offline-signing";
 
 export {
@@ -287,14 +415,17 @@ export {
   type StorefrontQuoteResponse,
 } from "./storefront/quote";
 export * from "./management/promotions";
+export * from "./management/inventory-channels";
 
 export * from "./storefront/checkout";
+export * from "./storefront/delivery";
 export * from "./management/returns";
 export * from "./management/customers";
 
 export * from "./management/suppliers";
 
 export * from "./management/staff";
+export * from "./management/payroll-cycle";
 
 export * from "./management/attendance";
 
@@ -305,3 +436,15 @@ export * from "./management/reporting";
 export * from "./management/reporting-export";
 
 export * from "./management/settings";
+
+export * from "./management/sales";
+
+export * from "./management/storefront-content";
+export * from "./management/catalog-images";
+
+export * from "./storefront/content";
+export * from "./storefront/site-text";
+export * from "./storefront/subscribers";
+export * from "./management/subscribers";
+export * from "./storefront/after-purchase";
+export * from "./management/return-requests";

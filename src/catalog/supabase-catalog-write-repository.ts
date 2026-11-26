@@ -1,3 +1,4 @@
+import type { ProductMediaItem } from "../contracts/management/catalog-images";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 
@@ -14,7 +15,9 @@ import type {
   PublishResult,
   SetProductStatusCommand,
   SetVariantCostCommand,
+  SetVariantOptionsCommand,
   SetVariantPriceCommand,
+  UpdateOptionValuesCommand,
   UpdateProductCommand,
 } from "./catalog-write-repository";
 
@@ -58,6 +61,10 @@ function mapDatabaseError(error: DatabaseErrorLike): Error {
       return new CatalogError("STYLE_CODE_CONFLICT");
     case "CT020":
       return new CatalogError("SKU_CONFLICT");
+    case "CT021":
+      return new CatalogError("VARIANT_OPTIONS_CONFLICT");
+    case "CT022":
+      return new CatalogError("OPTION_VALUE_NOT_FOUND");
     case "CT030":
       return new CatalogError("INVALID_LIFECYCLE_TRANSITION");
     case "CT031":
@@ -85,6 +92,14 @@ const ProductIdRowSchema = z.object({ product_id: z.string().uuid() });
 const VariantRowSchema = z.object({
   variant_id: z.string().uuid(),
   status: z.enum(["draft", "active", "archived"]),
+});
+const VariantOptionsRowSchema = z.object({
+  variant_id: z.string().uuid(),
+  option_signature: z.string(),
+});
+const OptionValuesRowSchema = z.object({
+  product_id: z.string().uuid(),
+  updated_count: z.union([z.number(), z.string()]),
 });
 const PriceRowSchema = z.object({
   price_id: z.string().uuid(),
@@ -229,16 +244,67 @@ export class SupabaseCatalogWriteRepository implements CatalogWriteRepository {
     command: CreateVariantCommand,
   ): Promise<{ variantId: string; status: "draft" | "active" | "archived" }> {
     assertAuthorizedOperationProof(proof);
+    // Without options keep the original function (and its replay fingerprint); with options use the
+    // atomic create-and-select function.
     const row = VariantRowSchema.parse(
-      await this.callFunction("create_variant", {
+      command.options === undefined
+        ? await this.callFunction("create_variant", {
+            p_tenant_id: command.tenantId,
+            p_product_id: command.productId,
+            p_sku: command.sku,
+            p_display_name: command.displayName,
+            p_idempotency_key: command.idempotencyKey,
+          })
+        : await this.callFunction("create_variant_with_options", {
+            p_tenant_id: command.tenantId,
+            p_product_id: command.productId,
+            p_sku: command.sku,
+            p_display_name: command.displayName,
+            p_options: command.options.map((option) => ({
+              name: option.name,
+              value: option.value,
+            })),
+            p_idempotency_key: command.idempotencyKey,
+          }),
+    );
+    return { variantId: row.variant_id, status: row.status };
+  }
+
+  async setVariantOptions(
+    proof: AuthorizedOperationContext,
+    command: SetVariantOptionsCommand,
+  ): Promise<{ variantId: string; optionSignature: string }> {
+    assertAuthorizedOperationProof(proof);
+    const row = VariantOptionsRowSchema.parse(
+      await this.callFunction("set_variant_options", {
         p_tenant_id: command.tenantId,
         p_product_id: command.productId,
-        p_sku: command.sku,
-        p_display_name: command.displayName,
+        p_variant_id: command.variantId,
+        p_options: command.options.map((option) => ({ name: option.name, value: option.value })),
         p_idempotency_key: command.idempotencyKey,
       }),
     );
-    return { variantId: row.variant_id, status: row.status };
+    return { variantId: row.variant_id, optionSignature: row.option_signature };
+  }
+
+  async updateOptionValues(
+    proof: AuthorizedOperationContext,
+    command: UpdateOptionValuesCommand,
+  ): Promise<{ productId: string; updatedCount: number }> {
+    assertAuthorizedOperationProof(proof);
+    const row = OptionValuesRowSchema.parse(
+      await this.callFunction("update_option_values", {
+        p_tenant_id: command.tenantId,
+        p_product_id: command.productId,
+        p_values: command.values.map((value) => ({
+          valueId: value.valueId,
+          swatchHex: value.swatchHex === null ? null : value.swatchHex.toLowerCase(),
+          ...(value.position !== undefined ? { position: value.position } : {}),
+        })),
+        p_idempotency_key: command.idempotencyKey,
+      }),
+    );
+    return { productId: row.product_id, updatedCount: Number(row.updated_count) };
   }
 
   async setVariantPrice(
@@ -353,6 +419,91 @@ export class SupabaseCatalogWriteRepository implements CatalogWriteRepository {
       }),
     );
     return { mediaId: row.media_id };
+  }
+
+  async listProductMedia(
+    proof: AuthorizedOperationContext,
+    tenantId: string,
+    productId: string,
+  ): Promise<ProductMediaItem[]> {
+    assertAuthorizedOperationProof(proof);
+    const { data, error } = await this.client
+      .from("product_media")
+      .select("id, variant_id, storage_bucket, storage_path, alt_text, position, is_primary")
+      .eq("tenant_id", tenantId)
+      .eq("product_id", productId)
+      .eq("status", "active")
+      .order("is_primary", { ascending: false })
+      .order("position", { ascending: true })
+      .order("created_at", { ascending: true });
+    if (error) {
+      throw mapDatabaseError(error);
+    }
+    const Row = z.object({
+      id: z.string().uuid(),
+      variant_id: z.string().uuid().nullable(),
+      storage_bucket: z.string(),
+      storage_path: z.string(),
+      alt_text: z.string().nullable(),
+      position: z.number().int(),
+      is_primary: z.boolean(),
+    });
+    return (data ?? []).map((raw) => {
+      const row = Row.parse(raw);
+      return {
+        id: row.id,
+        variantId: row.variant_id,
+        bucket: row.storage_bucket,
+        path: row.storage_path,
+        altText: row.alt_text,
+        position: Math.max(0, row.position),
+        isPrimary: row.is_primary,
+      };
+    });
+  }
+
+  async updateProductMedia(
+    proof: AuthorizedOperationContext,
+    command: {
+      tenantId: string;
+      mediaId: string;
+      setAlt: boolean;
+      altText: string | null;
+      makePrimary: boolean;
+    },
+  ) {
+    assertAuthorizedOperationProof(proof);
+    const row = z
+      .object({
+        media_id: z.string().uuid(),
+        is_primary: z.boolean(),
+        alt_text: z.string().nullable(),
+      })
+      .parse(
+        await this.callFunction("update_product_media", {
+          p_tenant_id: command.tenantId,
+          p_media_id: command.mediaId,
+          p_set_alt: command.setAlt,
+          p_alt_text: command.altText,
+          p_make_primary: command.makePrimary,
+        }),
+      );
+    return { mediaId: row.media_id, isPrimary: row.is_primary, altText: row.alt_text };
+  }
+
+  async reorderProductMedia(
+    proof: AuthorizedOperationContext,
+    command: { tenantId: string; productId: string; mediaIds: string[] },
+  ) {
+    assertAuthorizedOperationProof(proof);
+    const row = z.object({ product_id: z.string().uuid(), media_count: z.number().int() }).parse(
+      await this.callFunction("reorder_product_media", {
+        p_tenant_id: command.tenantId,
+        p_product_id: command.productId,
+        p_media_ids: command.mediaIds,
+      }),
+    );
+    return { productId: row.product_id, mediaCount: row.media_count };
   }
 
   private async callFunction(

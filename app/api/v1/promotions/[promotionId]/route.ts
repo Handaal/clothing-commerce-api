@@ -1,4 +1,8 @@
-import { PromotionDetailSchema, UpdatePromotionRequestSchema } from "../../../../../src/contracts";
+import {
+  DeletePromotionResponseSchema,
+  PromotionDetailSchema,
+  UpdatePromotionRequestSchema,
+} from "../../../../../src/contracts";
 import {
   managementOptionsResponse,
   parseRequest,
@@ -35,6 +39,19 @@ export async function PATCH(request: Request, route: RouteContext) {
         context,
         parseRequest(PromotionPathSchema, await route.params).promotionId,
         body,
+      ),
+  });
+}
+export async function DELETE(request: Request, route: RouteContext) {
+  const boundary = getManagementApiBoundary();
+  return runTenantManagementRoute({
+    request,
+    contextResolver: boundary.contextResolver,
+    responseSchema: DeletePromotionResponseSchema,
+    handler: async (context) =>
+      boundary.promotionsService.remove(
+        context,
+        parseRequest(PromotionPathSchema, await route.params).promotionId,
       ),
   });
 }

@@ -25,6 +25,7 @@ export async function POST(
       return boundary.catalogManagementService.createVariant(context, productId, idempotencyKey, {
         sku: body.sku,
         ...(body.displayName !== undefined ? { displayName: body.displayName } : {}),
+        ...(body.options !== undefined ? { options: body.options } : {}),
       });
     },
   });

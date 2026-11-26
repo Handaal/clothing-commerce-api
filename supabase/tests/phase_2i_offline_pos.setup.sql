@@ -13,8 +13,8 @@ values
 
 insert into public.offline_pos_policies(id,tenant_id,register_id,enabled,operator_lease_seconds,catalog_grant_seconds,max_sale_amount_minor,max_cumulative_exposure_minor,max_quantity_per_line,max_pending_offline_sales,max_offline_credit_exposure_minor)
 values
-('2a000020-0000-4000-8000-000000000001','2a000001-0000-4000-8000-000000000001','2a000005-0000-4000-8000-000000000001',true,43200,86400,6000,10000,3,3,8000),
-('2a000020-0000-4000-8000-000000000002','2a000001-0000-4000-8000-000000000001','2a000005-0000-4000-8000-000000000002',true,43200,86400,6000,10000,3,3,8000);
+('2a000020-0000-4000-8000-000000000001','2a000001-0000-4000-8000-000000000001','2a000005-0000-4000-8000-000000000001',true,43200,43200,6000,10000,3,3,8000),
+('2a000020-0000-4000-8000-000000000002','2a000001-0000-4000-8000-000000000001','2a000005-0000-4000-8000-000000000002',true,43200,43200,6000,10000,3,3,8000);
 
 -- A customer the offline bootstrap must deliver (with its current outstanding) so the till can attach
 -- installments offline. Phase D: issue_grant embeds the customer snapshot + the offline credit cap.

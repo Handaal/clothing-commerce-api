@@ -51,6 +51,10 @@ export interface PosSaleRepository {
   listRegisterContexts(tenantId: string): Promise<readonly PosRegisterContext[]>;
   getBusinessIdentity(tenantId: string): Promise<PosBusinessIdentity>;
   getRegisterContext(tenantId: string, registerId: string): Promise<PosRegisterContext | null>;
+  listAvailability(
+    tenantId: string,
+    inventoryLocationId: string,
+  ): Promise<readonly { variantId: string; onHand: number }[]>;
   recordSale(proof: PosSaleExecutionProof, command: RecordPosSaleCommand): Promise<string>;
   getSale(
     proof: PosSaleExecutionProof,

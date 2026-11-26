@@ -5,13 +5,14 @@ import { createServer } from "node:net";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createResources, handleInterrupts } from "./returns-test-resources.mjs";
+import { assertIsolatedDbContainer } from "./supabase-isolation-guard.mjs";
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const supabase = join(root, "node_modules/supabase/dist/supabase.js");
 const resources = createResources();
 const isolated = resources.workdir;
 const projectId = resources.projectId;
-const dbContainer = "supabase_db_" + projectId;
+const dbContainer = assertIsolatedDbContainer("supabase_db_" + projectId);
 async function freePort() {
   const socket = createServer();
   await new Promise((resolve, reject) => {

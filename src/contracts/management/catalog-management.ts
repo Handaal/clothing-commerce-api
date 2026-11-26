@@ -93,10 +93,31 @@ export const UnpublishProductResponseSchema = z.object({
 export type UnpublishProductResponse = z.infer<typeof UnpublishProductResponseSchema>;
 
 // ---- Variant ----
+// One selected option value, e.g. { name: "Size", value: "M" }. Options and values are product-local,
+// matched case-insensitively, and created on first use.
+export const VariantOptionSelectionSchema = z
+  .object({
+    name: z.string().trim().min(1).max(60),
+    value: z.string().trim().min(1).max(60),
+  })
+  .strict();
+export type VariantOptionSelection = z.infer<typeof VariantOptionSelectionSchema>;
+
+const VariantOptionSelectionsSchema = z
+  .array(VariantOptionSelectionSchema)
+  .max(3)
+  .refine(
+    (options) =>
+      new Set(options.map((option) => option.name.toLowerCase())).size === options.length,
+    { message: "Option names must be distinct." },
+  );
+
 export const CreateVariantRequestSchema = z
   .object({
     sku: SkuSchema,
     displayName: z.string().trim().min(1).max(200).optional(),
+    // When present the variant is created with these option values atomically.
+    options: VariantOptionSelectionsSchema.optional(),
   })
   .strict();
 export type CreateVariantRequest = z.infer<typeof CreateVariantRequestSchema>;
@@ -106,6 +127,50 @@ export const CreateVariantResponseSchema = z.object({
   status: ProductStatusSchema,
 });
 export type CreateVariantResponse = z.infer<typeof CreateVariantResponseSchema>;
+
+// ---- Variant options ----
+export const SetVariantOptionsRequestSchema = z
+  .object({
+    // The complete selection for the variant; an empty array clears its options.
+    options: VariantOptionSelectionsSchema,
+  })
+  .strict();
+export type SetVariantOptionsRequest = z.infer<typeof SetVariantOptionsRequestSchema>;
+
+export const SetVariantOptionsResponseSchema = z.object({
+  variantId: UuidSchema,
+  optionSignature: z.string(),
+});
+export type SetVariantOptionsResponse = z.infer<typeof SetVariantOptionsResponseSchema>;
+
+export const UpdateOptionValuesRequestSchema = z
+  .object({
+    values: z
+      .array(
+        z
+          .object({
+            valueId: UuidSchema,
+            // Lowercase or uppercase #rrggbb; null clears the swatch.
+            swatchHex: z
+              .string()
+              .trim()
+              .regex(/^#[0-9A-Fa-f]{6}$/u, "Swatch must be a #rrggbb colour.")
+              .nullable(),
+            position: z.number().int().min(0).max(1000).optional(),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(200),
+  })
+  .strict();
+export type UpdateOptionValuesRequest = z.infer<typeof UpdateOptionValuesRequestSchema>;
+
+export const UpdateOptionValuesResponseSchema = z.object({
+  productId: UuidSchema,
+  updatedCount: z.number().int().nonnegative(),
+});
+export type UpdateOptionValuesResponse = z.infer<typeof UpdateOptionValuesResponseSchema>;
 
 // ---- Pricing ----
 export const SetVariantPriceRequestSchema = z

@@ -119,6 +119,34 @@ export function assertNotSharedProject(projectId) {
     );
 }
 
+export const ISOLATED_DB_CONTAINER_PATTERN = /^supabase_db_rt-[a-f0-9]{32}$/;
+
+/**
+ * Assert a database container name belongs to a disposable per-run `rt-<hex>` stack, BEFORE any direct
+ * `docker exec … psql` write. A missing/empty value, the shared dev container, or any other name throws, so a
+ * test that lost its isolated environment can never fall back to (or be pointed at) the shared dev database.
+ * Returns the validated name so call sites can write `const c = assertIsolatedDbContainer(process.env.X)`.
+ * @param {string | undefined | null} container
+ * @param {string} [label] the env var / purpose, for the error message.
+ * @returns {string}
+ */
+export function assertIsolatedDbContainer(container, label = "database container") {
+  if (!container)
+    throw new Error(
+      `Refusing direct SQL: no isolated ${label} was provided. Run this suite through its isolated runner.`,
+    );
+  if (container === SHARED_DB_CONTAINER)
+    throw new Error(
+      `Refusing direct SQL against the shared dev container '${SHARED_DB_CONTAINER}'.`,
+    );
+  if (!ISOLATED_DB_CONTAINER_PATTERN.test(container))
+    throw new Error(
+      `Refusing direct SQL against non-disposable container '${container}'. ` +
+        `Expected supabase_db_rt-<32 hex> minted by returns-test-resources.mjs.`,
+    );
+  return container;
+}
+
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "::1", "[::1]", "0:0:0:0:0:0:0:1"]);
 
 /**

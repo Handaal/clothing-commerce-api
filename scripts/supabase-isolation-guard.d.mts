@@ -19,6 +19,13 @@ export declare function assertIsolatedSupabaseArgs(
 
 export declare function assertNotSharedProject(projectId: string): void;
 
+export declare const ISOLATED_DB_CONTAINER_PATTERN: RegExp;
+
+export declare function assertIsolatedDbContainer(
+  container: string | undefined | null,
+  label?: string,
+): string;
+
 export declare function assertLoopbackDbHost(host: string, label?: string): void;
 
 export declare function sanitizedChildEnv(

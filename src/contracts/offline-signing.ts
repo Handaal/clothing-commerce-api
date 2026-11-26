@@ -1,10 +1,18 @@
 import {
   OfflineAttendanceCommandSchema,
+  OfflineCustomerCommandSchema,
   OfflineCustomerPaymentCommandSchema,
+  OfflineIntentCommandSchema,
+  OfflineReturnCommandSchema,
   OfflineSaleCommandSchema,
+  OfflineSaleHoldCommandSchema,
   type OfflineAttendanceCommand,
+  type OfflineCustomerCommand,
   type OfflineCustomerPaymentCommand,
+  type OfflineIntentCommand,
+  type OfflineReturnCommand,
   type OfflineSaleCommand,
+  type OfflineSaleHoldCommand,
 } from "./pos";
 
 /**
@@ -46,4 +54,20 @@ export function canonicalizeOfflineCustomerPaymentCommand(
 
 export function canonicalizeOfflineAttendanceCommand(command: OfflineAttendanceCommand): string {
   return canonicalJson(OfflineAttendanceCommandSchema.parse(command));
+}
+
+export function canonicalizeOfflineIntentCommand(command: OfflineIntentCommand): string {
+  return canonicalJson(OfflineIntentCommandSchema.parse(command));
+}
+
+export function canonicalizeOfflineReturnCommand(command: OfflineReturnCommand): string {
+  return canonicalJson(OfflineReturnCommandSchema.parse(command));
+}
+
+export function canonicalizeOfflineCustomerCommand(command: OfflineCustomerCommand): string {
+  return canonicalJson(OfflineCustomerCommandSchema.parse(command));
+}
+
+export function canonicalizeOfflineSaleHoldCommand(command: OfflineSaleHoldCommand): string {
+  return canonicalJson(OfflineSaleHoldCommandSchema.parse(command));
 }

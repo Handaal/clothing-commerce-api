@@ -9,6 +9,10 @@ import {
   type StorefrontQuoteRequest,
   type StorefrontQuoteResponse,
 } from "../contracts/storefront/quote";
+import {
+  PublicDeliveryOptionsSchema,
+  type PublicDeliveryOptions,
+} from "../contracts/storefront/delivery";
 
 const errors = {
   CHECKOUT_UNAVAILABLE: [422, "Checkout is unavailable for this Storefront."],
@@ -18,6 +22,7 @@ const errors = {
   INSUFFICIENT_STOCK: [409, "There is insufficient available stock for this cart."],
   IDEMPOTENCY_CONFLICT: [409, "This checkout key was already used for different intent."],
   PROMOTION_UNAVAILABLE: [409, "The promotion is not applicable. Re-quote before retrying."],
+  DELIVERY_ZONE_UNAVAILABLE: [422, "Choose an available delivery area."],
   INVALID_CHECKOUT: [400, "The checkout intent is invalid."],
 } as const;
 export class CheckoutError extends Error {
@@ -33,6 +38,7 @@ export class CheckoutError extends Error {
 export interface CheckoutRepository {
   place(key: string, intent: CheckoutRequest): Promise<CheckoutResult>;
   quote(intent: StorefrontQuoteRequest): Promise<StorefrontQuoteResponse>;
+  deliveryOptions(tenantId: string, brandId: string): Promise<PublicDeliveryOptions>;
 }
 export class CheckoutService {
   constructor(private readonly repository: CheckoutRepository) {}
@@ -48,6 +54,9 @@ export class CheckoutService {
     }
     return this.repository.quote(intent);
   }
+  deliveryOptions(tenantId: string, brandId: string): Promise<PublicDeliveryOptions> {
+    return this.repository.deliveryOptions(tenantId, brandId);
+  }
 }
 export class SupabaseCheckoutRepository implements CheckoutRepository {
   constructor(private readonly client: SupabaseClient) {}
@@ -59,6 +68,7 @@ export class SupabaseCheckoutRepository implements CheckoutRepository {
       OC004: "CURRENCY_CHANGED",
       OC005: "PROMOTION_UNAVAILABLE",
       PR409: "PROMOTION_UNAVAILABLE",
+      OC006: "DELIVERY_ZONE_UNAVAILABLE",
       "23514": "INSUFFICIENT_STOCK",
       ID409: "IDEMPOTENCY_CONFLICT",
       "22023": "INVALID_CHECKOUT",
@@ -86,6 +96,13 @@ export class SupabaseCheckoutRepository implements CheckoutRepository {
       .rpc("quote_checkout", { p_intent: intent });
     if (error) throw this.mapError(error);
     return StorefrontQuoteResponseSchema.parse(data);
+  }
+  async deliveryOptions(tenantId: string, brandId: string): Promise<PublicDeliveryOptions> {
+    const { data, error } = await this.client
+      .schema("online_private")
+      .rpc("delivery_options", { p_tenant: tenantId, p_brand: brandId });
+    if (error) throw this.mapError(error);
+    return PublicDeliveryOptionsSchema.parse(data);
   }
 }
 export function createCheckoutService(configuration: {

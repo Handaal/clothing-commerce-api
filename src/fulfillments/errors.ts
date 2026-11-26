@@ -21,6 +21,8 @@ export const fulfillmentErrorCodes = [
   "IDEMPOTENCY_CONFLICT",
   "TENANT_MISMATCH",
   "AMOUNT_OUT_OF_RANGE",
+  "ORDER_CHANNEL_UNSUPPORTED",
+  "FULFILLMENT_LOCATION_UNRESOLVED",
 ] as const;
 
 export type FulfillmentErrorCode = (typeof fulfillmentErrorCodes)[number];
@@ -41,6 +43,9 @@ const safeMessages: Record<FulfillmentErrorCode, string> = {
   IDEMPOTENCY_CONFLICT: "The idempotency key was reused with a different fulfillment intent.",
   TENANT_MISMATCH: "The requested resource does not exist.",
   AMOUNT_OUT_OF_RANGE: "A fulfillment quantity is outside the supported range.",
+  ORDER_CHANNEL_UNSUPPORTED: "This operation is only available for online orders.",
+  FULFILLMENT_LOCATION_UNRESOLVED:
+    "The stock location for these lines could not be determined from the order reservations.",
 };
 
 const httpStatusByCode: Record<FulfillmentErrorCode, 404 | 409 | 422> = {
@@ -59,6 +64,8 @@ const httpStatusByCode: Record<FulfillmentErrorCode, 404 | 409 | 422> = {
   IDEMPOTENCY_CONFLICT: 409,
   TENANT_MISMATCH: 404,
   AMOUNT_OUT_OF_RANGE: 422,
+  ORDER_CHANNEL_UNSUPPORTED: 409,
+  FULFILLMENT_LOCATION_UNRESOLVED: 409,
 };
 
 export class FulfillmentError extends Error {

@@ -1,6 +1,9 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 
+import type { CatalogImageInput } from "../contracts/management/catalog-images";
+import { imageFromColumns } from "./catalog-image";
+
 import { assertAuthorizedOperationProof, type AuthorizedOperationContext } from "../authorization";
 import type {
   CollectionDetailResponse,
@@ -67,6 +70,11 @@ export interface CollectionRepository {
     proof: AuthorizedOperationContext,
     command: SetCollectionProductsCommand,
   ): Promise<{ collectionId: string; productCount: number }>;
+  /** SDK 0.53: set or clear (null) the collection's custom cover image. */
+  setCollectionImage(
+    proof: AuthorizedOperationContext,
+    command: { tenantId: string; collectionId: string; image: CatalogImageInput | null },
+  ): Promise<{ collectionId: string; hasImage: boolean }>;
 }
 
 interface DatabaseErrorLike {
@@ -101,6 +109,9 @@ const CollectionRowSchema = z.object({
   slug: z.string(),
   description: z.string().nullable(),
   status: z.enum(["draft", "active", "archived"]),
+  cover_image_bucket: z.string().nullable().optional(),
+  cover_image_path: z.string().nullable().optional(),
+  cover_image_alt: z.string().nullable().optional(),
 });
 const CreateRowSchema = z.object({
   collection_id: z.string().uuid(),
@@ -127,7 +138,9 @@ export class SupabaseCollectionRepository implements CollectionRepository {
     assertAuthorizedOperationProof(proof);
     const { data, error } = await this.client
       .from("collections")
-      .select("id, name, slug, description, status, product_collections(count)")
+      .select(
+        "id, name, slug, description, status, cover_image_bucket, cover_image_path, cover_image_alt, product_collections(count)",
+      )
       .eq("tenant_id", tenantId)
       .order("updated_at", { ascending: false });
     if (error) {
@@ -147,6 +160,11 @@ export class SupabaseCollectionRepository implements CollectionRepository {
         description: parsed.description,
         status: parsed.status,
         productCount: row.product_collections?.[0]?.count ?? 0,
+        image: imageFromColumns(
+          parsed.cover_image_bucket,
+          parsed.cover_image_path,
+          parsed.cover_image_alt,
+        ),
       };
     });
   }
@@ -159,7 +177,9 @@ export class SupabaseCollectionRepository implements CollectionRepository {
     assertAuthorizedOperationProof(proof);
     const { data, error } = await this.client
       .from("collections")
-      .select("id, name, slug, description, status")
+      .select(
+        "id, name, slug, description, status, cover_image_bucket, cover_image_path, cover_image_alt",
+      )
       .eq("tenant_id", tenantId)
       .eq("id", collectionId)
       .limit(1);
@@ -193,6 +213,11 @@ export class SupabaseCollectionRepository implements CollectionRepository {
         description: collection.description,
         status: collection.status,
         productCount: productIds.length,
+        image: imageFromColumns(
+          collection.cover_image_bucket,
+          collection.cover_image_path,
+          collection.cover_image_alt,
+        ),
       },
       productIds,
     };
@@ -261,6 +286,23 @@ export class SupabaseCollectionRepository implements CollectionRepository {
     const count =
       typeof row.product_count === "string" ? Number(row.product_count) : row.product_count;
     return { collectionId: row.collection_id, productCount: count };
+  }
+
+  async setCollectionImage(
+    proof: AuthorizedOperationContext,
+    command: { tenantId: string; collectionId: string; image: CatalogImageInput | null },
+  ) {
+    assertAuthorizedOperationProof(proof);
+    const row = z.object({ collection_id: z.string().uuid(), has_image: z.boolean() }).parse(
+      await this.callFunction("set_collection_image", {
+        p_tenant_id: command.tenantId,
+        p_collection_id: command.collectionId,
+        p_bucket: command.image?.bucket ?? null,
+        p_path: command.image?.path ?? null,
+        p_alt: command.image?.altText ?? null,
+      }),
+    );
+    return { collectionId: row.collection_id, hasImage: row.has_image };
   }
 
   private async callFunction(

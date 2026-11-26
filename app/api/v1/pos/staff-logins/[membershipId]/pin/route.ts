@@ -6,6 +6,7 @@ import {
   managementOptionsResponse,
   parseRequest,
   runTenantManagementWriteRoute,
+  POS_CREDENTIAL_MAX_BODY_BYTES,
 } from "../../../../../../../src/http/management-route";
 import { getManagementApiBoundary } from "../../../../../../../src/management/server-management-boundary";
 import { StaffPathSchema } from "../../../../../../../src/staff/request";
@@ -20,6 +21,7 @@ export async function PUT(request: Request, route: RouteContext) {
     contextResolver: boundary.contextResolver,
     requestSchema: SetPosLoginPinRequestSchema,
     responseSchema: SetPosLoginPinResponseSchema,
+    maxBodyBytes: POS_CREDENTIAL_MAX_BODY_BYTES,
     handler: async ({ context, body, idempotencyKey }) =>
       boundary.posAuthService.setPin(
         context,

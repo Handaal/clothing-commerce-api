@@ -13,8 +13,10 @@ import {
   AssignableStaffScopesResponseSchema,
   type AssignStaffRoleRequest,
   type CreateStaffRequest,
+  type CreateStaffWithoutLoginRequest,
   type CreateStaffLoginRequest,
   type UpdateStaffStatusRequest,
+  type UpdateStaffProfileRequest,
 } from "../contracts/management/staff";
 import { InvalidCursorError } from "../management/cursor";
 import { StaffError, staffDatabaseError } from "./errors";
@@ -94,6 +96,30 @@ export class StaffRepository {
     return proof.authorization.membership.id;
   }
 
+  private async profiles(proof: AuthorizedOperationContext, membershipIds: string[]) {
+    if (membershipIds.length === 0)
+      return new Map<
+        string,
+        { displayName: string | null; position: string | null; phone: string | null }
+      >();
+    const { data, error } = await this.client.schema("staff_private").rpc("staff_profiles", {
+      p_tenant: this.tenant(proof),
+      p_memberships: membershipIds,
+    });
+    if (error) throw staffDatabaseError(error);
+    const rows = z
+      .array(
+        z.object({
+          membershipId: z.uuid(),
+          displayName: z.string().nullable(),
+          position: z.string().nullable(),
+          phone: z.string().nullable(),
+        }),
+      )
+      .parse(data);
+    return new Map(rows.map((row) => [row.membershipId, row]));
+  }
+
   async list(proof: AuthorizedOperationContext, query: StaffListQuery) {
     const { data, error } = await this.client.schema("staff_private").rpc("list_staff", {
       p_tenant: this.tenant(proof),
@@ -104,7 +130,12 @@ export class StaffRepository {
       p_limit: query.limit + 1,
     });
     if (error) throw staffDatabaseError(error);
-    const rows = z.array(StaffSummarySchema).parse(data);
+    const rawRows = z.array(StaffSummarySchema).parse(data);
+    const profiles = await this.profiles(
+      proof,
+      rawRows.map((row) => row.membershipId),
+    );
+    const rows = rawRows.map((row) => ({ ...row, ...profiles.get(row.membershipId) }));
     return StaffListResponseSchema.parse({
       items: rows.slice(0, query.limit),
       pageInfo: pageInfo(
@@ -178,6 +209,26 @@ export class StaffRepository {
     });
     if (error) throw staffDatabaseError(error);
     if (data === null) throw new StaffError("STAFF_NOT_FOUND");
+    const profile = (await this.profiles(proof, [membershipId])).get(membershipId);
+    return StaffDetailSchema.parse({ ...data, ...profile });
+  }
+
+  async updateProfile(
+    proof: AuthorizedOperationContext,
+    membershipId: string,
+    key: string,
+    input: UpdateStaffProfileRequest,
+  ) {
+    const { data, error } = await this.client.schema("staff_private").rpc("set_staff_profile", {
+      p_tenant: this.tenant(proof),
+      p_actor: this.actor(proof),
+      p_key: key,
+      p_membership: membershipId,
+      p_name: input.displayName,
+      p_position: input.position,
+      p_phone: input.phone,
+    });
+    if (error) throw staffDatabaseError(error);
     return StaffDetailSchema.parse(data);
   }
 
@@ -188,6 +239,23 @@ export class StaffRepository {
       p_key: key,
       p_identity: input.identityId,
     });
+    if (error) throw staffDatabaseError(error);
+    return StaffDetailSchema.parse(data);
+  }
+
+  async createWithoutLogin(
+    proof: AuthorizedOperationContext,
+    key: string,
+    input: CreateStaffWithoutLoginRequest,
+  ) {
+    const { data, error } = await this.client
+      .schema("staff_private")
+      .rpc("create_staff_without_login", {
+        p_tenant: this.tenant(proof),
+        p_actor: this.actor(proof),
+        p_key: key,
+        p_name: input.displayName,
+      });
     if (error) throw staffDatabaseError(error);
     return StaffDetailSchema.parse(data);
   }

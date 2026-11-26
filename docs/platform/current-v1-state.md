@@ -277,6 +277,42 @@ its phase arrives.
 - **Acquisition / unit-cost model** — no cost basis exists; retail price must not be reused as cost.
 - **Procurement / purchase orders** — deferred (PO, requisitions, RFQ, quotations, reorder, forecasting).
 - **Supplier invoices / Accounts Payable / supplier payments** — deferred.
+- **Storefront merchandising (uncommitted, SDK `0.29.0`)** — catalog sales (per-unit online price layer; lowest sale wins; `compareAtAmountMinor` on public prices), online-only Buy-X-Get-Y promotion benefit, and per-tenant home-page content (hero + featured products/collections). POS pricing unchanged. See [storefront merchandising](../catalog/storefront-merchandising.md).
+- **Product options and categories (SDK `0.44.0`, 2026-11-19)** — sanctioned writes for variant option values
+  (Size/Colour, with colour swatches) and the category tree, plus options/categories in the public product
+  projection and a public category list. See [options and categories](../catalog/options-and-categories.md).
+- **Delivery fees (SDK `0.45.0`, 2026-11-19)** — per-brand delivery zones with fees and an optional
+  free-delivery threshold; the fee is part of the order total and COD amount. See
+  [delivery fees](../orders/delivery-fees.md).
+- **Size guides, few left, best sellers (SDK `0.46.0`, 2026-11-19)** — category size charts inherited by
+  products (`sizeGuide`), a coarse `lowStock` flag on public variants, and a public best-seller ranking.
+  See [options and categories](../catalog/options-and-categories.md).
+- **Storefront email sign-ups (SDK `0.47.0`, 2026-11-19)** — public drop-alert sign-up (never reveals
+  membership) and an `orders.read` list for managers. See
+  [storefront sign-ups](../marketing/storefront-subscribers.md).
+- **Website images and photo editing (SDK `0.53.0`, 2026-11-24)** — custom collection covers and category
+  images, product photos listable/describable/reorderable after upload, hero label/subtitle can be hidden;
+  the POS Website desk gained Catalog, Product photos, Delivery fees, Return requests and Sign-ups tabs.
+  See [website images and photos](../catalog/website-images-and-photos.md).
+- **Delivered + cash collected (SDK `0.54.0`, 2026-11-26)** — `POST /orders/{orderId}/collect-payment`
+  (orders.fulfill on the brand; every line shipped; migration `20261126130000`) captures an online
+  cash-on-delivery payment and stamps who collected it, so tracking reaches Delivered and online returns
+  become refundable. POS Online orders gained an "Out for delivery" queue and Admin Mobile the same
+  action. Reporting net sales/AOV now exclude delivery fees (migration `20261126120000`).
+- **Editable site text (SDK `0.52.0`, 2026-11-24)** — promo bar, home section copy, brand note, sign-up
+  box, footer, SEO title/description, contact details and the FAQ / Terms / Shipping pages are one
+  tenant document edited from Admin Mobile and the POS; the Storefront falls back to its built-in copy.
+  See [storefront site text](../catalog/storefront-site-text.md).
+- **Order list triage fields (SDK `0.51.0`, 2026-11-21)** — order summaries carry the order-level
+  fulfilment status and the customer name/phone/delivery city, so the POS Online orders queue and Admin
+  Mobile no longer need one detail read per order (the queue broke past the list bound before).
+- **Shop by brand (SDK `0.50.0`, 2026-11-20)** — tenant-wide vendors (the labels a retailer sells, shown as
+  "Brand"; not the tenant's own `brands`), one optional vendor per product, `vendor` on published products
+  and a public vendor list. See [vendors](../catalog/vendors.md).
+- **Public return policy (SDK `0.49.0`, 2026-11-19)** — `GET /storefront/returns-policy` exposes the admin-editable return window so website copy follows Settings → Returns.
+- **After purchase (SDK `0.48.0`, 2026-11-19)** — public order tracking by number + checkout phone
+  (throttled), customer return requests that staff approve/decline/complete (no stock or money moves),
+  and free click-to-chat confirmation messages. See [after purchase](../storefront/after-purchase.md).
 - **Detailed promotions / voucher / discount semantics** — Phase 2P-A delivers the validated **money
   core** (branch `phase/2p-promotions-core`): promotion/adjustment/redemption schema, the Order
   accounting evolution (`gross_subtotal_minor`/`discount_total_minor`/net `total_minor`, backward

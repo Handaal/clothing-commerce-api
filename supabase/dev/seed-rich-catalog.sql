@@ -55,14 +55,15 @@ declare
     jsonb_build_object('slug','wool-topcoat','name','Wool Blend Topcoat','style','OW-TOP-03','brand','LUXE-LINEN','cat','outerwear','price',429900,'sizes',jsonb_build_array('S','M','L'),'publish',true),
     jsonb_build_object('slug','merino-crew-sweater','name','Merino Crew Sweater','style','KN-MER-01','brand','SAHARA-KNIT','cat','knitwear','price',159900,'sizes',jsonb_build_array('S','M','L','XL'),'publish',true),
     jsonb_build_object('slug','cable-knit-cardigan','name','Cable Knit Cardigan','style','KN-CBL-02','brand','SAHARA-KNIT','cat','knitwear','price',179900,'sizes',jsonb_build_array('S','M','L'),'publish',true),
-    jsonb_build_object('slug','wrap-midi-dress','name','Wrap Midi Dress','style','DR-WRP-01','brand','LUXE-LINEN','cat','dresses','price',149900,'sizes',jsonb_build_array('XS','S','M','L'),'publish',true),
-    jsonb_build_object('slug','tiered-linen-dress','name','Tiered Linen Dress','style','DR-TIR-02','brand','LUXE-LINEN','cat','dresses','price',169900,'sizes',jsonb_build_array('XS','S','M','L'),'publish',true),
+    jsonb_build_object('slug','wrap-midi-dress','name','Wrap Midi Dress','style','DR-WRP-01','brand','LUXE-LINEN','cat','dresses','price',149900,'sizes',jsonb_build_array('XS','S','M','L'),'publish',false),
+    jsonb_build_object('slug','tiered-linen-dress','name','Tiered Linen Dress','style','DR-TIR-02','brand','LUXE-LINEN','cat','dresses','price',169900,'sizes',jsonb_build_array('XS','S','M','L'),'publish',false),
     jsonb_build_object('slug','performance-joggers','name','Performance Joggers','style','AC-JOG-01','brand','CAIRO-ACTIVE','cat','activewear','price',99900,'sizes',jsonb_build_array('S','M','L','XL'),'publish',true),
     jsonb_build_object('slug','training-tech-tee','name','Training Tech Tee','style','AC-TEE-02','brand','CAIRO-ACTIVE','cat','activewear','price',59900,'sizes',jsonb_build_array('S','M','L','XL'),'publish',true),
-    jsonb_build_object('slug','seamless-leggings','name','Seamless Leggings','style','AC-LEG-03','brand','CAIRO-ACTIVE','cat','activewear','price',84900,'sizes',jsonb_build_array('XS','S','M','L'),'publish',true),
+    jsonb_build_object('slug','seamless-leggings','name','Seamless Leggings','style','AC-LEG-03','brand','CAIRO-ACTIVE','cat','activewear','price',84900,'sizes',jsonb_build_array('XS','S','M','L'),'publish',false),
     jsonb_build_object('slug','canvas-weekender','name','Canvas Weekender Bag','style','AX-WKN-01','brand','DEV-BRAND','cat','accessories','price',119900,'sizes',jsonb_build_array('One Size'),'publish',true),
     jsonb_build_object('slug','leather-card-holder','name','Leather Card Holder','style','AX-CRD-02','brand','LUXE-LINEN','cat','accessories','price',49900,'sizes',jsonb_build_array('One Size'),'publish',true),
     jsonb_build_object('slug','ribbed-beanie','name','Ribbed Beanie','style','AX-BNY-03','brand','SAHARA-KNIT','cat','accessories','price',39900,'sizes',jsonb_build_array('One Size'),'publish',true),
+    -- Zee Store is menswear only: the dresses and leggings stay unpublished (internal drafts).
     -- a couple intentionally left as internal-only (draft / unpublished) for realism
     jsonb_build_object('slug','sample-capsule-hoodie','name','Sample Capsule Hoodie','style','DEV-HOOD-01','brand','DEV-BRAND','cat','knitwear','price',139900,'sizes',jsonb_build_array('M','L'),'publish',false)
   );

@@ -220,7 +220,13 @@ export class PosAuthRepository {
       p_key_length: verifier.keyLength,
     });
     if (error) throw posAuthDatabaseError(error);
-    return z.object({ membershipId: z.string().uuid(), updatedAt: z.string() }).parse(data);
+    const parsed = z.object({ membershipId: z.string().uuid(), updatedAt: z.string() }).parse(data);
+    // ADR-043 fix: PostgreSQL serialises timestamptz in jsonb as "…+00:00", which the external IsoDateTime
+    // contract (UTC "Z") rejects — every PIN reset committed but answered 500. Normalise to canonical UTC.
+    const updatedAt = new Date(parsed.updatedAt);
+    if (Number.isNaN(updatedAt.getTime()))
+      throw new Error("set_pos_login_pin returned an invalid timestamp");
+    return { membershipId: parsed.membershipId, updatedAt: updatedAt.toISOString() };
   }
 }
 

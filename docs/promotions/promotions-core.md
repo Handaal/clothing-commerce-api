@@ -20,21 +20,21 @@ for the pre-existing pricing snapshot model this extends.
   per-customer limits, first-order-only, or customer-specific vouchers in V1. Identity is never
   inferred from email/phone.
 - **Offline POS:** no promotions offline; the offline grant/replay path is unchanged.
-- **Benefits:** percentage (basis points) or fixed amount. **Targets:** whole order or selected
+- **Benefits:** percentage (basis points), fixed amount, or (online-only) Buy-X-Get-Y — see [storefront merchandising](../catalog/storefront-merchandising.md). **Targets:** whole order or selected
   product/variant scope. **Activation:** automatic or code-required. **Optional qualification:**
   minimum basket subtotal, maximum discount cap, start/end window, channel (`pos`/`online`), brand,
   branch, global redemption cap.
 
 ## Schema (`supabase/migrations/20260924180000_create_promotions.sql`)
 
-| Table                    | Ownership                         | Mutability                                                                                               |
-| ------------------------ | --------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `promotions`             | `promotions_writer`, tenant-owned | config mutable until a redemption exists; economics freeze thereafter (enforced in the sanctioned path)  |
-| `promotion_targets`      | `promotions_writer`               | selected product/variant scope for `variant_scope`                                                       |
-| `promotion_codes`        | `promotions_writer`               | reusable code; `max_redemptions = 1` is a voucher; canonical form `upper(btrim(code))` over `[A-Z0-9_-]` |
-| `order_adjustments`      | `promotions_writer`               | **immutable** sale-time summary, one per order                                                           |
-| `order_line_adjustments` | `promotions_writer`               | **immutable** per-line allocation; Returns read these                                                    |
-| `promotion_redemptions`  | `promotions_writer`               | **immutable** consumption fact, one per order                                                            |
+| Table                    | Ownership                         | Mutability                                                                                                                           |
+| ------------------------ | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `promotions`             | `promotions_writer`, tenant-owned | every setting mutable at any time (2026-11-18); sale-time history snapshots the discount granted; `archived_at` for deleted-but-used |
+| `promotion_targets`      | `promotions_writer`               | selected product/variant scope for `variant_scope`                                                                                   |
+| `promotion_codes`        | `promotions_writer`               | reusable code; `max_redemptions = 1` is a voucher; canonical form `upper(btrim(code))` over `[A-Z0-9_-]`                             |
+| `order_adjustments`      | `promotions_writer`               | **immutable** sale-time summary, one per order                                                                                       |
+| `order_line_adjustments` | `promotions_writer`               | **immutable** per-line allocation; Returns read these                                                                                |
+| `promotion_redemptions`  | `promotions_writer`               | **immutable** consumption fact, one per order                                                                                        |
 
 `orders` gains `gross_subtotal_minor` and `discount_total_minor`; `total_minor` becomes the payable net
 (`gross − discount`). Existing orders backfill `gross = total`, `discount = 0` (see ADR-037). RLS is
@@ -98,7 +98,8 @@ All endpoints reuse the same DB engine; money is server-authoritative.
 | `POST /api/v1/pos/quote`                        | tenant                        | Non-consuming connected-POS pricing quote.                                                                                          |
 | `POST /api/v1/pos/sales`                        | tenant + Idempotency-Key      | Sale now accepts optional `promotionCode`; redeems transactionally; the server re-derives the net total. Offline POS unchanged.     |
 | `GET/POST /api/v1/promotions`                   | `promotions.read` / `.manage` | List / create promotions (idempotent create).                                                                                       |
-| `GET/PATCH /api/v1/promotions/{id}`             | `promotions.read` / `.manage` | Detail / edit (economics frozen after first redemption → 409).                                                                      |
+| `GET/PATCH /api/v1/promotions/{id}`             | `promotions.read` / `.manage` | Detail / edit — every setting incl. targets, any time (owner decision 2026-11-18).                                                  |
+| `DELETE /api/v1/promotions/{id}`                | `promotions.manage`           | Deletes a never-used promotion (codes, targets, policies); archives a used one (inactive, codes disabled, hidden from management).  |
 | `POST /api/v1/promotions/{id}/status`           | `promotions.manage`           | Activate / deactivate.                                                                                                              |
 | `POST /api/v1/promotions/{id}/codes`            | `promotions.manage`           | Create a code / voucher.                                                                                                            |
 | `POST /api/v1/promotions/codes/{codeId}/status` | `promotions.manage`           | Enable / disable a code.                                                                                                            |

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   readClerkVerifierConfiguration,
+  readOfflineCachedVouchersEnabled,
   readSupabasePrivilegedConfiguration,
 } from "../../src/config/auth-environment";
 
@@ -37,5 +38,16 @@ describe("server-only authentication configuration", () => {
         NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY: "must-not-be-used",
       }),
     ).toThrow();
+  });
+});
+
+describe("POS_OFFLINE_CACHED_VOUCHERS (ADR-042 §13.6)", () => {
+  it("is off unless exactly 'enabled'", () => {
+    expect(readOfflineCachedVouchersEnabled({})).toBe(false);
+    for (const value of ["", "true", "1", "on", "ENABLED", "yes"])
+      expect(readOfflineCachedVouchersEnabled({ POS_OFFLINE_CACHED_VOUCHERS: value })).toBe(false);
+    expect(readOfflineCachedVouchersEnabled({ POS_OFFLINE_CACHED_VOUCHERS: " enabled " })).toBe(
+      true,
+    );
   });
 });

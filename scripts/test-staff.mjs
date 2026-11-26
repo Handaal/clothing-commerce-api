@@ -5,6 +5,7 @@ import { createServer } from "node:net";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createResources, handleInterrupts } from "./returns-test-resources.mjs";
+import { assertIsolatedDbContainer } from "./supabase-isolation-guard.mjs";
 
 // Phase 2O Admin-Mobile staff runtime orchestration. Boots a DISPOSABLE, ownership-validated Supabase +
 // the REAL Next.js API with a locally-signed Clerk-verifiable session, provisions the staff fixture graph
@@ -32,7 +33,7 @@ if (!existsSync(join(adminMobile, "node_modules/vitest/vitest.mjs")))
 const resources = createResources();
 const isolated = resources.workdir;
 const projectId = resources.projectId;
-const dbContainer = "supabase_db_" + projectId;
+const dbContainer = assertIsolatedDbContainer("supabase_db_" + projectId);
 async function freePort() {
   const socket = createServer();
   await new Promise((resolve, reject) => {

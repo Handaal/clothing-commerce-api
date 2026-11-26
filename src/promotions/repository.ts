@@ -1,8 +1,13 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { assertAuthorizedOperationProof, type AuthorizedOperationContext } from "../authorization";
 import {
+  DeletePromotionResponseSchema,
+  OfflineVoucherExceptionListResponseSchema,
+  PromotionChannelPoliciesResponseSchema,
   PromotionDetailSchema,
   PromotionListResponseSchema,
+  type PromotionChannel,
+  type UpsertPromotionChannelPolicyRequest,
   type CreatePromotionRequest,
   type UpdatePromotionRequest,
 } from "../contracts/management/promotions";
@@ -15,6 +20,55 @@ export class PromotionsRepository {
   private tenant(proof: AuthorizedOperationContext) {
     assertAuthorizedOperationProof(proof);
     return proof.authorization.tenant.id;
+  }
+  async channelPolicies(proof: AuthorizedOperationContext, promotionId: string) {
+    const { data, error } = await this.client.schema(SCHEMA).rpc("channel_policies", {
+      p_tenant: this.tenant(proof),
+      p_promotion: promotionId,
+    });
+    if (error) throw promotionDatabaseError(error);
+    return PromotionChannelPoliciesResponseSchema.parse(data);
+  }
+  async upsertChannelPolicy(
+    proof: AuthorizedOperationContext,
+    promotionId: string,
+    channel: PromotionChannel,
+    payload: UpsertPromotionChannelPolicyRequest,
+  ) {
+    const { data, error } = await this.client.schema(SCHEMA).rpc("upsert_channel_policy", {
+      p_tenant: this.tenant(proof),
+      p_promotion: promotionId,
+      p_channel: channel,
+      p_payload: payload,
+    });
+    if (error) throw promotionDatabaseError(error);
+    return PromotionChannelPoliciesResponseSchema.parse(data);
+  }
+  async upsertCodeChannelLimit(
+    proof: AuthorizedOperationContext,
+    codeId: string,
+    channel: PromotionChannel,
+    usageLimit: number | null,
+  ) {
+    const { data, error } = await this.client.schema(SCHEMA).rpc("upsert_code_channel_limit", {
+      p_tenant: this.tenant(proof),
+      p_code: codeId,
+      p_channel: channel,
+      p_usage_limit: usageLimit,
+    });
+    if (error) throw promotionDatabaseError(error);
+    return PromotionChannelPoliciesResponseSchema.parse(data);
+  }
+  async offlineVoucherExceptions(proof: AuthorizedOperationContext, limit: number, offset: number) {
+    const { data, error } = await this.client
+      .schema(SCHEMA)
+      .rpc("offline_voucher_exception_report", {
+        p_tenant: this.tenant(proof),
+        p_limit: limit,
+        p_offset: offset,
+      });
+    if (error) throw promotionDatabaseError(error);
+    return OfflineVoucherExceptionListResponseSchema.parse({ items: data ?? [] });
   }
   private detailOrThrow(data: unknown) {
     if (data === null || data === undefined) throw new PromotionError("PROMOTION_NOT_FOUND");
@@ -55,6 +109,14 @@ export class PromotionsRepository {
     });
     if (error) throw promotionDatabaseError(error);
     return this.detailOrThrow(data);
+  }
+  async remove(proof: AuthorizedOperationContext, id: string) {
+    const { data, error } = await this.client.schema(SCHEMA).rpc("delete_promotion", {
+      p_tenant: this.tenant(proof),
+      p_id: id,
+    });
+    if (error) throw promotionDatabaseError(error);
+    return DeletePromotionResponseSchema.parse(data);
   }
   async setStatus(proof: AuthorizedOperationContext, id: string, status: "active" | "inactive") {
     const { data, error } = await this.client.schema(SCHEMA).rpc("set_promotion_status", {

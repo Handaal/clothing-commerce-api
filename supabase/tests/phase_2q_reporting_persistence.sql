@@ -104,10 +104,11 @@ insert into public.payments (id, tenant_id, order_id, method, status, currency, 
    'cash','captured','USD',4198,5000,802,'72000000-0000-4000-8000-00000000000a','pay-o1','fp-o1');
 
 -- O2: EUR online order (in period), brand B. Different currency — must never be summed with USD.
+-- Carries a 500 delivery fee inside total_minor (3000 merchandise + 500 fee); net sales exclude it.
 insert into public.orders (id, tenant_id, brand_id, order_number, channel, status, currency,
-    total_minor, gross_subtotal_minor, discount_total_minor, placed_at, created_at) values
+    total_minor, gross_subtotal_minor, discount_total_minor, delivery_fee_minor, placed_at, created_at) values
   ('90000000-0000-4000-8000-000000000002','a0000000-0000-4000-8000-000000000001','b0000000-0000-4000-8000-00000000000b',
-   '1002','online','placed','EUR',3000,3000,0,pg_temp.ny('2026-06-16 12:00'),pg_temp.ny('2026-06-16 12:00'));
+   '1002','online','placed','EUR',3500,3000,0,500,pg_temp.ny('2026-06-16 12:00'),pg_temp.ny('2026-06-16 12:00'));
 insert into public.order_lines (id, tenant_id, order_id, brand_id, product_id, variant_id, line_number, quantity,
     unit_price_minor, line_total_minor, product_name_snapshot, sku_snapshot) values
   ('91000000-0000-4000-8000-000000000002','a0000000-0000-4000-8000-000000000001','90000000-0000-4000-8000-000000000002',
@@ -207,6 +208,9 @@ begin
   perform pg_temp.assert_true((usd->>'netSalesMinor')::bigint = 5198, 'summary: USD net 5198');
   perform pg_temp.assert_true((usd->>'averageOrderValueMinor')::bigint = 2599, 'summary: USD AOV round(5198/2)=2599');
   perform pg_temp.assert_true((eur->>'netSalesMinor')::bigint = 3000, 'summary: EUR net 3000 (never merged with USD)');
+  perform pg_temp.assert_true(
+    (eur->>'netSalesMinor')::bigint = 3000 and (eur->>'averageOrderValueMinor')::bigint = 3000,
+    'summary: EUR net/AOV exclude the 500 delivery fee (total_minor 3500)');
 
   -- (3) offline acceptedAt: Ooff (created_at Jan, placed_at Jun) IS counted -> it is in the USD count above.
   --     Prove the boundary order Ob (UTC Jun-1 00:00 == NY May-31) is NOT in the June period.

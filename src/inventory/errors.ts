@@ -16,6 +16,9 @@ export const inventoryErrorCodes = [
   "IDEMPOTENCY_CONFLICT",
   "CONCURRENT_MODIFICATION",
   "TENANT_MISMATCH",
+  "CHANNELS_NOT_INITIALIZED",
+  "CHANNEL_ALLOCATION_INVALID",
+  "CHANNEL_STOCK_SUPERSEDED",
 ] as const;
 
 export type InventoryErrorCode = (typeof inventoryErrorCodes)[number];
@@ -33,6 +36,12 @@ const safeMessages: Record<InventoryErrorCode, string> = {
   IDEMPOTENCY_CONFLICT: "The idempotency key was reused with a different payload.",
   CONCURRENT_MODIFICATION: "The inventory balance changed since it was read; refresh and retry.",
   TENANT_MISMATCH: "The requested resource does not exist.",
+  CHANNELS_NOT_INITIALIZED:
+    "Website/POS stock channels are not set up for this inventory location.",
+  CHANNEL_ALLOCATION_INVALID:
+    "The split exceeds on-hand stock, or leaves less than is already reserved for a channel.",
+  CHANNEL_STOCK_SUPERSEDED:
+    "Website/POS stock splitting is not part of the product (owner decision, ADR-042 §13). Stock is one shared pool.",
 };
 
 const httpStatusByCode: Record<InventoryErrorCode, 404 | 409 | 422> = {
@@ -48,12 +57,29 @@ const httpStatusByCode: Record<InventoryErrorCode, 404 | 409 | 422> = {
   IDEMPOTENCY_CONFLICT: 409,
   CONCURRENT_MODIFICATION: 409,
   TENANT_MISMATCH: 404,
+  CHANNELS_NOT_INITIALIZED: 409,
+  CHANNEL_ALLOCATION_INVALID: 422,
+  CHANNEL_STOCK_SUPERSEDED: 409,
 };
+
+/** Current values of one stale line of a refused split (ADR-042 §3.5). */
+export interface ChannelSplitConflict {
+  readonly variantId: string;
+  readonly balanceVersion: number;
+  readonly allocationVersion: number;
+  readonly websiteOnHand: number;
+  readonly posOnHand: number;
+  readonly unallocatedOnHand: number;
+  readonly posReserved: number;
+}
 
 export class InventoryError extends Error {
   readonly httpStatus: 404 | 409 | 422;
 
-  constructor(readonly code: InventoryErrorCode) {
+  constructor(
+    readonly code: InventoryErrorCode,
+    readonly conflicts?: readonly ChannelSplitConflict[],
+  ) {
     super(safeMessages[code]);
     this.name = "InventoryError";
     this.httpStatus = httpStatusByCode[code];

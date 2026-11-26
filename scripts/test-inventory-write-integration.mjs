@@ -4,7 +4,7 @@ import { runIsolatedSupabaseSuite } from "./isolated-supabase-suite.mjs";
 
 await runIsolatedSupabaseSuite({
   name: "Phase 2G inventory-write integration",
-  setupSql: ["phase_2g_inventory_write.setup.sql"],
+  setupSql: ["phase_2g_inventory_write.setup.sql", "phase_3a_inventory_channels.setup.sql"],
   vitest: {
     dir: "tests/inventory-write-integration",
     env: (status) => ({

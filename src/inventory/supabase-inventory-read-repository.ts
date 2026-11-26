@@ -9,6 +9,7 @@ import type {
 } from "./inventory-read-repository";
 
 const IdRowSchema = z.object({ id: z.string().uuid() });
+const BarcodeRowSchema = z.object({ variant_id: z.string().uuid(), value: z.string() });
 
 // One joined statement: the on-hand balance plus the variant SKU/cost, the product identity (id, brand,
 // name) and the active selling price. The nested shape is PostgREST embedding across the composite FKs;
@@ -91,7 +92,24 @@ export class SupabaseInventoryReadRepository implements InventoryReadRepository 
       .limit(query.fetchLimit);
     requireNoQueryError(error);
 
-    return parseRows(BalanceListRowSchema, data).map((row) => ({
+    const balances = parseRows(BalanceListRowSchema, data);
+    const variantIds = balances.map((row) => row.variant_id);
+    const barcodeResult =
+      variantIds.length > 0
+        ? await this.client
+            .from("variant_barcodes")
+            .select("variant_id,value")
+            .eq("tenant_id", query.tenantId)
+            .in("variant_id", variantIds)
+            .eq("is_primary", true)
+            .eq("status", "active")
+        : { data: [], error: null };
+    requireNoQueryError(barcodeResult.error);
+    const barcodes = new Map(
+      parseRows(BarcodeRowSchema, barcodeResult.data).map((row) => [row.variant_id, row.value]),
+    );
+
+    return balances.map((row) => ({
       balance: {
         inventoryLocationId: row.inventory_location_id,
         variantId: row.variant_id,
@@ -99,6 +117,7 @@ export class SupabaseInventoryReadRepository implements InventoryReadRepository 
         brandId: row.product_variants.products.brand_id,
         productName: row.product_variants.products.name,
         sku: row.product_variants.sku,
+        barcode: barcodes.get(row.variant_id) ?? null,
         onHand: toSafeInteger(row.on_hand_quantity),
         unitCostMinor:
           row.product_variants.unit_cost_minor === null

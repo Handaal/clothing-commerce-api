@@ -7,6 +7,7 @@ import {
   managementOptionsResponse,
   runTenantManagementRoute,
   runTenantManagementWriteRoute,
+  POS_CREDENTIAL_MAX_BODY_BYTES,
 } from "../../../../../src/http/management-route";
 import { getManagementApiBoundary } from "../../../../../src/management/server-management-boundary";
 
@@ -33,6 +34,7 @@ export async function POST(request: Request) {
     contextResolver: boundary.contextResolver,
     requestSchema: CreatePosLoginRequestSchema,
     responseSchema: StaffDetailSchema,
+    maxBodyBytes: POS_CREDENTIAL_MAX_BODY_BYTES,
     handler: ({ context, body, idempotencyKey }) =>
       boundary.posAuthService.createLogin(context, idempotencyKey, body),
   });

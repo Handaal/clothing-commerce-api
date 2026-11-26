@@ -1,4 +1,4 @@
-import { OrderCommerceDetailsSchema } from "../storefront/checkout";
+import { OrderCommerceDetailsSchema, PaymentStatusSchema } from "../storefront/checkout";
 import { z } from "zod";
 import { OrderReturnSummarySchema } from "./returns";
 
@@ -11,7 +11,8 @@ import {
 import { paginated } from "../common/pagination";
 
 /**
- * Orders management DTOs. The list summary carries no fulfillment data and is served by a single query.
+ * Orders management DTOs. The list summary carries the order-level fulfillment status and the customer
+ * contact shown in queues (SDK 0.51), served by the list query plus one batched line read per page.
  * Order detail composes the order aggregate with its fulfillment progress summary, but never exposes
  * inventory-operation ids, idempotency keys, payload fingerprints, routing descriptors, or actor
  * membership internals.
@@ -25,6 +26,12 @@ export type OrderChannel = z.infer<typeof OrderChannelSchema>;
 export const OrderStatusSchema = z.enum(["placed", "cancelled"]);
 export type OrderStatus = z.infer<typeof OrderStatusSchema>;
 
+export const FulfillmentProgressStatusSchema = z.enum([
+  "unfulfilled",
+  "partially_fulfilled",
+  "fulfilled",
+]);
+
 export const OrderSummarySchema = z.object({
   id: UuidSchema,
   orderNumber: z.string(),
@@ -34,7 +41,18 @@ export const OrderSummarySchema = z.object({
   branchId: UuidSchema.nullable(),
   currency: CurrencySchema,
   totalMinor: NonNegativeIntegerSchema,
+  // Delivery fee included in totalMinor (online orders; 0 for POS).
+  deliveryFeeMinor: NonNegativeIntegerSchema.optional(),
   placedAt: IsoDateTimeSchema,
+  // SDK 0.51: enough to triage a queue without one detail read per order. Fulfilment progress of the
+  // whole order, and the customer's name/phone and delivery city from the order's own snapshots.
+  fulfillmentStatus: FulfillmentProgressStatusSchema.optional(),
+  customerName: z.string().nullable().optional(),
+  customerPhone: z.string().nullable().optional(),
+  deliveryCity: z.string().nullable().optional(),
+  // Online orders: the payment status (cash on delivery stays `pending` until staff mark it collected
+  // on delivery, then `captured`). Absent for POS orders.
+  paymentStatus: PaymentStatusSchema.nullable().optional(),
 });
 
 export type OrderSummary = z.infer<typeof OrderSummarySchema>;
@@ -50,18 +68,16 @@ export const OrderDetailLineSchema = z.object({
   quantity: PositiveIntegerSchema,
   unitPriceMinor: NonNegativeIntegerSchema,
   lineTotalMinor: NonNegativeIntegerSchema,
+  // SDK 0.51: what to pick, readable — the variant name at sale ("M") and the chosen options
+  // ("M · White"), resolved from the line's snapshot. Null when the line recorded none.
+  variantName: z.string().nullable().optional(),
+  optionSummary: z.string().nullable().optional(),
 });
 
 export const OrderCancellationSchema = z.object({
   cancelledAt: IsoDateTimeSchema,
   reason: z.string().nullable(),
 });
-
-export const FulfillmentProgressStatusSchema = z.enum([
-  "unfulfilled",
-  "partially_fulfilled",
-  "fulfilled",
-]);
 
 export const FulfillmentProgressLineSchema = z.object({
   lineNumber: PositiveIntegerSchema,
@@ -86,3 +102,34 @@ export const OrderDetailResponseSchema = z.object({
 });
 
 export type OrderDetailResponse = z.infer<typeof OrderDetailResponseSchema>;
+
+/**
+ * Staff fulfillment of an ONLINE order (POST /orders/{orderId}/fulfillments). The client names the lines
+ * and quantities explicitly (so an Idempotency-Key replay carries the identical intent); the server
+ * resolves the stock location from the order's own reservations, and the client never chooses it.
+ */
+export const FulfillOrderRequestSchema = z
+  .object({
+    lines: z
+      .array(
+        z.object({ lineNumber: PositiveIntegerSchema, quantity: PositiveIntegerSchema }).strict(),
+      )
+      .min(1)
+      .max(500),
+  })
+  .strict();
+export type FulfillOrderRequest = z.infer<typeof FulfillOrderRequestSchema>;
+
+/** Staff cancellation of an unfulfilled ONLINE order (POST /orders/{orderId}/cancel). */
+export const CancelOrderRequestSchema = z
+  .object({ reason: z.string().trim().min(1).max(500).optional() })
+  .strict();
+export type CancelOrderRequest = z.infer<typeof CancelOrderRequestSchema>;
+
+/**
+ * Delivered + cash collected for a fully shipped ONLINE cash-on-delivery order
+ * (POST /orders/{orderId}/collect-payment, Idempotency-Key required). No body fields: the amount is the
+ * payment's own checkout amount and the collector is the caller.
+ */
+export const CollectOrderPaymentRequestSchema = z.object({}).strict();
+export type CollectOrderPaymentRequest = z.infer<typeof CollectOrderPaymentRequestSchema>;

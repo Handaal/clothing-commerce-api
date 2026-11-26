@@ -96,8 +96,10 @@ import {
   type AssignableStaffRolesResponse,
   type AssignableStaffScopesResponse,
   type CreateStaffRequest,
+  type CreateStaffWithoutLoginRequest,
   type CreateStaffLoginRequest,
   type UpdateStaffStatusRequest,
+  type UpdateStaffProfileRequest,
   type AssignStaffRoleRequest,
 } from "../../../src/contracts/management/staff";
 export type {
@@ -117,8 +119,10 @@ export type {
   AssignableStaffScope,
   AssignableStaffScopesResponse,
   CreateStaffRequest,
+  CreateStaffWithoutLoginRequest,
   CreateStaffLoginRequest,
   UpdateStaffStatusRequest,
+  UpdateStaffProfileRequest,
   AssignStaffRoleRequest,
   UnassignStaffRoleRequest,
 } from "../../../src/contracts/management/staff";
@@ -148,12 +152,15 @@ export interface AssignmentCatalogQuery {
   cursor?: string;
 }
 export type CreateStaffInput = CreateStaffRequest & IdempotentWrite;
+export type CreateStaffWithoutLoginInput = CreateStaffWithoutLoginRequest & IdempotentWrite;
 /** Provision an email-less staff login (external account + identity + membership + initial assignment). */
 export type CreateStaffLoginInput = CreateStaffLoginRequest & IdempotentWrite;
 /** Set or rotate a staff member's offline-unlock PIN (independent of their Clerk online password). */
 export type SetStaffOfflinePinInput = SetStaffOfflinePinRequest &
   IdempotentWrite & { membershipId: string };
 export type UpdateStaffStatusInput = UpdateStaffStatusRequest &
+  IdempotentWrite & { membershipId: string };
+export type UpdateStaffProfileInput = UpdateStaffProfileRequest &
   IdempotentWrite & { membershipId: string };
 /** Provision a pos_pin login (server-minted subject + online PIN verifier + membership + POS UI access). */
 export type CreatePosLoginInput = CreatePosLoginRequest & IdempotentWrite;
@@ -217,6 +224,19 @@ import {
   type CreateAttendanceEntryRequest,
   type UpdateAttendanceEntryRequest,
 } from "../../../src/contracts/management/attendance-payroll";
+import {
+  PayrollCycleSettingsSchema,
+  PayrollDueSchema,
+  type PayrollCycleSettings,
+  type PayrollDue,
+  type MarkPayrollPaidRequest,
+} from "../../../src/contracts/management/payroll-cycle";
+export type {
+  PayrollCycleSettings,
+  PayrollCyclePayment,
+  PayrollDue,
+  MarkPayrollPaidRequest,
+} from "../../../src/contracts/management/payroll-cycle";
 export type {
   PayrollRow,
   PayrollTotals,
@@ -257,7 +277,28 @@ import {
   StorefrontQuoteResponseSchema,
   PosQuoteResponseSchema,
   PromotionDetailSchema,
+  DeletePromotionResponseSchema,
   PromotionListResponseSchema,
+  PromotionChannelPoliciesResponseSchema,
+  OfflineVoucherExceptionListResponseSchema,
+  IngestOfflineCustomerResponseSchema,
+  IngestOfflineSaleHoldResponseSchema,
+  PosOverridePasswordResponseSchema,
+  EnrollOfflinePinResponseSchema,
+  RevokeOfflinePinEnrollmentsResponseSchema,
+  type EnrollOfflinePinRequest,
+  type EnrollOfflinePinResponse,
+  type RevokeOfflinePinEnrollmentsRequest,
+  type RevokeOfflinePinEnrollmentsResponse,
+  type PromotionChannelPoliciesResponse,
+  type OfflineVoucherExceptionListResponse,
+  type UpsertPromotionChannelPolicyRequest,
+  type IngestOfflineCustomerRequest,
+  type IngestOfflineCustomerResponse,
+  type IngestOfflineSaleHoldRequest,
+  type IngestOfflineSaleHoldResponse,
+  type SetPosOverridePasswordRequest,
+  type PosOverridePasswordResponse,
   type StorefrontQuoteRequest,
   type StorefrontQuoteResponse,
   type PosQuoteRequest,
@@ -266,6 +307,7 @@ import {
   type PromotionListResponse,
   type CreatePromotionRequest,
   type UpdatePromotionRequest,
+  type DeletePromotionResponse,
   type CreatePromotionCodeRequest,
 } from "../../../src/contracts";
 export type {
@@ -280,8 +322,150 @@ export type {
   PromotionListResponse,
   CreatePromotionRequest,
   UpdatePromotionRequest,
+  DeletePromotionResponse,
   CreatePromotionCodeRequest,
+  PromotionChannel,
+  PromotionChannelPolicy,
+  PromotionChannelPoliciesResponse,
+  UpsertPromotionChannelPolicyRequest,
+  OfflineVoucherExceptionListResponse,
+  OfflineVoucherGrant,
+  OfflineVoucherTerms,
+  OfflineOverrideRosterEntry,
+  OfflineAdminAssertion,
+  OfflineSaleVoucher,
+  OfflineSaleCachedVoucher,
+  OfflineVoucherPolicy,
+  OfflineCustomerCommand,
+  IngestOfflineCustomerRequest,
+  IngestOfflineCustomerResponse,
+  IngestOfflineSaleHoldRequest,
+  IngestOfflineSaleHoldResponse,
+  OfflineSaleHoldCommand,
+  SetPosOverridePasswordRequest,
+  PosOverridePasswordResponse,
+  OfflinePinAuthorization,
+  EnrollOfflinePinRequest,
+  EnrollOfflinePinResponse,
+  RevokeOfflinePinEnrollmentsRequest,
+  RevokeOfflinePinEnrollmentsResponse,
 } from "../../../src/contracts";
+import {
+  SaleSchema,
+  SaleListResponseSchema,
+  DeleteSaleResponseSchema,
+  StorefrontContentSchema,
+  StorefrontHeroImageIntentSchema,
+  PublicStorefrontContentSchema,
+  StorefrontSiteTextSchema,
+  PublicStorefrontSiteTextSchema,
+  CatalogImageIntentSchema,
+  SetCollectionImageResponseSchema,
+  SetCategoryImageResponseSchema,
+  ProductMediaListResponseSchema,
+  UpdateProductMediaResponseSchema,
+  ReorderProductMediaResponseSchema,
+  type CatalogImageIntent,
+  type CatalogImageInput,
+  type CreateCatalogImageIntentRequest,
+  type SetCollectionImageResponse,
+  type SetCategoryImageResponse,
+  type ProductMediaListResponse,
+  type UpdateProductMediaResponse,
+  type ReorderProductMediaResponse,
+  type StorefrontSiteText,
+  type PublicStorefrontSiteText,
+  type SiteText,
+  type Sale,
+  type SaleListResponse,
+  type DeleteSaleResponse,
+  type CreateSaleRequest,
+  type UpdateSaleRequest,
+  type StorefrontContent,
+  type UpdateStorefrontContentRequest,
+  type CreateStorefrontHeroImageIntentRequest,
+  type StorefrontHeroImageIntent,
+  type PublicStorefrontContent,
+} from "../../../src/contracts";
+export type {
+  Sale,
+  SaleStatus,
+  SaleScope,
+  SaleBenefitType,
+  SaleListResponse,
+  DeleteSaleResponse,
+  CreateSaleRequest,
+  UpdateSaleRequest,
+  StorefrontContent,
+  StorefrontHero,
+  StorefrontHeroImage,
+  UpdateStorefrontContentRequest,
+  CreateStorefrontHeroImageIntentRequest,
+  StorefrontHeroImageIntent,
+  PublicStorefrontContent,
+  PublicStorefrontHero,
+  StorefrontSiteText,
+  PublicStorefrontSiteText,
+  SiteText,
+  SiteTextFaqItem,
+  SiteTextSection,
+  UpdateStorefrontSiteTextRequest,
+  CatalogImage,
+  CatalogImageInput,
+  CatalogImageIntent,
+  CreateCatalogImageIntentRequest,
+  ProductMediaItem,
+  ProductMediaListResponse,
+  UpdateProductMediaResponse,
+  ReorderProductMediaResponse,
+  SetCollectionImageResponse,
+  SetCategoryImageResponse,
+  PublicProductOffer,
+  PublicProductPrice,
+} from "../../../src/contracts";
+export type CreateSaleInput = CreateSaleRequest & { idempotencyKey: string };
+export type UpdateSaleInput = UpdateSaleRequest & { saleId: string; idempotencyKey: string };
+export interface SetSaleStatusInput {
+  saleId: string;
+  status: "active" | "inactive";
+  idempotencyKey: string;
+}
+export type UpdateStorefrontContentInput = UpdateStorefrontContentRequest & {
+  idempotencyKey: string;
+};
+/** SDK 0.53: website images and photo editing. */
+export interface SetCollectionImageInput {
+  collectionId: string;
+  image: CatalogImageInput | null;
+  idempotencyKey: string;
+}
+export interface SetCategoryImageInput {
+  categoryId: string;
+  image: CatalogImageInput | null;
+  idempotencyKey: string;
+}
+export interface UpdateProductMediaInput {
+  productId: string;
+  mediaId: string;
+  /** null or "" clears the description. */
+  altText?: string | null;
+  isPrimary?: true;
+  idempotencyKey: string;
+}
+export interface ReorderProductMediaInput {
+  productId: string;
+  mediaIds: string[];
+  idempotencyKey: string;
+}
+/** SDK 0.52: replace the whole site text document (null/missing keys = the website's built-in text). */
+export interface UpdateStorefrontSiteTextInput {
+  siteText: SiteText;
+  idempotencyKey: string;
+}
+export interface PublicStorefrontContentQuery {
+  tenantId: string;
+  brandId?: string;
+}
 export interface PromotionListQueryInput {
   limit?: number;
   offset?: number;
@@ -291,6 +475,28 @@ export type UpdatePromotionInput = UpdatePromotionRequest & {
   promotionId: string;
   idempotencyKey: string;
 };
+export interface UpsertPromotionChannelPolicyInput
+  extends Partial<UpsertPromotionChannelPolicyRequest>, IdempotentWrite {
+  promotionId: string;
+  channel: "pos" | "online";
+  usageLimit: number | null;
+}
+export interface UpsertPromotionCodeChannelLimitInput extends IdempotentWrite {
+  codeId: string;
+  channel: "pos" | "online";
+  usageLimit: number | null;
+}
+export interface IngestOfflineCustomerInput extends IngestOfflineCustomerRequest, IdempotentWrite {}
+export interface IngestOfflineSaleHoldInput extends IngestOfflineSaleHoldRequest, IdempotentWrite {}
+export interface SetPosOverridePasswordInput
+  extends SetPosOverridePasswordRequest, IdempotentWrite {}
+export interface EnrollOfflinePinInput extends EnrollOfflinePinRequest, IdempotentWrite {}
+export interface RevokeOfflinePinEnrollmentsInput
+  extends RevokeOfflinePinEnrollmentsRequest, IdempotentWrite {}
+export interface ClearStaffOverridePasswordInput extends IdempotentWrite {
+  membershipId: string;
+}
+
 export interface SetPromotionStatusInput {
   promotionId: string;
   status: "active" | "inactive";
@@ -455,6 +661,13 @@ import {
   type RevokeDeviceRequest,
   type AssignDeviceRequest,
 } from "../../../src/contracts/management/settings";
+import {
+  StorefrontDeliverySettingsSchema,
+  PublicDeliveryOptionsSchema,
+  type StorefrontDeliverySettings,
+  type UpdateStorefrontDeliveryRequest,
+  type PublicDeliveryOptions,
+} from "../../../src/contracts/storefront/delivery";
 export type {
   BusinessSettings,
   UpdateBusinessRequest,
@@ -524,9 +737,23 @@ export type CreateRegisterInput = CreateRegisterRequest & IdempotentWrite;
 export type UpdateRegisterInput = UpdateRegisterRequest & IdempotentWrite & { registerId: string };
 export type UpsertStorefrontSettingsInput = UpsertStorefrontSettingsRequest &
   IdempotentWrite & { brandId: string };
+export type UpdateStorefrontDeliveryInput = UpdateStorefrontDeliveryRequest &
+  IdempotentWrite & { brandId: string };
+export interface PublicDeliveryOptionsQuery {
+  tenantId: string;
+  brandId: string;
+}
 export type UpdateReturnSettingsInput = UpdateReturnSettingsRequest & IdempotentWrite;
 export type RevokeDeviceInput = RevokeDeviceRequest & IdempotentWrite & { deviceId: string };
 export type AssignDeviceInput = AssignDeviceRequest & IdempotentWrite & { deviceId: string };
+import {
+  AllocateInventoryChannelsResponseSchema,
+  InitializeInventoryChannelsResponseSchema,
+  InventoryChannelStateResponseSchema,
+  type AllocateInventoryChannelsResponse,
+  type InitializeInventoryChannelsResponse,
+  type InventoryChannelStateResponse,
+} from "../../../src/contracts/management/inventory-channels";
 import {
   AdjustInventoryResponseSchema,
   ApiErrorSchema,
@@ -536,6 +763,8 @@ import {
   MeTenantsResponseSchema,
   OrderDetailResponseSchema,
   OrderListResponseSchema,
+  type FulfillOrderRequest,
+  type CancelOrderRequest,
   CustomerListResponseSchema,
   CustomerDetailResponseSchema,
   CustomerOrdersResponseSchema,
@@ -546,12 +775,17 @@ import {
   ProductDetailResponseSchema,
   ProductListResponseSchema,
   PosContextResponseSchema,
+  PosAvailabilityResponseSchema,
+  ListPosSyncConflictsResponseSchema,
   CreatePosSaleResponseSchema,
   PosDeviceResponseSchema,
   OfflineBootstrapResponseSchema,
   IngestOfflineSaleResponseSchema,
   IngestOfflineCustomerPaymentResponseSchema,
   IngestOfflineAttendanceResponseSchema,
+  IngestOfflineIntentResponseSchema,
+  OfflineReturnGrantResponseSchema,
+  IngestOfflineReturnResponseSchema,
   SetStaffOfflinePinResponseSchema,
   PosLoginResponseSchema,
   SetPosLoginPinResponseSchema,
@@ -577,6 +811,57 @@ import {
   SetCollectionProductsResponseSchema,
   PublicCollectionListResponseSchema,
   PublicCollectionDetailResponseSchema,
+  SetVariantOptionsResponseSchema,
+  UpdateOptionValuesResponseSchema,
+  CategoryListResponseSchema,
+  CategoryWriteResponseSchema,
+  CategoryUpdatedResponseSchema,
+  SetProductCategoriesResponseSchema,
+  PublicCategoryListResponseSchema,
+  SetCategorySizeGuideResponseSchema,
+  VendorListResponseSchema,
+  VendorWriteResponseSchema,
+  VendorUpdatedResponseSchema,
+  SetProductVendorResponseSchema,
+  PublicVendorListResponseSchema,
+  PublicBestSellersResponseSchema,
+  StorefrontSubscribeResponseSchema,
+  SubscriberListResponseSchema,
+  StorefrontTrackedOrderSchema,
+  StorefrontReturnPolicySchema,
+  type StorefrontReturnPolicy,
+  StorefrontReturnRequestResponseSchema,
+  ReturnRequestSchema,
+  ReturnRequestListResponseSchema,
+  type StorefrontTrackedOrder,
+  type StorefrontReturnRequestResponse,
+  type ReturnRequest,
+  type ReturnRequestListResponse,
+  type StorefrontSubscribeResponse,
+  type SubscriberListResponse,
+  type SetCategorySizeGuideResponse,
+  type VendorListResponse,
+  type VendorWriteResponse,
+  type VendorUpdatedResponse,
+  type SetProductVendorResponse,
+  type PublicVendorListResponse,
+  type CreateVendorRequest,
+  type UpdateVendorRequest,
+  type VendorStatus,
+  type PublicBestSellersResponse,
+  type SizeGuide,
+  type VariantOptionSelection,
+  type SetVariantOptionsResponse,
+  type UpdateOptionValuesRequest,
+  type UpdateOptionValuesResponse,
+  type CategoryListResponse,
+  type CategoryWriteResponse,
+  type CategoryUpdatedResponse,
+  type CreateCategoryRequest,
+  type UpdateCategoryRequest,
+  type SetCategoryStatusRequest,
+  type SetProductCategoriesResponse,
+  type PublicCategoryListResponse,
   type CollectionListResponse,
   type CollectionDetailResponse,
   type CollectionWriteResponse,
@@ -630,11 +915,16 @@ import {
   type ProductListResponse,
   type ProductStatus,
   type PosContextResponse,
+  type PosAvailabilityResponse,
+  type PosSyncConflict,
+  type PosSyncConflictKind,
+  type ListPosSyncConflictsResponse,
   type CreatePosSaleResponse,
   type EnrollPosDeviceRequest,
   type PosDeviceResponse,
   type OfflineBootstrapRequest,
   type OfflineBootstrapResponse,
+  type OfflineStockGrant,
   type OfflineSaleCommand,
   type IngestOfflineSaleRequest,
   type IngestOfflineSaleResponse,
@@ -645,6 +935,18 @@ import {
   type OfflineAttendanceCommand,
   type IngestOfflineAttendanceRequest,
   type IngestOfflineAttendanceResponse,
+  type OfflineIntentOperation,
+  type OfflineIntentCommand,
+  type IngestOfflineIntentRequest,
+  type IngestOfflineIntentResponse,
+  type OfflineIntentDisposition,
+  type OfflineReturnGrantLine,
+  type IssueOfflineReturnGrantRequest,
+  type OfflineReturnGrantResponse,
+  type OfflineReturnCommand,
+  type IngestOfflineReturnRequest,
+  type OfflineReturnReconciliation,
+  type IngestOfflineReturnResponse,
   type OfflineStaffRosterEntry,
   type StaffPinVerifier,
   type SetStaffOfflinePinRequest,
@@ -674,9 +976,79 @@ export {
   canonicalizeOfflineSaleCommand,
   canonicalizeOfflineCustomerPaymentCommand,
   canonicalizeOfflineAttendanceCommand,
+  canonicalizeOfflineIntentCommand,
+  canonicalizeOfflineReturnCommand,
+  canonicalizeOfflineCustomerCommand,
+  canonicalizeOfflineSaleHoldCommand,
+} from "../../../src/contracts";
+export type {
+  StorefrontDeliverySettings,
+  UpdateStorefrontDeliveryRequest,
+  PublicDeliveryOptions,
+  StorefrontDeliveryQuote,
+  StorefrontDeliveryZone,
+  DeliveryZoneRef,
+  VariantOptionSelection,
+  SetVariantOptionsResponse,
+  UpdateOptionValuesRequest,
+  UpdateOptionValuesResponse,
+  CategoryListResponse,
+  CategorySummary,
+  CategoryStatus,
+  CategoryWriteResponse,
+  CategoryUpdatedResponse,
+  CreateCategoryRequest,
+  UpdateCategoryRequest,
+  SetCategoryStatusRequest,
+  SetProductCategoriesResponse,
+  PublicCategory,
+  PublicCategoryListResponse,
+  SizeGuide,
+  SetCategorySizeGuideRequest,
+  SetCategorySizeGuideResponse,
+  VendorListResponse,
+  VendorSummary,
+  VendorStatus,
+  VendorWriteResponse,
+  VendorUpdatedResponse,
+  CreateVendorRequest,
+  UpdateVendorRequest,
+  SetProductVendorResponse,
+  PublicVendor,
+  PublicVendorListResponse,
+  PublicProductVendor,
+  PublicBestSellersResponse,
+  StorefrontSubscribeRequest,
+  StorefrontSubscribeResponse,
+  StorefrontTrackOrderRequest,
+  StorefrontTrackedOrder,
+  StorefrontReturnPolicy,
+  StorefrontReturnRequest,
+  StorefrontReturnRequestResponse,
+  TrackingStage,
+  ReturnRequestReason,
+  ReturnRequestStatus,
+  ReturnRequestPreference,
+  ReturnRequestRefusal,
+  ReturnRequest,
+  ReturnRequestListResponse,
+  ReturnRequestListQuery,
+  UpdateReturnRequestStatus,
+  SubscriberSummary,
+  SubscriberListResponse,
+  PublicProductOption,
+  PublicProductCategory,
+  PublicVariantOptionValue,
 } from "../../../src/contracts";
 import packageMetadata from "../package.json";
 import type { z } from "zod";
+
+export interface ListPosSyncConflictsInput {
+  readonly registerId?: string;
+  readonly kind?: PosSyncConflictKind;
+  readonly status?: "open" | "informational";
+  readonly limit?: number;
+}
 
 export const SDK_VERSION = packageMetadata.version;
 
@@ -744,6 +1116,23 @@ export interface ReceiveInventoryInput extends IdempotentWrite {
   note?: string;
 }
 
+export interface InitializeInventoryChannelsInput extends IdempotentWrite {
+  inventoryLocationId: string;
+}
+
+export interface AllocateInventoryChannelsInput extends IdempotentWrite {
+  inventoryLocationId: string;
+  reason: string;
+  lines: Array<{
+    variantId: string;
+    websiteQuantity: number;
+    posQuantity: number;
+    /** ADR-042 §3.5: both versions are required; a stale one makes the whole request a 409. */
+    expectedBalanceVersion: number;
+    expectedAllocationVersion: number;
+  }>;
+}
+
 export interface AdjustInventoryInput extends IdempotentWrite {
   variantId: string;
   inventoryLocationId: string;
@@ -800,6 +1189,11 @@ export interface IngestOfflineCustomerPaymentInput
 export interface IngestOfflineAttendanceInput
   extends IngestOfflineAttendanceRequest, IdempotentWrite {}
 
+export type IngestOfflineIntentInput = IngestOfflineIntentRequest & IdempotentWrite;
+export interface IssueOfflineReturnGrantInput
+  extends IssueOfflineReturnGrantRequest, IdempotentWrite {}
+export interface IngestOfflineReturnInput extends IngestOfflineReturnRequest, IdempotentWrite {}
+
 // ---- Phase 2J catalog management inputs ----
 export interface CreateProductInput extends IdempotentWrite {
   brandId: string;
@@ -827,6 +1221,48 @@ export interface CreateVariantInput extends IdempotentWrite {
   productId: string;
   sku: string;
   displayName?: string;
+  /** Create the variant with these option values (e.g. Size M, Colour Black) atomically. */
+  options?: VariantOptionSelection[];
+}
+export interface SetVariantOptionsInput extends IdempotentWrite {
+  productId: string;
+  variantId: string;
+  /** The complete selection; an empty array clears the variant's options. */
+  options: VariantOptionSelection[];
+}
+export interface UpdateOptionValuesInput extends IdempotentWrite, UpdateOptionValuesRequest {
+  productId: string;
+}
+
+// ---- Categories management inputs ----
+export interface CreateCategoryInput extends IdempotentWrite, CreateCategoryRequest {}
+export interface UpdateCategoryInput extends IdempotentWrite, UpdateCategoryRequest {
+  categoryId: string;
+}
+export interface SetCategoryStatusInput extends IdempotentWrite, SetCategoryStatusRequest {
+  categoryId: string;
+}
+export interface SetProductCategoriesInput extends IdempotentWrite {
+  productId: string;
+  categoryIds: string[];
+}
+
+// ---- Vendors (SDK 0.50): the labels the tenant sells, shown as "Brand" ----
+export interface CreateVendorInput extends IdempotentWrite, CreateVendorRequest {}
+export interface UpdateVendorInput extends IdempotentWrite, UpdateVendorRequest {
+  vendorId: string;
+}
+export interface SetVendorStatusInput extends IdempotentWrite {
+  vendorId: string;
+  status: VendorStatus;
+}
+export interface SetProductVendorInput extends IdempotentWrite {
+  productId: string;
+  /** The vendor id, or null to clear it. */
+  vendorId: string | null;
+}
+export interface PublicVendorListQuery {
+  tenantId: string;
 }
 export interface SetVariantPriceInput extends IdempotentWrite {
   variantId: string;
@@ -886,6 +1322,64 @@ export interface PublicCollectionQuery {
   tenantId: string;
   slug: string;
 }
+export interface PublicCategoryListQuery {
+  tenantId: string;
+}
+export interface SetCategorySizeGuideInput extends IdempotentWrite {
+  categoryId: string;
+  /** The complete size chart, or null to remove it. */
+  sizeGuide: SizeGuide | null;
+}
+export interface StorefrontSubscribeInput {
+  tenantId: string;
+  brandId?: string;
+  email: string;
+  /** Where the sign-up came from, kebab-case (e.g. "home"). */
+  source?: string;
+}
+
+/** SDK 0.48: identify an online order with its number + the phone given at checkout. */
+export interface StorefrontOrderLookup {
+  tenantId: string;
+  brandId?: string;
+  orderReference: string;
+  phone: string;
+}
+export interface StorefrontReturnRequestInput extends StorefrontOrderLookup {
+  preference?: "refund" | "exchange";
+  note?: string;
+  lines: {
+    lineNumber: number;
+    quantity: number;
+    reason:
+      | "too_small"
+      | "too_big"
+      | "not_as_pictured"
+      | "damaged"
+      | "wrong_item"
+      | "changed_mind"
+      | "other";
+  }[];
+}
+export interface ReturnRequestListInput {
+  status?: "open" | "requested" | "approved" | "declined" | "completed" | "all";
+  orderId?: string;
+  limit?: number;
+}
+export interface UpdateReturnRequestStatusInput extends IdempotentWrite {
+  requestId: string;
+  status: "approved" | "declined" | "completed";
+  note?: string;
+}
+
+export interface PublicBestSellersQuery {
+  tenantId: string;
+  brandId?: string;
+  /** Look-back window in days (1-365, default 90). */
+  days?: number;
+  /** How many ids to return (1-50, default 12). */
+  limit?: number;
+}
 
 /** Tenant-scoped management surface, obtained via `client.withTenant(tenantId)`. */
 export interface TenantCommerceClient {
@@ -912,6 +1406,28 @@ export interface TenantCommerceClient {
   updateCollection(input: UpdateCollectionInput): Promise<CollectionUpdatedResponse>;
   setCollectionStatus(input: SetCollectionStatusInput): Promise<CollectionWriteResponse>;
   setCollectionProducts(input: SetCollectionProductsInput): Promise<SetCollectionProductsResponse>;
+  setVariantOptions(input: SetVariantOptionsInput): Promise<SetVariantOptionsResponse>;
+  updateOptionValues(input: UpdateOptionValuesInput): Promise<UpdateOptionValuesResponse>;
+  listCategories(): Promise<CategoryListResponse>;
+  createCategory(input: CreateCategoryInput): Promise<CategoryWriteResponse>;
+  updateCategory(input: UpdateCategoryInput): Promise<CategoryUpdatedResponse>;
+  setCategoryStatus(input: SetCategoryStatusInput): Promise<CategoryWriteResponse>;
+  /** SDK 0.46: replace or clear the size chart for a category (and its descendants). */
+  setCategorySizeGuide(input: SetCategorySizeGuideInput): Promise<SetCategorySizeGuideResponse>;
+  /** SDK 0.47: storefront email sign-ups, newest first (orders.read). */
+  listSubscribers(query?: { limit?: number }): Promise<SubscriberListResponse>;
+  /** SDK 0.48: customer return requests from the Storefront (returns.read). Default: open ones. */
+  listReturnRequests(query?: ReturnRequestListInput): Promise<ReturnRequestListResponse>;
+  /** SDK 0.48: approve / decline / complete a return request (returns.create). */
+  updateReturnRequestStatus(input: UpdateReturnRequestStatusInput): Promise<ReturnRequest>;
+  setProductCategories(input: SetProductCategoriesInput): Promise<SetProductCategoriesResponse>;
+  /** SDK 0.50: the labels the tenant sells (shown as "Brand"), any status (catalog.author). */
+  listVendors(): Promise<VendorListResponse>;
+  createVendor(input: CreateVendorInput): Promise<VendorWriteResponse>;
+  updateVendor(input: UpdateVendorInput): Promise<VendorUpdatedResponse>;
+  setVendorStatus(input: SetVendorStatusInput): Promise<VendorWriteResponse>;
+  /** SDK 0.50: set or clear (null) the label a product is made by. */
+  setProductVendor(input: SetProductVendorInput): Promise<SetProductVendorResponse>;
   listInventory(query?: InventoryListQuery): Promise<InventoryListResponse>;
   listSuppliers(query?: SupplierListQuery): Promise<SupplierListResponse>;
   getSupplier(supplierId: string): Promise<Supplier>;
@@ -945,6 +1461,7 @@ export interface TenantCommerceClient {
   listAssignableStaffScopes(query?: AssignmentCatalogQuery): Promise<AssignableStaffScopesResponse>;
   getStaffMember(membershipId: string): Promise<StaffDetail>;
   createStaff(input: CreateStaffInput): Promise<StaffDetail>;
+  createStaffWithoutLogin(input: CreateStaffWithoutLoginInput): Promise<StaffDetail>;
   /**
    * Provision a brand-new, email-less staff login and link it as active staff in one step. The server
    * mints the external account; the caller supplies only the display name, username, PIN, and the initial
@@ -963,6 +1480,7 @@ export interface TenantCommerceClient {
    */
   setStaffOfflinePin(input: SetStaffOfflinePinInput): Promise<SetStaffOfflinePinResponse>;
   updateStaffStatus(input: UpdateStaffStatusInput): Promise<StaffDetail>;
+  updateStaffProfile(input: UpdateStaffProfileInput): Promise<StaffDetail>;
   assignStaffRole(input: AssignStaffRoleInput): Promise<StaffDetail>;
   unassignStaffRole(input: UnassignStaffRoleInput): Promise<StaffDetail>;
   /** Clock the signed-in member in (attendance.record). Fails if they already have an open entry. */
@@ -978,6 +1496,10 @@ export interface TenantCommerceClient {
   /** Tenant payroll settings: normal-hours threshold + shift-duration divisor (read/manage). */
   getPayrollSettings(): Promise<PayrollSettings>;
   updatePayrollSettings(input: UpdatePayrollSettingsRequest): Promise<PayrollSettings>;
+  getPayrollCycleSettings(): Promise<PayrollCycleSettings>;
+  updatePayrollCycleSettings(input: PayrollCycleSettings): Promise<PayrollCycleSettings>;
+  getPayrollDue(): Promise<PayrollDue>;
+  markPayrollPaid(input?: MarkPayrollPaidRequest): Promise<PayrollDue>;
   /** A member's current compensation, or null if none is set (attendance.read). */
   getCompensation(membershipId: string): Promise<EmployeeCompensation | null>;
   setCompensation(input: SetCompensationInput): Promise<EmployeeCompensation>;
@@ -995,9 +1517,34 @@ export interface TenantCommerceClient {
   endLeave(): Promise<LeaveClockResponse>;
   receiveInventory(input: ReceiveInventoryInput): Promise<ReceiveInventoryResponse>;
   adjustInventory(input: AdjustInventoryInput): Promise<AdjustInventoryResponse>;
+  /** ADR-042: Website/POS stock split of one inventory location (empty items while legacy). */
+  getInventoryChannels(query: {
+    inventoryLocationId: string;
+  }): Promise<InventoryChannelStateResponse>;
+  /** ADR-042: legacy → shadow; all stock starts unallocated. Repeat calls return initialized=false. */
+  initializeInventoryChannels(
+    input: InitializeInventoryChannelsInput,
+  ): Promise<InitializeInventoryChannelsResponse>;
+  /** ADR-042: set absolute Website/POS quantities per variant; unallocated is the remainder. */
+  allocateInventoryChannels(
+    input: AllocateInventoryChannelsInput,
+  ): Promise<AllocateInventoryChannelsResponse>;
   transferInventory(input: TransferInventoryInput): Promise<TransferInventoryResponse>;
   listOrders(query?: OrderListQuery): Promise<OrderListResponse>;
   getOrder(orderId: string): Promise<OrderDetailResponse>;
+  /**
+   * Fulfil lines of an ONLINE order (orders.fulfill + inventory.issue). The server takes stock from the
+   * location the order's reservations hold; returns the refreshed order detail. Idempotent per key.
+   */
+  fulfillOrder(input: FulfillOrderInput): Promise<OrderDetailResponse>;
+  /** Cancel an unfulfilled ONLINE order (orders.cancel); releases its reservations. Idempotent. */
+  cancelOrder(input: CancelOrderInput): Promise<OrderDetailResponse>;
+  /**
+   * SDK 0.54: delivered + cash collected for a fully shipped ONLINE cash-on-delivery order
+   * (orders.fulfill). Captures the payment's own checkout amount and stamps who collected it; the
+   * shopper's tracking then shows Delivered and returns become refundable. Idempotent.
+   */
+  collectOrderPayment(input: CollectOrderPaymentInput): Promise<OrderDetailResponse>;
   /** Customers (commerce contacts). Gated on orders.read; search matches name or phone. */
   listCustomers(query?: CustomerListQuery): Promise<CustomerListResponse>;
   getCustomer(customerId: string): Promise<CustomerDetailResponse>;
@@ -1020,15 +1567,75 @@ export interface TenantCommerceClient {
   createReturn(input: CreateReturnInput): Promise<ReturnDetailResponse>;
   settleRefund(input: SettleRefundInput): Promise<ReturnDetailResponse>;
   getPosContext(): Promise<PosContextResponse>;
+  getPosAvailability(registerId: string): Promise<PosAvailabilityResponse>;
+  /**
+   * ADR-042 §13.5 — read-only post-sync conflict report (shared-stock shortfall, voucher, duplicate customer,
+   * stale debt, attendance, dependency, integrity). Pass `registerId` from a till (register permissions),
+   * omit it for the tenant-wide view (orders.read). Never an approval queue; never mutates a record.
+   */
+  listPosSyncConflicts(query?: ListPosSyncConflictsInput): Promise<ListPosSyncConflictsResponse>;
   posQuote(input: PosQuoteRequest): Promise<PosQuoteResponse>;
   createPosSale(input: CreatePosSaleInput): Promise<CreatePosSaleResponse>;
   listPromotions(query?: PromotionListQueryInput): Promise<PromotionListResponse>;
   getPromotion(promotionId: string): Promise<PromotionDetail>;
   createPromotion(input: CreatePromotionInput): Promise<PromotionDetail>;
   updatePromotion(input: UpdatePromotionInput): Promise<PromotionDetail>;
+  /** Deletes a never-used promotion, or archives one with sale-time history (promotions.manage). */
+  deletePromotion(promotionId: string): Promise<DeletePromotionResponse>;
   setPromotionStatus(input: SetPromotionStatusInput): Promise<PromotionDetail>;
   createPromotionCode(input: CreatePromotionCodeInput): Promise<PromotionDetail>;
   setPromotionCodeStatus(input: SetPromotionCodeStatusInput): Promise<PromotionDetail>;
+  /** ADR-042 §5: the voucher's per-channel limits and POS offline terms (promotions.read). */
+  getPromotionChannelPolicies(promotionId: string): Promise<PromotionChannelPoliciesResponse>;
+  /** ADR-042 §5: set one channel's limit; POS may add offline terms incl. the D-7 caps (promotions.manage). */
+  upsertPromotionChannelPolicy(
+    input: UpsertPromotionChannelPolicyInput,
+  ): Promise<PromotionChannelPoliciesResponse>;
+  upsertPromotionCodeChannelLimit(
+    input: UpsertPromotionCodeChannelLimitInput,
+  ): Promise<PromotionChannelPoliciesResponse>;
+  /** ADR-042 D-2 report: offline voucher discounts honoured without a valid reservation. */
+  listOfflineVoucherExceptions(query?: {
+    limit?: number;
+    offset?: number;
+  }): Promise<OfflineVoucherExceptionListResponse>;
+  /** ADR-042 D-6: set or change your own POS override password (re-enter POS username + PIN). */
+  setPosOverridePassword(input: SetPosOverridePasswordInput): Promise<PosOverridePasswordResponse>;
+  /** Offline PIN v2: enrol the caller on a device (no PIN is sent). */
+  enrollOfflinePin(input: EnrollOfflinePinInput): Promise<EnrollOfflinePinResponse>;
+  revokeOfflinePinEnrollments(
+    input: RevokeOfflinePinEnrollmentsInput,
+  ): Promise<RevokeOfflinePinEnrollmentsResponse>;
+  /** ADR-042 D-6: clear a staff member's override password (staff.manage). */
+  clearStaffOverridePassword(
+    input: ClearStaffOverridePasswordInput,
+  ): Promise<PosOverridePasswordResponse>;
+  /**
+   * Catalog sales (promotions.read / promotions.manage): per-unit ONLINE price reductions on all items,
+   * one collection, or selected products. The lowest matching sale price wins; never stacked.
+   */
+  listSales(): Promise<SaleListResponse>;
+  getSale(saleId: string): Promise<Sale>;
+  createSale(input: CreateSaleInput): Promise<Sale>;
+  updateSale(input: UpdateSaleInput): Promise<Sale>;
+  setSaleStatus(input: SetSaleStatusInput): Promise<Sale>;
+  deleteSale(saleId: string): Promise<DeleteSaleResponse>;
+  /** Storefront home-page content: hero + featured picks (catalog.author). */
+  getStorefrontContent(): Promise<StorefrontContent>;
+  updateStorefrontContent(input: UpdateStorefrontContentInput): Promise<StorefrontContent>;
+  createStorefrontHeroImageIntent(
+    input: CreateStorefrontHeroImageIntentRequest,
+  ): Promise<StorefrontHeroImageIntent>;
+  /** SDK 0.53: collection covers, category images and product photo editing (catalog.author). */
+  createCatalogImageIntent(input: CreateCatalogImageIntentRequest): Promise<CatalogImageIntent>;
+  setCollectionImage(input: SetCollectionImageInput): Promise<SetCollectionImageResponse>;
+  setCategoryImage(input: SetCategoryImageInput): Promise<SetCategoryImageResponse>;
+  listProductMedia(productId: string): Promise<ProductMediaListResponse>;
+  updateProductMedia(input: UpdateProductMediaInput): Promise<UpdateProductMediaResponse>;
+  reorderProductMedia(input: ReorderProductMediaInput): Promise<ReorderProductMediaResponse>;
+  /** SDK 0.52: all other website copy (promo bar, section titles, footer, SEO, contact, pages). */
+  getStorefrontSiteText(): Promise<StorefrontSiteText>;
+  updateStorefrontSiteText(input: UpdateStorefrontSiteTextInput): Promise<StorefrontSiteText>;
   /** Operational reporting (read-only, tenant-wide, requires reports.read). */
   getReportSummary(query: ReportPeriodQuery): Promise<ReportSummaryResponse>;
   getSalesReport(query: SalesReportQuery): Promise<SalesReportResponse>;
@@ -1071,6 +1678,12 @@ export interface TenantCommerceClient {
   listStorefrontSettings(): Promise<StorefrontSettingsListResponse>;
   getStorefrontSettings(brandId: string): Promise<StorefrontSettings>;
   upsertStorefrontSettings(input: UpsertStorefrontSettingsInput): Promise<StorefrontSettings>;
+  /** Delivery areas + free-delivery threshold of a brand's Storefront (settings.read). */
+  getStorefrontDeliverySettings(brandId: string): Promise<StorefrontDeliverySettings>;
+  /** Replace the delivery areas and threshold (settings.manage). */
+  updateStorefrontDeliverySettings(
+    input: UpdateStorefrontDeliveryInput,
+  ): Promise<StorefrontDeliverySettings>;
   getReturnSettings(): Promise<ReturnSettings>;
   updateReturnSettings(input: UpdateReturnSettingsInput): Promise<ReturnSettings>;
   listDevices(query?: DeviceListQuery): Promise<DeviceListResponse>;
@@ -1088,6 +1701,14 @@ export interface TenantCommerceClient {
   ingestOfflineAttendance(
     input: IngestOfflineAttendanceInput,
   ): Promise<IngestOfflineAttendanceResponse>;
+  /** Device-signed offline operation intent; the server returns its final automatic disposition. */
+  ingestOfflineIntent(input: IngestOfflineIntentInput): Promise<IngestOfflineIntentResponse>;
+  issueOfflineReturnGrant(input: IssueOfflineReturnGrantInput): Promise<OfflineReturnGrantResponse>;
+  ingestOfflineReturn(input: IngestOfflineReturnInput): Promise<IngestOfflineReturnResponse>;
+  /** ADR-042 §8: device-signed new customer captured offline (duplicates flagged, never merged). */
+  ingestOfflineCustomer(input: IngestOfflineCustomerInput): Promise<IngestOfflineCustomerResponse>;
+  /** ADR-042 §4.6: terminal hold for an offline sale whose new customer was rejected. */
+  ingestOfflineSaleHold(input: IngestOfflineSaleHoldInput): Promise<IngestOfflineSaleHoldResponse>;
 }
 
 export interface CommerceClient {
@@ -1115,6 +1736,28 @@ export interface CommerceClient {
   /** Public Storefront collection reads. Unauthenticated; tenant is an explicit query parameter. */
   listPublishedCollections(query: PublicCollectionListQuery): Promise<PublicCollectionListResponse>;
   getPublishedCollection(query: PublicCollectionQuery): Promise<PublicCollectionDetailResponse>;
+  /** Public Storefront category tree (active categories with publicly visible products). */
+  listStorefrontCategories(query: PublicCategoryListQuery): Promise<PublicCategoryListResponse>;
+  /** SDK 0.50: public "shop by brand" list (active vendors with publicly visible products). */
+  listStorefrontVendors(query: PublicVendorListQuery): Promise<PublicVendorListResponse>;
+  /** SDK 0.46: publicly visible product ids ranked by recent units sold (best first). */
+  listStorefrontBestSellers(query: PublicBestSellersQuery): Promise<PublicBestSellersResponse>;
+  /** SDK 0.47: public drop-alert sign-up; same answer whether or not already listed. */
+  subscribeToStorefront(input: StorefrontSubscribeInput): Promise<StorefrontSubscribeResponse>;
+  /** SDK 0.48: public order tracking by number + checkout phone (404 ORDER_NOT_FOUND / 429). */
+  trackStorefrontOrder(input: StorefrontOrderLookup): Promise<StorefrontTrackedOrder>;
+  /** SDK 0.49: whether the store accepts returns and its admin-editable window (days). */
+  getStorefrontReturnPolicy(query: { tenantId: string }): Promise<StorefrontReturnPolicy>;
+  /** SDK 0.48: public return request for delivered items; staff decide. */
+  requestStorefrontReturn(
+    input: StorefrontReturnRequestInput,
+  ): Promise<StorefrontReturnRequestResponse>;
+  /** Public Storefront home-page content (hero + featured picks). Unauthenticated. */
+  getPublicStorefrontContent(query: PublicStorefrontContentQuery): Promise<PublicStorefrontContent>;
+  /** SDK 0.52: public editable site text. Missing keys = the website's built-in text. */
+  getPublicStorefrontSiteText(query: { tenantId: string }): Promise<PublicStorefrontSiteText>;
+  /** Public delivery areas, fees and free-delivery threshold for a Storefront brand. */
+  getStorefrontDeliveryOptions(query: PublicDeliveryOptionsQuery): Promise<PublicDeliveryOptions>;
 }
 
 export class CommerceSdkError extends Error {}
@@ -1419,6 +2062,108 @@ export function createCommerceClient({
           SetCollectionProductsResponseSchema,
           { tenantId, method: "PUT", body, idempotencyKey },
         ),
+      setVariantOptions: ({
+        idempotencyKey,
+        productId,
+        variantId,
+        ...body
+      }: SetVariantOptionsInput) =>
+        request(
+          `/api/v1/products/${encodeURIComponent(productId)}/variants/${encodeURIComponent(variantId)}/options`,
+          SetVariantOptionsResponseSchema,
+          { tenantId, method: "PUT", body, idempotencyKey },
+        ),
+      updateOptionValues: ({ idempotencyKey, productId, ...body }: UpdateOptionValuesInput) =>
+        request(
+          `/api/v1/products/${encodeURIComponent(productId)}/option-values`,
+          UpdateOptionValuesResponseSchema,
+          { tenantId, method: "PATCH", body, idempotencyKey },
+        ),
+      listCategories: () => request("/api/v1/categories", CategoryListResponseSchema, { tenantId }),
+      createCategory: ({ idempotencyKey, ...body }: CreateCategoryInput) =>
+        request("/api/v1/categories", CategoryWriteResponseSchema, {
+          tenantId,
+          method: "POST",
+          body,
+          idempotencyKey,
+        }),
+      updateCategory: ({ idempotencyKey, categoryId, ...body }: UpdateCategoryInput) =>
+        request(
+          `/api/v1/categories/${encodeURIComponent(categoryId)}`,
+          CategoryUpdatedResponseSchema,
+          { tenantId, method: "PATCH", body, idempotencyKey },
+        ),
+      setCategoryStatus: ({ idempotencyKey, categoryId, ...body }: SetCategoryStatusInput) =>
+        request(
+          `/api/v1/categories/${encodeURIComponent(categoryId)}/status`,
+          CategoryWriteResponseSchema,
+          { tenantId, method: "POST", body, idempotencyKey },
+        ),
+      setCategorySizeGuide: ({ idempotencyKey, categoryId, ...body }: SetCategorySizeGuideInput) =>
+        request(
+          `/api/v1/categories/${encodeURIComponent(categoryId)}/size-guide`,
+          SetCategorySizeGuideResponseSchema,
+          { tenantId, method: "PUT", body, idempotencyKey },
+        ),
+      listSubscribers: (query: { limit?: number } = {}) =>
+        request(
+          `/api/v1/subscribers${buildQuery({ limit: query.limit })}`,
+          SubscriberListResponseSchema,
+          { tenantId },
+        ),
+      listReturnRequests: (query: ReturnRequestListInput = {}) =>
+        request(
+          `/api/v1/return-requests${buildQuery({
+            status: query.status,
+            orderId: query.orderId,
+            limit: query.limit,
+          })}`,
+          ReturnRequestListResponseSchema,
+          { tenantId },
+        ),
+      updateReturnRequestStatus: ({
+        idempotencyKey,
+        requestId,
+        ...body
+      }: UpdateReturnRequestStatusInput) =>
+        request(
+          `/api/v1/return-requests/${encodeURIComponent(requestId)}/status`,
+          ReturnRequestSchema,
+          { tenantId, method: "POST", body, idempotencyKey },
+        ),
+      setProductCategories: ({ idempotencyKey, productId, ...body }: SetProductCategoriesInput) =>
+        request(
+          `/api/v1/products/${encodeURIComponent(productId)}/categories`,
+          SetProductCategoriesResponseSchema,
+          { tenantId, method: "PUT", body, idempotencyKey },
+        ),
+      listVendors: () => request("/api/v1/vendors", VendorListResponseSchema, { tenantId }),
+      createVendor: ({ idempotencyKey, ...body }: CreateVendorInput) =>
+        request("/api/v1/vendors", VendorWriteResponseSchema, {
+          tenantId,
+          method: "POST",
+          body,
+          idempotencyKey,
+        }),
+      updateVendor: ({ idempotencyKey, vendorId, ...body }: UpdateVendorInput) =>
+        request(`/api/v1/vendors/${encodeURIComponent(vendorId)}`, VendorUpdatedResponseSchema, {
+          tenantId,
+          method: "PATCH",
+          body,
+          idempotencyKey,
+        }),
+      setVendorStatus: ({ idempotencyKey, vendorId, ...body }: SetVendorStatusInput) =>
+        request(
+          `/api/v1/vendors/${encodeURIComponent(vendorId)}/status`,
+          VendorWriteResponseSchema,
+          { tenantId, method: "POST", body, idempotencyKey },
+        ),
+      setProductVendor: ({ idempotencyKey, productId, ...body }: SetProductVendorInput) =>
+        request(
+          `/api/v1/products/${encodeURIComponent(productId)}/vendor`,
+          SetProductVendorResponseSchema,
+          { tenantId, method: "PUT", body, idempotencyKey },
+        ),
       listInventory: (query = {}) =>
         request(
           `/api/v1/inventory${buildQuery({
@@ -1577,6 +2322,13 @@ export function createCommerceClient({
           body,
           idempotencyKey,
         }),
+      createStaffWithoutLogin: ({ idempotencyKey, ...body }: CreateStaffWithoutLoginInput) =>
+        request("/api/v1/staff/without-login", StaffDetailSchema, {
+          tenantId,
+          method: "POST",
+          body,
+          idempotencyKey,
+        }),
       createStaffLogin: ({ idempotencyKey, ...body }: CreateStaffLoginInput) =>
         request("/api/v1/staff/logins", StaffDetailSchema, {
           tenantId,
@@ -1616,6 +2368,13 @@ export function createCommerceClient({
         request(`/api/v1/staff/${encodeURIComponent(membershipId)}`, StaffDetailSchema, {
           tenantId,
           method: "PATCH",
+          body,
+          idempotencyKey,
+        }),
+      updateStaffProfile: ({ membershipId, idempotencyKey, ...body }: UpdateStaffProfileInput) =>
+        request(`/api/v1/staff/${encodeURIComponent(membershipId)}/profile`, StaffDetailSchema, {
+          tenantId,
+          method: "PUT",
           body,
           idempotencyKey,
         }),
@@ -1672,6 +2431,22 @@ export function createCommerceClient({
         request("/api/v1/attendance/settings", PayrollSettingsSchema, {
           tenantId,
           method: "PUT",
+          body: input,
+        }),
+      getPayrollCycleSettings: () =>
+        request("/api/v1/attendance/payroll-cycle", PayrollCycleSettingsSchema, { tenantId }),
+      updatePayrollCycleSettings: (input: PayrollCycleSettings) =>
+        request("/api/v1/attendance/payroll-cycle", PayrollCycleSettingsSchema, {
+          tenantId,
+          method: "PUT",
+          body: input,
+        }),
+      getPayrollDue: () =>
+        request("/api/v1/attendance/payroll-cycle/due", PayrollDueSchema, { tenantId }),
+      markPayrollPaid: (input: MarkPayrollPaidRequest = {}) =>
+        request("/api/v1/attendance/payroll-cycle/pay", PayrollDueSchema, {
+          tenantId,
+          method: "POST",
           body: input,
         }),
       getCompensation: (membershipId: string) =>
@@ -1754,6 +2529,33 @@ export function createCommerceClient({
           body,
           idempotencyKey,
         }),
+      getInventoryChannels: (query: { inventoryLocationId: string }) =>
+        request(
+          `/api/v1/inventory/channels${buildQuery({ inventoryLocationId: query.inventoryLocationId })}`,
+          InventoryChannelStateResponseSchema,
+          { tenantId },
+        ),
+      initializeInventoryChannels: ({
+        idempotencyKey,
+        ...body
+      }: InitializeInventoryChannelsInput) =>
+        request(
+          "/api/v1/inventory/channels/initialize",
+          InitializeInventoryChannelsResponseSchema,
+          {
+            tenantId,
+            method: "POST",
+            body,
+            idempotencyKey,
+          },
+        ),
+      allocateInventoryChannels: ({ idempotencyKey, ...body }: AllocateInventoryChannelsInput) =>
+        request("/api/v1/inventory/channels/allocations", AllocateInventoryChannelsResponseSchema, {
+          tenantId,
+          method: "POST",
+          body,
+          idempotencyKey,
+        }),
       transferInventory: ({ idempotencyKey, ...body }: TransferInventoryInput) =>
         request("/api/v1/inventory/transfers", TransferInventoryResponseSchema, {
           tenantId,
@@ -1778,6 +2580,25 @@ export function createCommerceClient({
         request(`/api/v1/orders/${encodeURIComponent(orderId)}`, OrderDetailResponseSchema, {
           tenantId,
         }),
+      fulfillOrder: ({ orderId, idempotencyKey, ...body }: FulfillOrderInput) =>
+        request(
+          `/api/v1/orders/${encodeURIComponent(orderId)}/fulfillments`,
+          OrderDetailResponseSchema,
+          { tenantId, method: "POST", body, idempotencyKey },
+        ),
+      cancelOrder: ({ orderId, idempotencyKey, ...body }: CancelOrderInput) =>
+        request(`/api/v1/orders/${encodeURIComponent(orderId)}/cancel`, OrderDetailResponseSchema, {
+          tenantId,
+          method: "POST",
+          body,
+          idempotencyKey,
+        }),
+      collectOrderPayment: ({ orderId, idempotencyKey }: CollectOrderPaymentInput) =>
+        request(
+          `/api/v1/orders/${encodeURIComponent(orderId)}/collect-payment`,
+          OrderDetailResponseSchema,
+          { tenantId, method: "POST", body: {}, idempotencyKey },
+        ),
       listCustomers: (query = {}) =>
         request(
           `/api/v1/customers${buildQuery({
@@ -1828,6 +2649,23 @@ export function createCommerceClient({
       listCustomerDues: () =>
         request("/api/v1/customers/dues", CustomerDuesResponseSchema, { tenantId }),
       getPosContext: () => request("/api/v1/pos/context", PosContextResponseSchema, { tenantId }),
+      listPosSyncConflicts: (query: ListPosSyncConflictsInput = {}) =>
+        request(
+          `/api/v1/pos/sync-conflicts${buildQuery({
+            registerId: query.registerId,
+            kind: query.kind,
+            status: query.status,
+            limit: query.limit,
+          })}`,
+          ListPosSyncConflictsResponseSchema,
+          { tenantId },
+        ),
+      getPosAvailability: (registerId: string) =>
+        request(
+          `/api/v1/pos/availability?registerId=${encodeURIComponent(registerId)}`,
+          PosAvailabilityResponseSchema,
+          { tenantId },
+        ),
       getReturnEligibility: (orderId: string) =>
         request(
           `/api/v1/orders/${encodeURIComponent(orderId)}/return-eligibility`,
@@ -1889,6 +2727,12 @@ export function createCommerceClient({
           body,
           idempotencyKey,
         }),
+      deletePromotion: (promotionId: string) =>
+        request(
+          `/api/v1/promotions/${encodeURIComponent(promotionId)}`,
+          DeletePromotionResponseSchema,
+          { tenantId, method: "DELETE" },
+        ),
       setPromotionStatus: ({ promotionId, idempotencyKey, ...body }: SetPromotionStatusInput) =>
         request(
           `/api/v1/promotions/${encodeURIComponent(promotionId)}/status`,
@@ -1901,12 +2745,167 @@ export function createCommerceClient({
           PromotionDetailSchema,
           { tenantId, method: "POST", body, idempotencyKey },
         ),
+      getPromotionChannelPolicies: (promotionId: string) =>
+        request(
+          `/api/v1/promotions/${encodeURIComponent(promotionId)}/channel-policies`,
+          PromotionChannelPoliciesResponseSchema,
+          { tenantId },
+        ),
+      upsertPromotionChannelPolicy: ({
+        promotionId,
+        channel,
+        idempotencyKey,
+        ...body
+      }: UpsertPromotionChannelPolicyInput) =>
+        request(
+          `/api/v1/promotions/${encodeURIComponent(promotionId)}/channel-policies/${encodeURIComponent(channel)}`,
+          PromotionChannelPoliciesResponseSchema,
+          { tenantId, method: "PUT", body, idempotencyKey },
+        ),
+      upsertPromotionCodeChannelLimit: ({
+        codeId,
+        channel,
+        idempotencyKey,
+        ...body
+      }: UpsertPromotionCodeChannelLimitInput) =>
+        request(
+          `/api/v1/promotions/codes/${encodeURIComponent(codeId)}/channel-limits/${encodeURIComponent(channel)}`,
+          PromotionChannelPoliciesResponseSchema,
+          { tenantId, method: "PUT", body, idempotencyKey },
+        ),
+      listOfflineVoucherExceptions: (query: { limit?: number; offset?: number } = {}) =>
+        request(
+          `/api/v1/promotions/offline-exceptions${buildQuery({ limit: query.limit, offset: query.offset })}`,
+          OfflineVoucherExceptionListResponseSchema,
+          { tenantId },
+        ),
+      enrollOfflinePin: ({ idempotencyKey, ...body }: EnrollOfflinePinInput) =>
+        request("/api/v1/pos/offline-pin-enrollments", EnrollOfflinePinResponseSchema, {
+          tenantId,
+          method: "POST",
+          body,
+          idempotencyKey,
+        }),
+      revokeOfflinePinEnrollments: ({
+        idempotencyKey,
+        ...body
+      }: RevokeOfflinePinEnrollmentsInput) =>
+        request(
+          "/api/v1/pos/offline-pin-enrollments/revoke",
+          RevokeOfflinePinEnrollmentsResponseSchema,
+          { tenantId, method: "POST", body, idempotencyKey },
+        ),
+      setPosOverridePassword: ({ idempotencyKey, ...body }: SetPosOverridePasswordInput) =>
+        request("/api/v1/pos/override-password", PosOverridePasswordResponseSchema, {
+          tenantId,
+          method: "PUT",
+          body,
+          idempotencyKey,
+        }),
+      clearStaffOverridePassword: ({
+        membershipId,
+        idempotencyKey,
+      }: ClearStaffOverridePasswordInput) =>
+        request(
+          `/api/v1/staff/${encodeURIComponent(membershipId)}/override-password`,
+          PosOverridePasswordResponseSchema,
+          { tenantId, method: "DELETE", body: {}, idempotencyKey },
+        ),
       setPromotionCodeStatus: ({ codeId, idempotencyKey, ...body }: SetPromotionCodeStatusInput) =>
         request(
           `/api/v1/promotions/codes/${encodeURIComponent(codeId)}/status`,
           PromotionDetailSchema,
           { tenantId, method: "POST", body, idempotencyKey },
         ),
+      listSales: () => request("/api/v1/sales", SaleListResponseSchema, { tenantId }),
+      getSale: (saleId: string) =>
+        request(`/api/v1/sales/${encodeURIComponent(saleId)}`, SaleSchema, { tenantId }),
+      createSale: ({ idempotencyKey, ...body }: CreateSaleInput) =>
+        request("/api/v1/sales", SaleSchema, { tenantId, method: "POST", body, idempotencyKey }),
+      updateSale: ({ saleId, idempotencyKey, ...body }: UpdateSaleInput) =>
+        request(`/api/v1/sales/${encodeURIComponent(saleId)}`, SaleSchema, {
+          tenantId,
+          method: "PATCH",
+          body,
+          idempotencyKey,
+        }),
+      setSaleStatus: ({ saleId, idempotencyKey, ...body }: SetSaleStatusInput) =>
+        request(`/api/v1/sales/${encodeURIComponent(saleId)}/status`, SaleSchema, {
+          tenantId,
+          method: "POST",
+          body,
+          idempotencyKey,
+        }),
+      deleteSale: (saleId: string) =>
+        request(`/api/v1/sales/${encodeURIComponent(saleId)}`, DeleteSaleResponseSchema, {
+          tenantId,
+          method: "DELETE",
+        }),
+      getStorefrontContent: () =>
+        request("/api/v1/storefront-content", StorefrontContentSchema, { tenantId }),
+      updateStorefrontContent: ({ idempotencyKey, ...body }: UpdateStorefrontContentInput) =>
+        request("/api/v1/storefront-content", StorefrontContentSchema, {
+          tenantId,
+          method: "PUT",
+          body,
+          idempotencyKey,
+        }),
+      createCatalogImageIntent: (body: CreateCatalogImageIntentRequest) =>
+        request("/api/v1/catalog-images/upload-intent", CatalogImageIntentSchema, {
+          tenantId,
+          method: "POST",
+          body,
+        }),
+      setCollectionImage: ({ collectionId, image, idempotencyKey }: SetCollectionImageInput) =>
+        request(
+          `/api/v1/collections/${encodeURIComponent(collectionId)}/image`,
+          SetCollectionImageResponseSchema,
+          { tenantId, method: "PUT", body: { image }, idempotencyKey },
+        ),
+      setCategoryImage: ({ categoryId, image, idempotencyKey }: SetCategoryImageInput) =>
+        request(
+          `/api/v1/categories/${encodeURIComponent(categoryId)}/image`,
+          SetCategoryImageResponseSchema,
+          { tenantId, method: "PUT", body: { image }, idempotencyKey },
+        ),
+      listProductMedia: (productId: string) =>
+        request(
+          `/api/v1/products/${encodeURIComponent(productId)}/media`,
+          ProductMediaListResponseSchema,
+          { tenantId },
+        ),
+      updateProductMedia: ({
+        productId,
+        mediaId,
+        idempotencyKey,
+        ...body
+      }: UpdateProductMediaInput) =>
+        request(
+          `/api/v1/products/${encodeURIComponent(productId)}/media/${encodeURIComponent(mediaId)}`,
+          UpdateProductMediaResponseSchema,
+          { tenantId, method: "PATCH", body, idempotencyKey },
+        ),
+      reorderProductMedia: ({ productId, mediaIds, idempotencyKey }: ReorderProductMediaInput) =>
+        request(
+          `/api/v1/products/${encodeURIComponent(productId)}/media/order`,
+          ReorderProductMediaResponseSchema,
+          { tenantId, method: "PUT", body: { mediaIds }, idempotencyKey },
+        ),
+      getStorefrontSiteText: () =>
+        request("/api/v1/storefront-site-text", StorefrontSiteTextSchema, { tenantId }),
+      updateStorefrontSiteText: ({ idempotencyKey, siteText }: UpdateStorefrontSiteTextInput) =>
+        request("/api/v1/storefront-site-text", StorefrontSiteTextSchema, {
+          tenantId,
+          method: "PUT",
+          body: { siteText },
+          idempotencyKey,
+        }),
+      createStorefrontHeroImageIntent: (body: CreateStorefrontHeroImageIntentRequest) =>
+        request("/api/v1/storefront-content/hero-image-intent", StorefrontHeroImageIntentSchema, {
+          tenantId,
+          method: "POST",
+          body,
+        }),
       getReportSummary: (query: ReportPeriodQuery) =>
         request(
           `/api/v1/reports/summary${buildQuery({ startDate: query.startDate, endDate: query.endDate })}`,
@@ -2148,6 +3147,22 @@ export function createCommerceClient({
           StorefrontSettingsSchema,
           { tenantId, method: "PUT", body, idempotencyKey },
         ),
+      getStorefrontDeliverySettings: (brandId: string) =>
+        request(
+          `/api/v1/settings/storefront/${encodeURIComponent(brandId)}/delivery`,
+          StorefrontDeliverySettingsSchema,
+          { tenantId },
+        ),
+      updateStorefrontDeliverySettings: ({
+        brandId,
+        idempotencyKey,
+        ...body
+      }: UpdateStorefrontDeliveryInput) =>
+        request(
+          `/api/v1/settings/storefront/${encodeURIComponent(brandId)}/delivery`,
+          StorefrontDeliverySettingsSchema,
+          { tenantId, method: "PUT", body, idempotencyKey },
+        ),
       getReturnSettings: () =>
         request("/api/v1/settings/returns", ReturnSettingsSchema, { tenantId }),
       updateReturnSettings: ({ idempotencyKey, ...body }: UpdateReturnSettingsInput) =>
@@ -2233,6 +3248,41 @@ export function createCommerceClient({
           body,
           idempotencyKey,
         }),
+      ingestOfflineIntent: ({ idempotencyKey, ...body }: IngestOfflineIntentInput) =>
+        request("/api/v1/pos/offline-intents", IngestOfflineIntentResponseSchema, {
+          tenantId,
+          method: "POST",
+          body,
+          idempotencyKey,
+        }),
+      issueOfflineReturnGrant: ({ idempotencyKey, ...body }: IssueOfflineReturnGrantInput) =>
+        request("/api/v1/pos/offline-return-grants", OfflineReturnGrantResponseSchema, {
+          tenantId,
+          method: "POST",
+          body,
+          idempotencyKey,
+        }),
+      ingestOfflineSaleHold: ({ idempotencyKey, ...body }: IngestOfflineSaleHoldInput) =>
+        request("/api/v1/pos/offline-sale-holds", IngestOfflineSaleHoldResponseSchema, {
+          tenantId,
+          method: "POST",
+          body,
+          idempotencyKey,
+        }),
+      ingestOfflineCustomer: ({ idempotencyKey, ...body }: IngestOfflineCustomerInput) =>
+        request("/api/v1/pos/offline-customers", IngestOfflineCustomerResponseSchema, {
+          tenantId,
+          method: "POST",
+          body,
+          idempotencyKey,
+        }),
+      ingestOfflineReturn: ({ idempotencyKey, ...body }: IngestOfflineReturnInput) =>
+        request("/api/v1/pos/offline-returns", IngestOfflineReturnResponseSchema, {
+          tenantId,
+          method: "POST",
+          body,
+          idempotencyKey,
+        }),
     };
   }
 
@@ -2287,6 +3337,64 @@ export function createCommerceClient({
         })}`,
         PublicCollectionDetailResponseSchema,
       ),
+    listStorefrontCategories: (query: PublicCategoryListQuery) =>
+      request(
+        `/api/v1/storefront/categories${buildQuery({ tenantId: query.tenantId })}`,
+        PublicCategoryListResponseSchema,
+      ),
+    listStorefrontVendors: (query: PublicVendorListQuery) =>
+      request(
+        `/api/v1/storefront/vendors${buildQuery({ tenantId: query.tenantId })}`,
+        PublicVendorListResponseSchema,
+      ),
+    listStorefrontBestSellers: (query: PublicBestSellersQuery) =>
+      request(
+        `/api/v1/storefront/best-sellers${buildQuery({
+          tenantId: query.tenantId,
+          brandId: query.brandId,
+          days: query.days,
+          limit: query.limit,
+        })}`,
+        PublicBestSellersResponseSchema,
+      ),
+    subscribeToStorefront: (input: StorefrontSubscribeInput) =>
+      request("/api/v1/storefront/subscribe", StorefrontSubscribeResponseSchema, {
+        method: "POST",
+        body: input,
+      }),
+    trackStorefrontOrder: (input: StorefrontOrderLookup) =>
+      request("/api/v1/storefront/orders/track", StorefrontTrackedOrderSchema, {
+        method: "POST",
+        body: input,
+      }),
+    getStorefrontReturnPolicy: (query: { tenantId: string }) =>
+      request(
+        `/api/v1/storefront/returns-policy${buildQuery({ tenantId: query.tenantId })}`,
+        StorefrontReturnPolicySchema,
+      ),
+    requestStorefrontReturn: (input: StorefrontReturnRequestInput) =>
+      request("/api/v1/storefront/return-requests", StorefrontReturnRequestResponseSchema, {
+        method: "POST",
+        body: input,
+      }),
+    getStorefrontDeliveryOptions: (query: PublicDeliveryOptionsQuery) =>
+      request(
+        `/api/v1/storefront/delivery${buildQuery({ tenantId: query.tenantId, brandId: query.brandId })}`,
+        PublicDeliveryOptionsSchema,
+      ),
+    getPublicStorefrontContent: (query: PublicStorefrontContentQuery) =>
+      request(
+        `/api/v1/storefront/content${buildQuery({
+          tenantId: query.tenantId,
+          brandId: query.brandId,
+        })}`,
+        PublicStorefrontContentSchema,
+      ),
+    getPublicStorefrontSiteText: (query: { tenantId: string }) =>
+      request(
+        `/api/v1/storefront/site-text${buildQuery({ tenantId: query.tenantId })}`,
+        PublicStorefrontSiteTextSchema,
+      ),
   };
 }
 
@@ -2300,9 +3408,14 @@ export type {
   ReceiveInventoryResponse,
   AdjustInventoryResponse,
   TransferInventoryResponse,
+  InventoryChannelStateResponse,
+  InitializeInventoryChannelsResponse,
+  AllocateInventoryChannelsResponse,
   OrderListResponse,
   OrderDetailResponse,
   OrderSummary,
+  FulfillOrderRequest,
+  CancelOrderRequest,
   CustomerSummary,
   CustomerListResponse,
   CustomerDetailResponse,
@@ -2315,9 +3428,14 @@ export type {
   CustomerDue,
   CustomerDuesResponse,
   PosContextResponse,
+  PosAvailabilityResponse,
+  PosSyncConflict,
+  PosSyncConflictKind,
+  ListPosSyncConflictsResponse,
   CreatePosSaleResponse,
   PosDeviceResponse,
   OfflineBootstrapResponse,
+  OfflineStockGrant,
   OfflineSaleCommand,
   IngestOfflineSaleResponse,
   OfflineCustomerPaymentCommand,
@@ -2325,6 +3443,18 @@ export type {
   OfflineAttendanceEventType,
   OfflineAttendanceCommand,
   IngestOfflineAttendanceResponse,
+  OfflineIntentOperation,
+  OfflineIntentCommand,
+  IngestOfflineIntentRequest,
+  IngestOfflineIntentResponse,
+  OfflineIntentDisposition,
+  OfflineReturnGrantLine,
+  IssueOfflineReturnGrantRequest,
+  OfflineReturnGrantResponse,
+  OfflineReturnCommand,
+  IngestOfflineReturnRequest,
+  OfflineReturnReconciliation,
+  IngestOfflineReturnResponse,
   OfflineStaffRosterEntry,
   StaffPinVerifier,
   SetStaffOfflinePinRequest,
@@ -2374,4 +3504,10 @@ export type {
   OrderReturnSummary,
 } from "../../../src/contracts/management/returns";
 export type CreateReturnInput = CreateReturnRequest & { orderId: string; idempotencyKey: string };
+export type FulfillOrderInput = FulfillOrderRequest & { orderId: string; idempotencyKey: string };
+export type CancelOrderInput = CancelOrderRequest & { orderId: string; idempotencyKey: string };
+export type CollectOrderPaymentInput = { orderId: string; idempotencyKey: string };
 export type SettleRefundInput = SettleRefundRequest & { returnId: string; idempotencyKey: string };
+export * from "./forms";
+export * from "./site-text";
+export * from "./messages";

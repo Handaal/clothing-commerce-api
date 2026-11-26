@@ -2,6 +2,7 @@ import { PosLoginRequestSchema, PosLoginResponseSchema } from "../../../../../..
 import {
   managementOptionsResponse,
   runPublicBodyRoute,
+  POS_CREDENTIAL_MAX_BODY_BYTES,
 } from "../../../../../../src/http/management-route";
 import { getManagementApiBoundary } from "../../../../../../src/management/server-management-boundary";
 
@@ -17,6 +18,7 @@ export async function POST(request: Request) {
     request,
     requestSchema: PosLoginRequestSchema,
     responseSchema: PosLoginResponseSchema,
+    maxBodyBytes: POS_CREDENTIAL_MAX_BODY_BYTES,
     handler: ({ body }) => boundary.posAuthService.login(body),
   });
 }

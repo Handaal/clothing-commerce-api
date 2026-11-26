@@ -8,6 +8,10 @@ const errors = {
     409,
     "The operation would remove the last staff administrator for the tenant.",
   ],
+  LAST_POS_ADMIN: [
+    409,
+    "The operation would remove the last active POS administrator for the tenant.",
+  ],
   STAFF_PRIVILEGE_ESCALATION: [
     403,
     "The assignment would grant authority the caller does not hold.",
@@ -34,6 +38,8 @@ export function staffDatabaseError(error: { code?: string }) {
       return new StaffError("STAFF_CONFLICT");
     case "ST412":
       return new StaffError("LAST_STAFF_ADMIN");
+    case "ST414":
+      return new StaffError("LAST_POS_ADMIN");
     case "ST403":
       return new StaffError("STAFF_PRIVILEGE_ESCALATION");
     case "ST423":

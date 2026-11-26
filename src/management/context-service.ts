@@ -159,8 +159,19 @@ export class ManagementContextService {
           tenantWide: orders.tenantWide,
           brands: orderBrands,
           branches: orderBranches,
+          ...orderOperationCapabilities(context),
         },
       },
     };
   }
+}
+
+/** Online-order write affordances (UX only): any assignment carrying the permission, at any scope. */
+function orderOperationCapabilities(context: AuthorizationContext) {
+  const has = (key: string) => context.assignments.some((a) => a.permissionKeys.includes(key));
+  return {
+    canFulfill: has("orders.fulfill") && has("inventory.issue"),
+    canCancel: has("orders.cancel"),
+    canCollect: has("orders.fulfill"),
+  };
 }
