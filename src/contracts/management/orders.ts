@@ -1,4 +1,4 @@
-import { OrderCommerceDetailsSchema } from "../storefront/checkout";
+import { OrderCommerceDetailsSchema, PaymentStatusSchema } from "../storefront/checkout";
 import { z } from "zod";
 import { OrderReturnSummarySchema } from "./returns";
 
@@ -50,6 +50,9 @@ export const OrderSummarySchema = z.object({
   customerName: z.string().nullable().optional(),
   customerPhone: z.string().nullable().optional(),
   deliveryCity: z.string().nullable().optional(),
+  // Online orders: the payment status (cash on delivery stays `pending` until staff mark it collected
+  // on delivery, then `captured`). Absent for POS orders.
+  paymentStatus: PaymentStatusSchema.nullable().optional(),
 });
 
 export type OrderSummary = z.infer<typeof OrderSummarySchema>;
@@ -122,3 +125,11 @@ export const CancelOrderRequestSchema = z
   .object({ reason: z.string().trim().min(1).max(500).optional() })
   .strict();
 export type CancelOrderRequest = z.infer<typeof CancelOrderRequestSchema>;
+
+/**
+ * Delivered + cash collected for a fully shipped ONLINE cash-on-delivery order
+ * (POST /orders/{orderId}/collect-payment, Idempotency-Key required). No body fields: the amount is the
+ * payment's own checkout amount and the collector is the caller.
+ */
+export const CollectOrderPaymentRequestSchema = z.object({}).strict();
+export type CollectOrderPaymentRequest = z.infer<typeof CollectOrderPaymentRequestSchema>;

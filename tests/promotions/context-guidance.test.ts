@@ -112,6 +112,7 @@ describe("Promotion /me/context capability guidance", () => {
         branches: [],
         canFulfill: false,
         canCancel: false,
+        canCollect: false,
       },
     });
     expect(repository.tenantIds).toEqual([ids.otherTenant]);

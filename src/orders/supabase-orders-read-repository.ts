@@ -1,5 +1,6 @@
 import {
   OrderCommerceDetailsSchema,
+  PaymentStatusSchema,
   PaymentSummarySchema,
   type OrderCommerceDetails,
 } from "../contracts/storefront/checkout";
@@ -93,7 +94,7 @@ export class SupabaseOrdersReadRepository implements OrdersReadRepository {
         .single(),
       this.client
         .from("payments")
-        .select("method,provider,status,amount_minor,currency")
+        .select("method,provider,status,amount_minor,currency,captured_at")
         .eq("tenant_id", tenantId)
         .eq("order_id", orderId)
         .maybeSingle(),
@@ -123,6 +124,7 @@ export class SupabaseOrdersReadRepository implements OrdersReadRepository {
               status: z.string(),
               amount_minor: z.union([z.number(), z.string()]),
               currency: z.string(),
+              captured_at: z.string().nullable().optional(),
             })
             .parse(payment.data);
     const rows = z
@@ -151,6 +153,10 @@ export class SupabaseOrdersReadRepository implements OrdersReadRepository {
               status: p.status,
               amountMinor: toSafeInteger(p.amount_minor),
               currency: p.currency,
+              capturedAt:
+                p.captured_at === null || p.captured_at === undefined
+                  ? null
+                  : normalizeTimestampUtc(p.captured_at),
             }),
       reservations: rows.map((r) => ({
         variantId: r.variant_id,
@@ -309,6 +315,28 @@ export class SupabaseOrdersReadRepository implements OrdersReadRepository {
     return result;
   }
 
+  /** Online payment status per order for one list page (one batched read; POS orders are skipped). */
+  private async onlinePaymentStatuses(
+    tenantId: string,
+    orderIds: readonly string[],
+  ): Promise<Map<string, z.infer<typeof PaymentStatusSchema>>> {
+    const result = new Map<string, z.infer<typeof PaymentStatusSchema>>();
+    if (orderIds.length === 0) return result;
+    const { data, error } = await this.client
+      .from("payments")
+      .select("order_id,status")
+      .eq("tenant_id", tenantId)
+      .in("order_id", [...orderIds])
+      .in("method", ["cash_on_delivery", "electronic"]);
+    requireNoQueryError(error);
+    for (const row of z
+      .array(z.object({ order_id: z.string(), status: PaymentStatusSchema }))
+      .parse(data)) {
+      result.set(row.order_id, row.status);
+    }
+    return result;
+  }
+
   async listOrders(query: OrderListQuery): Promise<OrderListRow[]> {
     let request = this.client
       .from("orders")
@@ -370,10 +398,16 @@ export class SupabaseOrdersReadRepository implements OrdersReadRepository {
     requireNoQueryError(error);
 
     const rows = parseRows(OrderListRowSchema, data);
-    const fulfillment = await this.fulfillmentStatuses(
-      query.tenantId,
-      rows.map((row) => row.id),
-    );
+    const [fulfillment, payments] = await Promise.all([
+      this.fulfillmentStatuses(
+        query.tenantId,
+        rows.map((row) => row.id),
+      ),
+      this.onlinePaymentStatuses(
+        query.tenantId,
+        rows.filter((row) => row.channel === "online").map((row) => row.id),
+      ),
+    ]);
     return rows.map((row) => ({
       summary: {
         id: row.id,
@@ -387,6 +421,7 @@ export class SupabaseOrdersReadRepository implements OrdersReadRepository {
         deliveryFeeMinor: toSafeInteger(row.delivery_fee_minor ?? 0),
         placedAt: normalizeTimestampUtc(row.placed_at),
         fulfillmentStatus: fulfillment.get(row.id) ?? "unfulfilled",
+        ...(row.channel === "online" ? { paymentStatus: payments.get(row.id) ?? null } : {}),
         customerName: snapshotText(row.customer_snapshot, "name"),
         customerPhone: snapshotText(row.customer_snapshot, "phone"),
         deliveryCity: snapshotText(row.delivery_snapshot, "city"),

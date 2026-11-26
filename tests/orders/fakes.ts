@@ -14,6 +14,7 @@ import type {
 } from "../../src/orders/model";
 import type {
   CancelOrderCommand,
+  CollectCashOnDeliveryCommand,
   CreateOrderCommand,
   OrderRepository,
 } from "../../src/orders/repository";
@@ -432,6 +433,26 @@ export class FakeOrderRepository implements OrderRepository {
       order.updatedAt = now;
     }
     // Already cancelled: write-once, never overwrite the original metadata.
+  }
+
+  /** Collected order ids (the fake keeps COD capture as a set; shipping rules live in the database). */
+  collected = new Set<string>();
+  /** Order ids the fake refuses as not fully shipped (mirrors the database CD423 refusal). */
+  notFullyShipped = new Set<string>();
+
+  async collectCashOnDelivery(
+    proof: unknown,
+    command: CollectCashOnDeliveryCommand,
+  ): Promise<"collected" | "already_collected"> {
+    assertAuthorizedOperationProof(proof);
+    this.calls.push({ method: "collectCashOnDelivery", command });
+    const order = this.orders.get(command.orderId);
+    if (!order || order.tenantId !== command.tenantId) throw new OrderError("ORDER_NOT_FOUND");
+    if (order.status === "cancelled") throw new OrderError("ORDER_CANCELLED");
+    if (this.notFullyShipped.has(order.id)) throw new OrderError("ORDER_NOT_FULLY_SHIPPED");
+    if (this.collected.has(order.id)) return "already_collected";
+    this.collected.add(order.id);
+    return "collected";
   }
 
   async getOrder(proof: unknown, tenantId: string, orderId: string): Promise<OrderResult | null> {

@@ -215,6 +215,8 @@ export {
   OrderDetailResponseSchema,
   FulfillOrderRequestSchema,
   CancelOrderRequestSchema,
+  CollectOrderPaymentRequestSchema,
+  type CollectOrderPaymentRequest,
   type FulfillOrderRequest,
   type CancelOrderRequest,
   type OrderChannel,

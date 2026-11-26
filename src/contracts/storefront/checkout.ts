@@ -62,6 +62,8 @@ export const PaymentSummarySchema = z.object({
   status: PaymentStatusSchema,
   amountMinor: NonNegativeIntegerSchema,
   currency: CurrencySchema,
+  // When the payment was captured (online cash on delivery: when staff marked it collected).
+  capturedAt: z.string().nullable().optional(),
 });
 export const CheckoutResultSchema = z.object({
   orderReference: z.string().min(1),

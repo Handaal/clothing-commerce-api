@@ -9,7 +9,10 @@
 //   W5  cancel releases the reservation, records the reason, replays idempotently, and blocks fulfilment
 //   W6  a POS order is refused by both operations (ORDER_CHANNEL_UNSUPPORTED)
 //   W7  an operator without the order brand authority is refused (403) with no effect
-//   W8  /me/context advertises canFulfill / canCancel
+//   W8  /me/context advertises canFulfill / canCancel / canCollect
+//   W9  delivered + cash collected: refused until fully shipped, then captures the COD payment, tracking
+//       shows Delivered, the list carries paymentStatus, a repeat replays, and the return becomes refundable
+//   W10 a cancelled order, a POS order and an operator without brand authority cannot be collected
 //
 // Launched exclusively by `pnpm test:online:orders:http` (isolated rt-<hex> stack; never the shared dev DB).
 import { createClient } from "@supabase/supabase-js";
@@ -250,7 +253,122 @@ describe("online order operations over HTTP", () => {
     const context = await staff.getContext();
     expect(context.access.orders.canFulfill).toBe(true);
     expect(context.access.orders.canCancel).toBe(true);
+    expect(context.access.orders.canCollect).toBe(true);
     const limited = await restricted.getContext();
     expect(limited.access.orders.canCancel).toBe(false);
+  });
+
+  it("W9: delivered + cash collected after shipping; tracking shows Delivered; returns refundable", async () => {
+    const orderId = await placeOnlineOrder(2);
+    const placed = await staff.getOrder(orderId);
+    expect(placed.commerce?.payment).toMatchObject({
+      method: "cash_on_delivery",
+      status: "pending",
+    });
+    const lookup = {
+      tenantId: T,
+      orderReference: placed.header.orderNumber,
+      phone: "+201000000001",
+    };
+
+    // Nothing shipped yet → refused, payment untouched.
+    await expectApiError(
+      staff.collectOrderPayment({ orderId, idempotencyKey: `cod-${randomUUID()}` }),
+      409,
+      "ORDER_NOT_FULLY_SHIPPED",
+    );
+    await staff.fulfillOrder({
+      orderId,
+      idempotencyKey: `ff-${randomUUID()}`,
+      lines: [{ lineNumber: 1, quantity: 1 }],
+    });
+    // Partly shipped → still refused.
+    await expectApiError(
+      staff.collectOrderPayment({ orderId, idempotencyKey: `cod-${randomUUID()}` }),
+      409,
+      "ORDER_NOT_FULLY_SHIPPED",
+    );
+    await staff.fulfillOrder({
+      orderId,
+      idempotencyKey: `ff-${randomUUID()}`,
+      lines: [{ lineNumber: 1, quantity: 1 }],
+    });
+    expect((await storefront.trackStorefrontOrder(lookup)).stage).toBe("shipped");
+    const before = await staff.getReturnEligibility(orderId);
+    expect(before.eligible).toBe(false);
+    expect(before.reason).toBe("PAYMENT_NOT_CAPTURED");
+
+    const collected = await staff.collectOrderPayment({
+      orderId,
+      idempotencyKey: `cod-${randomUUID()}`,
+    });
+    expect(collected.commerce?.payment).toMatchObject({
+      status: "captured",
+      amountMinor: placed.header.totalMinor,
+    });
+    expect(collected.commerce?.payment?.capturedAt).toEqual(expect.any(String));
+    const { data: row, error } = await db
+      .from("payments")
+      .select("status,captured_by_membership_id,captured_at")
+      .eq("tenant_id", T)
+      .eq("order_id", orderId)
+      .single();
+    if (error) throw error;
+    expect(row.status).toBe("captured");
+    expect(row.captured_by_membership_id).not.toBeNull();
+
+    expect((await storefront.trackStorefrontOrder(lookup)).stage).toBe("delivered");
+    const list = await staff.listOrders({ channel: "online", limit: 25 });
+    expect(list.items.find((item) => item.id === orderId)?.paymentStatus).toBe("captured");
+
+    // A repeat (new key) is a harmless replay; the capture time does not move.
+    const again = await staff.collectOrderPayment({
+      orderId,
+      idempotencyKey: `cod-${randomUUID()}`,
+    });
+    expect(again.commerce?.payment?.capturedAt).toBe(collected.commerce?.payment?.capturedAt);
+
+    const after = await staff.getReturnEligibility(orderId);
+    expect(after.eligible).toBe(true);
+    expect(after.maxRefundableMinor).toBe(placed.header.totalMinor);
+  });
+
+  it("W10: cancelled, POS and out-of-scope orders cannot be collected", async () => {
+    const cancelledId = await placeOnlineOrder(1);
+    await staff.cancelOrder({ orderId: cancelledId, idempotencyKey: `cx-${randomUUID()}` });
+    await expectApiError(
+      staff.collectOrderPayment({ orderId: cancelledId, idempotencyKey: `cod-${randomUUID()}` }),
+      409,
+      "ORDER_CANCELLED",
+    );
+
+    const sale = await staff.createPosSale({
+      idempotencyKey: `pos-${randomUUID()}`,
+      registerId: REGISTER,
+      lines: [{ variantId: V, quantity: 1 }],
+      expectedTotalMinor: 2500,
+      cashReceivedMinor: 2500,
+    });
+    await expectApiError(
+      staff.collectOrderPayment({ orderId: sale.order.id, idempotencyKey: `cod-${randomUUID()}` }),
+      409,
+      "ORDER_CHANNEL_UNSUPPORTED",
+    );
+
+    const orderId = await placeOnlineOrder(1);
+    await staff.fulfillOrder({
+      orderId,
+      idempotencyKey: `ff-${randomUUID()}`,
+      lines: [{ lineNumber: 1, quantity: 1 }],
+    });
+    const refused = await restricted
+      .collectOrderPayment({ orderId, idempotencyKey: `cod-${randomUUID()}` })
+      .then(
+        () => null,
+        (caught: unknown) => caught,
+      );
+    expect(refused).toBeInstanceOf(ApiHttpError);
+    expect([403, 404]).toContain((refused as ApiHttpError).status);
+    expect((await staff.getOrder(orderId)).commerce?.payment?.status).toBe("pending");
   });
 });

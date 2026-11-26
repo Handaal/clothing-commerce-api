@@ -6640,6 +6640,51 @@
         }
       }
     },
+    "/api/v1/orders/{orderId}/collect-payment": {
+      "post": {
+        "operationId": "collectOrderPayment",
+        "tags": ["orders"],
+        "summary": "Mark a fully shipped online cash-on-delivery order delivered and its cash collected.",
+        "description": "Online cash-on-delivery orders only. Requires orders.fulfill on the order brand and Idempotency-Key. Captures the payment's own checkout amount and records who collected it, so tracking shows Delivered and returns become refundable. Refused (409) until every line has shipped (ORDER_NOT_FULLY_SHIPPED), for a cancelled order (ORDER_CANCELLED) and for POS orders (ORDER_CHANNEL_UNSUPPORTED); collecting again replays.",
+        "security": [{ "clerkSessionToken": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/TenantIdHeader" },
+          { "$ref": "#/components/parameters/IdempotencyKeyHeader" },
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Empty object; the amount and collector are server-derived.",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CollectOrderPaymentRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The refreshed order detail.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/OrderDetailResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error400" },
+          "401": { "$ref": "#/components/responses/Error401" },
+          "403": { "$ref": "#/components/responses/Error403" },
+          "404": { "$ref": "#/components/responses/Error404" },
+          "409": { "$ref": "#/components/responses/Error409" },
+          "422": { "$ref": "#/components/responses/Error422" },
+          "500": { "$ref": "#/components/responses/Error500" }
+        }
+      }
+    },
     "/api/v1/pos/context": {
       "get": {
         "operationId": "getPosContext",
@@ -10077,7 +10122,8 @@
                 "enum": ["pending", "authorized", "captured", "failed", "cancelled", "refunded"]
               },
               "amountMinor": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
-              "currency": { "type": "string", "pattern": "^[A-Z]{3}$" }
+              "currency": { "type": "string", "pattern": "^[A-Z]{3}$" },
+              "capturedAt": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
             },
             "required": ["method", "provider", "status", "amountMinor", "currency"],
             "additionalProperties": false
@@ -11881,7 +11927,8 @@
                     }
                   },
                   "canFulfill": { "type": "boolean" },
-                  "canCancel": { "type": "boolean" }
+                  "canCancel": { "type": "boolean" },
+                  "canCollect": { "type": "boolean" }
                 },
                 "required": ["canRead", "tenantWide", "brands", "branches"],
                 "additionalProperties": false
@@ -17079,7 +17126,16 @@
           },
           "customerName": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
           "customerPhone": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
-          "deliveryCity": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
+          "deliveryCity": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+          "paymentStatus": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": ["pending", "authorized", "captured", "failed", "cancelled", "refunded"]
+              },
+              { "type": "null" }
+            ]
+          }
         },
         "required": [
           "id",
@@ -17144,7 +17200,23 @@
                 },
                 "customerName": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
                 "customerPhone": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
-                "deliveryCity": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
+                "deliveryCity": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                "paymentStatus": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "pending",
+                        "authorized",
+                        "captured",
+                        "failed",
+                        "cancelled",
+                        "refunded"
+                      ]
+                    },
+                    { "type": "null" }
+                  ]
+                }
               },
               "required": [
                 "id",
@@ -17329,7 +17401,8 @@
                         "minimum": 0,
                         "maximum": 9007199254740991
                       },
-                      "currency": { "type": "string", "pattern": "^[A-Z]{3}$" }
+                      "currency": { "type": "string", "pattern": "^[A-Z]{3}$" },
+                      "capturedAt": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
                     },
                     "required": ["method", "provider", "status", "amountMinor", "currency"],
                     "additionalProperties": false
@@ -17419,7 +17492,16 @@
               },
               "customerName": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
               "customerPhone": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
-              "deliveryCity": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
+              "deliveryCity": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+              "paymentStatus": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["pending", "authorized", "captured", "failed", "cancelled", "refunded"]
+                  },
+                  { "type": "null" }
+                ]
+              }
             },
             "required": [
               "id",
@@ -17560,6 +17642,12 @@
         "$schema": "http://json-schema.org/draft-07/schema#",
         "type": "object",
         "properties": { "reason": { "type": "string", "minLength": 1, "maxLength": 500 } },
+        "additionalProperties": false
+      },
+      "CollectOrderPaymentRequest": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {},
         "additionalProperties": false
       },
       "PosContextResponse": {

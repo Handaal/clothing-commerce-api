@@ -172,5 +172,6 @@ function orderOperationCapabilities(context: AuthorizationContext) {
   return {
     canFulfill: has("orders.fulfill") && has("inventory.issue"),
     canCancel: has("orders.cancel"),
+    canCollect: has("orders.fulfill"),
   };
 }

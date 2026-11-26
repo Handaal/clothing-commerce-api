@@ -1539,6 +1539,12 @@ export interface TenantCommerceClient {
   fulfillOrder(input: FulfillOrderInput): Promise<OrderDetailResponse>;
   /** Cancel an unfulfilled ONLINE order (orders.cancel); releases its reservations. Idempotent. */
   cancelOrder(input: CancelOrderInput): Promise<OrderDetailResponse>;
+  /**
+   * SDK 0.54: delivered + cash collected for a fully shipped ONLINE cash-on-delivery order
+   * (orders.fulfill). Captures the payment's own checkout amount and stamps who collected it; the
+   * shopper's tracking then shows Delivered and returns become refundable. Idempotent.
+   */
+  collectOrderPayment(input: CollectOrderPaymentInput): Promise<OrderDetailResponse>;
   /** Customers (commerce contacts). Gated on orders.read; search matches name or phone. */
   listCustomers(query?: CustomerListQuery): Promise<CustomerListResponse>;
   getCustomer(customerId: string): Promise<CustomerDetailResponse>;
@@ -2587,6 +2593,12 @@ export function createCommerceClient({
           body,
           idempotencyKey,
         }),
+      collectOrderPayment: ({ orderId, idempotencyKey }: CollectOrderPaymentInput) =>
+        request(
+          `/api/v1/orders/${encodeURIComponent(orderId)}/collect-payment`,
+          OrderDetailResponseSchema,
+          { tenantId, method: "POST", body: {}, idempotencyKey },
+        ),
       listCustomers: (query = {}) =>
         request(
           `/api/v1/customers${buildQuery({
@@ -3494,6 +3506,7 @@ export type {
 export type CreateReturnInput = CreateReturnRequest & { orderId: string; idempotencyKey: string };
 export type FulfillOrderInput = FulfillOrderRequest & { orderId: string; idempotencyKey: string };
 export type CancelOrderInput = CancelOrderRequest & { orderId: string; idempotencyKey: string };
+export type CollectOrderPaymentInput = { orderId: string; idempotencyKey: string };
 export type SettleRefundInput = SettleRefundRequest & { returnId: string; idempotencyKey: string };
 export * from "./forms";
 export * from "./site-text";

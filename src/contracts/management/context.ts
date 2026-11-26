@@ -99,6 +99,8 @@ export const OrdersAccessSchema = z.object({
   canFulfill: z.boolean().optional(),
   /** UX guidance: holds orders.cancel somewhere (the API authorizes each order). */
   canCancel: z.boolean().optional(),
+  /** UX guidance: holds orders.fulfill somewhere — may mark an online COD order delivered + collected. */
+  canCollect: z.boolean().optional(),
 });
 
 export const ManagementCapabilitySchema = z.object({

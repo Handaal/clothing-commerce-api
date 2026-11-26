@@ -12,7 +12,12 @@ import type {
   RegisterContext,
   ReplayPreflightResult,
 } from "./model";
-import type { CancelOrderCommand, CreateOrderCommand, OrderRepository } from "./repository";
+import type {
+  CancelOrderCommand,
+  CollectCashOnDeliveryCommand,
+  CreateOrderCommand,
+  OrderRepository,
+} from "./repository";
 
 // The private schema that owns the sanctioned functions. It is exposed to PostgREST so the
 // service-role client can call the functions by name; execution is gated by the EXECUTE grants
@@ -118,6 +123,14 @@ function mapDatabaseError(error: DatabaseErrorLike): Error {
   switch (error.code) {
     case "ID409":
       return new OrderError("IDEMPOTENCY_CONFLICT");
+    case "CD404":
+      return new OrderError("ORDER_NOT_FOUND");
+    case "CD409":
+      return new OrderError("ORDER_CANCELLED");
+    case "CD422":
+      return new OrderError("PAYMENT_NOT_CASH_ON_DELIVERY");
+    case "CD423":
+      return new OrderError("ORDER_NOT_FULLY_SHIPPED");
     case "FF030":
       // Phase 2E: cancel_order refuses an order that has any Fulfillment (partial or full). This is a
       // stable business conflict, not an unexpected fault.
@@ -452,6 +465,25 @@ export class SupabaseOrdersRepository implements OrderRepository {
     if (error) {
       throw mapDatabaseError(error);
     }
+  }
+
+  async collectCashOnDelivery(
+    proof: AuthorizedOperationContext,
+    command: CollectCashOnDeliveryCommand,
+  ): Promise<"collected" | "already_collected"> {
+    assertAuthorizedOperationProof(proof);
+
+    const { data, error } = await this.client
+      .schema(ORDERS_PRIVATE_SCHEMA)
+      .rpc("collect_cash_on_delivery", {
+        p_tenant_id: command.tenantId,
+        p_order_id: command.orderId,
+        p_collected_by_membership_id: command.collectedByMembershipId,
+      });
+    if (error) {
+      throw mapDatabaseError(error);
+    }
+    return z.enum(["collected", "already_collected"]).parse(data);
   }
 
   async getOrder(

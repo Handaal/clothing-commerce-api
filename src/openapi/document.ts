@@ -98,6 +98,7 @@ import {
   OrderDetailResponseSchema,
   FulfillOrderRequestSchema,
   CancelOrderRequestSchema,
+  CollectOrderPaymentRequestSchema,
   OrderListResponseSchema,
   OrderSummarySchema,
   PageInfoSchema,
@@ -4456,6 +4457,38 @@ export function generateOpenApiDocument() {
           },
         },
       },
+      "/api/v1/orders/{orderId}/collect-payment": {
+        post: {
+          operationId: "collectOrderPayment",
+          tags: ["orders"],
+          summary:
+            "Mark a fully shipped online cash-on-delivery order delivered and its cash collected.",
+          description:
+            "Online cash-on-delivery orders only. Requires orders.fulfill on the order brand and Idempotency-Key. Captures the payment's own checkout amount and records who collected it, so tracking shows Delivered and returns become refundable. Refused (409) until every line has shipped (ORDER_NOT_FULLY_SHIPPED), for a cancelled order (ORDER_CANCELLED) and for POS orders (ORDER_CHANNEL_UNSUPPORTED); collecting again replays.",
+          security: clerkSecurity,
+          parameters: [
+            tenantHeaderParameter,
+            idempotencyKeyHeaderParameter,
+            {
+              name: "orderId",
+              in: "path",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+          ],
+          requestBody: jsonRequestBody(
+            "Empty object; the amount and collector are server-derived.",
+            "#/components/schemas/CollectOrderPaymentRequest",
+          ),
+          responses: {
+            "200": jsonResponse(
+              "The refreshed order detail.",
+              "#/components/schemas/OrderDetailResponse",
+            ),
+            ...errorResponses(400, 401, 403, 404, 409, 422, 500),
+          },
+        },
+      },
       "/api/v1/pos/context": {
         get: {
           operationId: "getPosContext",
@@ -5307,6 +5340,7 @@ export function generateOpenApiDocument() {
         OrderDetailResponse: jsonSchema(OrderDetailResponseSchema),
         FulfillOrderRequest: jsonSchema(FulfillOrderRequestSchema),
         CancelOrderRequest: jsonSchema(CancelOrderRequestSchema),
+        CollectOrderPaymentRequest: jsonSchema(CollectOrderPaymentRequestSchema),
         PosContextResponse: jsonSchema(PosContextResponseSchema),
         PosAvailabilityResponse: jsonSchema(PosAvailabilityResponseSchema),
         ListPosSyncConflictsResponse: jsonSchema(ListPosSyncConflictsResponseSchema),

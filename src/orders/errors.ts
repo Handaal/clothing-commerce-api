@@ -22,6 +22,9 @@ export const orderErrorCodes = [
   "IDEMPOTENCY_CONFLICT",
   "TENANT_MISMATCH",
   "AMOUNT_OUT_OF_RANGE",
+  "ORDER_CANCELLED",
+  "ORDER_NOT_FULLY_SHIPPED",
+  "PAYMENT_NOT_CASH_ON_DELIVERY",
 ] as const;
 
 export type OrderErrorCode = (typeof orderErrorCodes)[number];
@@ -45,6 +48,9 @@ const safeMessages: Record<OrderErrorCode, string> = {
   IDEMPOTENCY_CONFLICT: "The idempotency key was reused with a different order intent.",
   TENANT_MISMATCH: "The requested resource does not exist.",
   AMOUNT_OUT_OF_RANGE: "An order amount is outside the supported range.",
+  ORDER_CANCELLED: "The order is cancelled.",
+  ORDER_NOT_FULLY_SHIPPED: "Every item must be shipped before the order can be marked delivered.",
+  PAYMENT_NOT_CASH_ON_DELIVERY: "Only online cash-on-delivery orders can be marked as collected.",
 };
 
 const httpStatusByCode: Record<OrderErrorCode, 404 | 409 | 422> = {
@@ -65,6 +71,9 @@ const httpStatusByCode: Record<OrderErrorCode, 404 | 409 | 422> = {
   IDEMPOTENCY_CONFLICT: 409,
   TENANT_MISMATCH: 404,
   AMOUNT_OUT_OF_RANGE: 422,
+  ORDER_CANCELLED: 409,
+  ORDER_NOT_FULLY_SHIPPED: 409,
+  PAYMENT_NOT_CASH_ON_DELIVERY: 422,
 };
 
 export class OrderError extends Error {

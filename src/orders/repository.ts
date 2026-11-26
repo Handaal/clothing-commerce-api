@@ -28,6 +28,12 @@ export interface CreateOrderCommand {
   readonly lines: readonly ResolvedOrderLine[];
 }
 
+export interface CollectCashOnDeliveryCommand {
+  readonly tenantId: string;
+  readonly orderId: string;
+  readonly collectedByMembershipId: string;
+}
+
 export interface CancelOrderCommand {
   readonly tenantId: string;
   readonly orderId: string;
@@ -125,6 +131,15 @@ export interface OrderRepository {
 
   /** Proof-guarded: atomic write-once placed->cancelled transition. */
   cancelOrder(proof: AuthorizedOperationContext, command: CancelOrderCommand): Promise<void>;
+
+  /**
+   * Proof-guarded: delivered + cash collected for a fully shipped ONLINE cash-on-delivery order
+   * (captures its payment). Idempotent: a second call reports `already_collected`.
+   */
+  collectCashOnDelivery(
+    proof: AuthorizedOperationContext,
+    command: CollectCashOnDeliveryCommand,
+  ): Promise<"collected" | "already_collected">;
 
   /** Proof-guarded: load the full order aggregate. Never called before authorization. */
   getOrder(

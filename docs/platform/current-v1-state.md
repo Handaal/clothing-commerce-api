@@ -294,6 +294,11 @@ its phase arrives.
   images, product photos listable/describable/reorderable after upload, hero label/subtitle can be hidden;
   the POS Website desk gained Catalog, Product photos, Delivery fees, Return requests and Sign-ups tabs.
   See [website images and photos](../catalog/website-images-and-photos.md).
+- **Delivered + cash collected (SDK `0.54.0`, 2026-11-26)** — `POST /orders/{orderId}/collect-payment`
+  (orders.fulfill on the brand; every line shipped; migration `20261126130000`) captures an online
+  cash-on-delivery payment and stamps who collected it, so tracking reaches Delivered and online returns
+  become refundable. POS Online orders gained an "Out for delivery" queue and Admin Mobile the same
+  action. Reporting net sales/AOV now exclude delivery fees (migration `20261126120000`).
 - **Editable site text (SDK `0.52.0`, 2026-11-24)** — promo bar, home section copy, brand note, sign-up
   box, footer, SEO title/description, contact details and the FAQ / Terms / Shipping pages are one
   tenant document edited from Admin Mobile and the POS; the Storefront falls back to its built-in copy.

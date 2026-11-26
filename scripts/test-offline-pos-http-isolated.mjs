@@ -238,13 +238,14 @@ try {
 
   // Online-order operations suite (staff fulfil / cancel of Storefront orders), on THIS run's disposable DB only:
   // the existing online-commerce fixture (COD checkout settings + published POS Tee) and orders.cancel for the
-  // seeded POS Full role (it already holds orders.fulfill + inventory.issue tenant-wide).
+  // seeded POS Full role (it already holds orders.fulfill + inventory.issue tenant-wide), plus returns.read so
+  // the cash-on-delivery collection case can see a collected order become refundable.
   if (process.argv.includes("tests/online-order-operations-http")) {
     sql(readFileSync(join(root, "supabase/tests/phase_2l_online.setup.sql"), "utf8"));
     sql(
       "insert into public.role_permissions(tenant_id,role_id,permission_id) " +
         "select '2a000001-0000-4000-8000-000000000001'::uuid,'2a000013-0000-4000-8000-000000000001'::uuid,id " +
-        "from public.permissions where key = 'orders.cancel' on conflict do nothing;",
+        "from public.permissions where key in ('orders.cancel','returns.read') on conflict do nothing;",
     );
   }
 

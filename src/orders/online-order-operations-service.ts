@@ -68,6 +68,20 @@ export class OnlineOrderOperationsService {
     return this.ordersReadService.getOrder(context, orderId);
   }
 
+  /**
+   * Delivered + cash collected (cash on delivery). OrderService authorizes orders.fulfill on the brand
+   * and the database refuses until every line has shipped; a repeat is a harmless replay.
+   */
+  async collectPayment(
+    context: AuthorizationContext,
+    orderId: string,
+  ): Promise<OrderDetailResponse> {
+    const order = await this.orderService.getOrder(context, { orderId });
+    if (order.channel !== "online") throw new FulfillmentError("ORDER_CHANNEL_UNSUPPORTED");
+    await this.orderService.collectCashOnDelivery(context, { orderId });
+    return this.ordersReadService.getOrder(context, orderId);
+  }
+
   async cancel(
     context: AuthorizationContext,
     orderId: string,

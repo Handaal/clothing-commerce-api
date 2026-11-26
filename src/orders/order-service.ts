@@ -10,12 +10,14 @@ import {
 import { OrderError } from "./errors";
 import {
   CancelOrderInputSchema,
+  CollectCashOnDeliveryInputSchema,
   CreateOrderInputSchema,
   GetOrderByNumberInputSchema,
   GetOrderInputSchema,
   OrderChannel,
   OrderPermission,
   type CancelOrderInput,
+  type CollectCashOnDeliveryInput,
   type CreateOrderInput,
   type GetOrderByNumberInput,
   type GetOrderInput,
@@ -279,6 +281,42 @@ export class OrderService {
           reason: command.reason,
         });
         return this.loadOrder(proof, context.tenant.id, routing.orderId);
+      },
+    });
+  }
+
+  /**
+   * Delivered + cash collected for an ONLINE cash-on-delivery order. Authorized as orders.fulfill on the
+   * order brand (whoever may ship it may record its delivery); the database requires every line shipped
+   * and captures the payment's own checkout amount, stamping who collected it. Idempotent.
+   */
+  async collectCashOnDelivery(
+    context: AuthorizationContext,
+    input: CollectCashOnDeliveryInput,
+  ): Promise<{ result: "collected" | "already_collected"; order: OrderResult }> {
+    const command = parseInput(CollectCashOnDeliveryInputSchema, input);
+    const routing = await this.repository.getOrderRouting(context.tenant.id, command.orderId);
+    if (routing === null) {
+      throw new OrderError("ORDER_NOT_FOUND");
+    }
+    if (routing.channel !== "online") {
+      throw new OrderError("PAYMENT_NOT_CASH_ON_DELIVERY");
+    }
+
+    return executeAuthorizedOperation({
+      authorizationService: this.authorizationService,
+      context,
+      request: {
+        permissionKey: OrderPermission.fulfill,
+        resources: [brandResource(routing.brandId)],
+      },
+      operation: async (proof) => {
+        const result = await this.repository.collectCashOnDelivery(proof, {
+          tenantId: context.tenant.id,
+          orderId: routing.orderId,
+          collectedByMembershipId: context.membership.id,
+        });
+        return { result, order: await this.loadOrder(proof, context.tenant.id, routing.orderId) };
       },
     });
   }

@@ -376,6 +376,67 @@ describe("OrderService cancellation", () => {
   });
 });
 
+describe("OrderService cash-on-delivery collection", () => {
+  const withFulfill = () => contextWith([grant([...allPermissions, OrderPermission.fulfill])]);
+
+  it("collects an online order once, then replays", async () => {
+    const { service, repo } = build();
+    const created = await service.createOrder(tenantWide(), onlineInput());
+    const first = await service.collectCashOnDelivery(withFulfill(), { orderId: created.id });
+    expect(first.result).toBe("collected");
+    expect(first.order.id).toBe(created.id);
+    const second = await service.collectCashOnDelivery(withFulfill(), { orderId: created.id });
+    expect(second.result).toBe("already_collected");
+    expect(repo.calls.filter((call) => call.method === "collectCashOnDelivery")).toHaveLength(2);
+    expect(repo.calls.at(-1)?.command).toMatchObject({ collectedByMembershipId: ids.membership });
+  });
+
+  it("refuses a POS order before touching persistence", async () => {
+    const { service, repo } = build();
+    const created = await service.createOrder(tenantWide(), posInput());
+    await expectOrderError(
+      service.collectCashOnDelivery(withFulfill(), { orderId: created.id }),
+      "PAYMENT_NOT_CASH_ON_DELIVERY",
+    );
+    expect(repo.calls.some((call) => call.method === "collectCashOnDelivery")).toBe(false);
+  });
+
+  it("surfaces not-fully-shipped and cancelled refusals", async () => {
+    const { service, repo } = build();
+    const created = await service.createOrder(tenantWide(), onlineInput());
+    repo.notFullyShipped.add(created.id);
+    await expectOrderError(
+      service.collectCashOnDelivery(withFulfill(), { orderId: created.id }),
+      "ORDER_NOT_FULLY_SHIPPED",
+    );
+    repo.notFullyShipped.delete(created.id);
+    await service.cancelOrder(tenantWide(), { orderId: created.id });
+    await expectOrderError(
+      service.collectCashOnDelivery(withFulfill(), { orderId: created.id }),
+      "ORDER_CANCELLED",
+    );
+  });
+
+  it("requires orders.fulfill on the brand", async () => {
+    const { service } = build();
+    const created = await service.createOrder(tenantWide(), onlineInput());
+    await expectAuthorizationError(
+      service.collectCashOnDelivery(tenantWide(), { orderId: created.id }),
+      "PERMISSION_DENIED",
+    );
+  });
+
+  it("answers ORDER_NOT_FOUND for an unknown order", async () => {
+    const { service } = build();
+    await expectOrderError(
+      service.collectCashOnDelivery(withFulfill(), {
+        orderId: "00000000-0000-4000-8000-0000000000ff",
+      }),
+      "ORDER_NOT_FOUND",
+    );
+  });
+});
+
 describe("OrderService input validation", () => {
   it("rejects an online order that supplies a register", async () => {
     const { service } = build();
