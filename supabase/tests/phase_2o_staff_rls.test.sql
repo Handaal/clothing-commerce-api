@@ -81,8 +81,10 @@ select ok(not has_function_privilege('service_role','staff_private.offline_sell_
 select ok(not has_function_privilege('authenticated','staff_private.offline_sell_roster(uuid,uuid)','EXECUTE'),'client cannot read the offline-seller roster directly');
 select ok(not has_function_privilege('service_role','staff_private.covers_permission(uuid,uuid,text,uuid,uuid)','EXECUTE'),'scope-coverage helper is internal only');
 
--- Every private entrypoint/helper is a hardened security-definer with an empty search_path.
-select is((select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='staff_private' and (not p.prosecdef or not p.proconfig @> array['search_path=""'])),0::bigint,'all staff_private functions are hardened');
+-- Every private entrypoint/helper is a hardened security-definer with an empty search_path. The one
+-- exception is override_permission_keys(): an immutable constant (two permission keys, no table access),
+-- SECURITY INVOKER with the same empty search_path and no client EXECUTE.
+select is((select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='staff_private' and (not coalesce(p.proconfig @> array['search_path=""'], false) or (not p.prosecdef and p.proname <> 'override_permission_keys'))),0::bigint,'all staff_private functions are hardened');
 
 select * from finish();
 rollback;

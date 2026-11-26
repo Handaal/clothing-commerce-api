@@ -88,6 +88,10 @@ beforeAll(async () => {
     createSupabasePosSaleRepository(config),
     createSupabaseOfflinePosRepository(config),
     { kek, keyVersion: 1 },
+    null,
+    false,
+    // Offline PIN v2 on: this suite proves enrollment and the bootstrap's unlock authorizations.
+    true,
   );
   void createSupabaseOrdersRepository;
 });
@@ -522,8 +526,9 @@ describe.sequential("Phase 2I offline POS real HTTP/domain boundary", () => {
   });
   it("verifies and rejects an offline paydown that exceeds the customer's outstanding", async () => {
     // Phase D2: a signed paydown for the seeded customer (who has no debt) must verify end-to-end —
-    // signature, grant binding, credential, customer lookup — then be rejected as an overpayment (422),
-    // proving the record_offline_customer_payment path and its CA409 -> blocking mapping on a live DB.
+    // signature, grant binding, credential, customer lookup — then be refused as an overpayment (CA409).
+    // ADR-042 §13.5: that refusal is preserved as a sync conflict for staff (200, conflict_recorded),
+    // never applied and never re-applied on replay.
     const customer = "2a000030-0000-4000-8000-000000000001";
     const rejected = await ingestPayment(
       signedPayment(
@@ -531,7 +536,8 @@ describe.sequential("Phase 2I offline POS real HTTP/domain boundary", () => {
         credentialId,
       ),
     );
-    expect(rejected.status).toBe(422);
+    expect(rejected.status).toBe(200);
+    expect(await rejected.json()).toMatchObject({ syncStatus: "conflict_recorded" });
     // A tampered signature is rejected before any A/R work.
     const tampered = signedPayment(
       paymentCommand(grant, "2a000030-0000-4000-8000-000000000052", customer, 500),
