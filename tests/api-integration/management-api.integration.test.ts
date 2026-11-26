@@ -329,6 +329,9 @@ describe("GET /me/context canRead semantics", () => {
       tenantWide: false,
       brands: [],
       branches: [],
+      canFulfill: false,
+      canCancel: false,
+      canCollect: false,
     });
   });
 });
