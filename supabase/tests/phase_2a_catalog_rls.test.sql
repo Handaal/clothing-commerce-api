@@ -116,27 +116,37 @@ select is(
   'catalog exposes no authenticated mutation policy'
 );
 
--- catalog_private holds the 3 Phase 2A integrity helpers (expected_variant_option_signature,
--- enforce_variant_option_signature, prevent_category_cycle), the 12 Phase 2J sanctioned write
--- functions (claim_write, complete_write, raise_catalog_unique_conflict, create_product, update_product,
--- set_product_status, create_variant, set_variant_price, publish_product, unpublish_product,
--- add_product_media, archive_product_media), the variant unit-cost writer (set_variant_cost), and the
--- 4 collection management writers (create_collection, update_collection, set_collection_status,
--- set_collection_products). All 20 are SECURITY INVOKER with a fixed empty search_path: the writers
--- deliberately run as the BYPASSRLS service_role that already holds catalog DML, so they never escalate
--- through SECURITY DEFINER. Because catalog_private contains exactly 20 functions, a match count of 20
--- also proves none of them is SECURITY DEFINER or missing the fixed empty search_path.
+-- catalog_private function hardening. Every function pins a fixed empty search_path. The catalog
+-- writers (Phase 2A helpers, Phase 2J sanctioned writes, collections, categories, vendors, options)
+-- are SECURITY INVOKER: they run as the BYPASSRLS service_role that already holds catalog DML, so they
+-- never escalate. The only SECURITY DEFINER functions are this explicit, reviewed allowlist — the sale
+-- engine (SDK 0.30+), storefront content / site text (0.52), catalog images and product-media editing
+-- (0.53). None of them is executable by PUBLIC/anon/authenticated (asserted below by the schema-usage
+-- and function-privilege checks). A count of 0 therefore proves no function lacks the fixed
+-- search_path and no unreviewed SECURITY DEFINER function was added.
 select is(
   (
     select count(*)
     from pg_catalog.pg_proc as procedure
     join pg_catalog.pg_namespace as namespace on namespace.oid = procedure.pronamespace
     where namespace.nspname = 'catalog_private'
-      and not procedure.prosecdef
-      and procedure.proconfig @> array['search_path=""']
+      and (
+        not coalesce(procedure.proconfig @> array['search_path=""'], false)
+        or (
+          procedure.prosecdef
+          and procedure.proname not in (
+            'assert_sale_shape', 'create_sale', 'delete_sale', 'effective_unit_price', 'list_sales',
+            'product_offers', 'public_storefront_site_text', 'reorder_product_media', 'sale_applies',
+            'sale_detail', 'set_category_image', 'set_collection_image', 'set_sale_status',
+            'storefront_content_detail', 'storefront_site_text_detail', 'update_product_media',
+            'update_sale', 'upsert_storefront_content', 'upsert_storefront_site_text',
+            'write_sale_products'
+          )
+        )
+      )
   ),
-  20::bigint,
-  'all 20 catalog_private functions are SECURITY INVOKER with an empty fixed search_path'
+  0::bigint,
+  'every catalog_private function has a fixed empty search_path; SECURITY DEFINER only on the reviewed allowlist'
 );
 
 select ok(
